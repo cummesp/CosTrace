@@ -267,7 +267,7 @@ const css = `
   .page-header p{font-size:14px;color:var(--text3);margin-top:3px;}
   /* LEDGER CARDS */
   .ledger-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}
-  @media(min-width:769px){.ledger-grid{grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:22px;}.new-ledger-card{min-height:280px;}}
+  @media(min-width:769px){.ledger-grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;}.new-ledger-card{min-height:200px;}}
   .ledger-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius-lg);cursor:pointer;transition:all 0.18s;overflow:hidden;}
   .ledger-card:hover{border-color:var(--border2);box-shadow:var(--shadow-lg);transform:translateY(-2px);}
   .ledger-cover{position:relative;}
@@ -9738,7 +9738,7 @@ function LedgerDetail({
           isDesktop
             ? {
                 display: "grid",
-                gridTemplateColumns: "380px 1fr",
+                gridTemplateColumns: "320px 1fr",
                 gap: "24px",
                 alignItems: "start",
               }
@@ -13523,6 +13523,101 @@ function Dashboard({
           })}
         </div>
       )}
+      {isDesktop &&
+        (() => {
+          const rows = activeLedgers.map((l) => {
+            const currExp = l.expenses.filter((e) => mk(e.expense_date) === curMk);
+            const bals = computeBalances(l, currExp);
+            const mine = bals.find((b) => b.user_id === currentUser.id);
+            const net = mine?.net || 0;
+            const total = currExp
+              .filter((e) => !e.is_settlement && e.approval_status === "approved")
+              .reduce((s, e) => s + e.amount, 0);
+            return { id: l.id, name: l.name, total, net };
+          });
+          const grandTotal = rows.reduce((s, r) => s + r.total, 0);
+          const grandNet = rows.reduce((s, r) => s + r.net, 0);
+          const maxTotal = Math.max(1, ...rows.map((r) => r.total));
+          if (rows.length === 0) return null;
+          return (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "auto 1fr",
+                gap: "24px",
+                alignItems: "stretch",
+                marginBottom: "22px",
+                background: "var(--white)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-lg)",
+                padding: "18px 22px",
+              }}
+            >
+              <div style={{ display: "flex", gap: "32px", alignItems: "center" }}>
+                <div>
+                  <div className="bal-label" style={{ fontSize: "11px" }}>
+                    Total this month
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "22px",
+                      fontFamily: "var(--mono)",
+                      fontWeight: "800",
+                      color: "var(--text2)",
+                    }}
+                  >
+                    {fmtAmt(grandTotal)}
+                  </div>
+                </div>
+                <div>
+                  <div className="bal-label" style={{ fontSize: "11px" }}>
+                    Your total balance
+                  </div>
+                  <div
+                    className={`bal-val ${
+                      grandNet > 0.01 ? "bal-pos" : grandNet < -0.01 ? "bal-neg" : "bal-zero"
+                    }`}
+                    style={{ fontSize: "22px" }}
+                  >
+                    {grandNet > 0.01 ? "+" : ""}
+                    {fmtAmt(grandNet)}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: "14px", minHeight: "64px" }}>
+                {rows.map((r) => (
+                  <div
+                    key={r.id}
+                    title={`${r.name}: ${fmtAmt(r.total)}`}
+                    style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", flex: 1, minWidth: 0 }}
+                  >
+                    <div
+                      style={{
+                        width: "100%",
+                        maxWidth: "36px",
+                        height: `${8 + (r.total / maxTotal) * 56}px`,
+                        background: r.total > 0 ? "var(--accent)" : "var(--border)",
+                        borderRadius: "4px 4px 0 0",
+                      }}
+                    />
+                    <div
+                      style={{
+                        fontSize: "10px",
+                        color: "var(--text3)",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        maxWidth: "70px",
+                      }}
+                    >
+                      {r.name}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       <div className="ledger-grid">
         {shown.map((l) => {
           const cover =
@@ -13583,7 +13678,7 @@ function Dashboard({
               <div className="ledger-cover">
                 <CoverImg
                   cover={l.cover || "house"}
-                  height={isDesktop ? 72 : 44}
+                  height={isDesktop ? 56 : 44}
                   coverColor={l.coverColor}
                   labelColor={l.labelColor}
                   customLabel={l.customLabel}
@@ -13689,7 +13784,7 @@ function Dashboard({
                 className="ledger-body"
                 style={
                   isDesktop
-                    ? { padding: "16px 20px 18px" }
+                    ? { padding: "11px 14px 12px" }
                     : { padding: "7px 12px 9px" }
                 }
               >
@@ -13699,15 +13794,15 @@ function Dashboard({
                     alignItems: "flex-start",
                     justifyContent: "space-between",
                     gap: "6px",
-                    marginBottom: isDesktop ? "6px" : "2px",
+                    marginBottom: isDesktop ? "3px" : "2px",
                   }}
                 >
                   <div>
                     <div
                       className="ledger-name"
                       style={{
-                        fontSize: isDesktop ? "19px" : "13px",
-                        marginBottom: isDesktop ? "4px" : "2px",
+                        fontSize: isDesktop ? "15px" : "13px",
+                        marginBottom: isDesktop ? "2px" : "2px",
                         lineHeight: 1.2,
                       }}
                     >
@@ -13716,7 +13811,7 @@ function Dashboard({
                     <div
                       className="ledger-meta"
                       style={{
-                        fontSize: isDesktop ? "13px" : "10px",
+                        fontSize: isDesktop ? "11px" : "10px",
                         marginBottom: 0,
                       }}
                     >
@@ -13735,7 +13830,7 @@ function Dashboard({
                     {planLedgerBadge(adminPlan)}
                     <span
                       style={{
-                        fontSize: isDesktop ? "11px" : "9px",
+                        fontSize: isDesktop ? "10px" : "9px",
                         color: "var(--text3)",
                         whiteSpace: "nowrap",
                         lineHeight: 1.4,
@@ -13748,21 +13843,21 @@ function Dashboard({
                 <div
                   className="ledger-balance"
                   style={{
-                    paddingTop: isDesktop ? "12px" : "5px",
+                    paddingTop: isDesktop ? "8px" : "5px",
                     borderTop: "1px solid var(--border)",
-                    marginTop: isDesktop ? "10px" : "5px",
+                    marginTop: isDesktop ? "7px" : "5px",
                   }}
                 >
                   <div>
                     <div
                       className="bal-label"
-                      style={{ fontSize: isDesktop ? "12px" : "9px" }}
+                      style={{ fontSize: isDesktop ? "10px" : "9px" }}
                     >
                       This month
                     </div>
                     <div
                       style={{
-                        fontSize: isDesktop ? "19px" : "13px",
+                        fontSize: isDesktop ? "15px" : "13px",
                         fontFamily: "var(--mono)",
                         fontWeight: "800",
                         color: "var(--text2)",
@@ -13774,7 +13869,7 @@ function Dashboard({
                   <div style={{ textAlign: "right" }}>
                     <div
                       className="bal-label"
-                      style={{ fontSize: isDesktop ? "12px" : "9px" }}
+                      style={{ fontSize: isDesktop ? "10px" : "9px" }}
                     >
                       Your balance
                     </div>
@@ -13786,7 +13881,7 @@ function Dashboard({
                           ? "bal-neg"
                           : "bal-zero"
                       }`}
-                      style={{ fontSize: isDesktop ? "19px" : "13px" }}
+                      style={{ fontSize: isDesktop ? "15px" : "13px" }}
                     >
                       {net > 0.01 ? "+" : ""}
                       {fmtAmt(net)}
