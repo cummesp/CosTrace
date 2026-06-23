@@ -483,6 +483,117 @@ const mlbl = (k) => {
   const [y, m] = k.split("-");
   return `${MONTHS[parseInt(m) - 1]} ${y}`;
 };
+
+// A single solid color representing a ledger, for the pie chart — reuses whatever
+// color the user picked for that ledger's cover, falling back to its cover's
+// gradient (just pulls one hex out of it) so every ledger has a stable, distinct color.
+function ledgerSolidColor(l) {
+  const cv = COVERS.find((c) => c.id === (l.cover || "house")) || COVERS[0];
+  const src = l.coverColor || cv.bg;
+  const m = src.match(/#[0-9a-fA-F]{6}/);
+  return m ? m[0] : "#6b7280";
+}
+
+function lastMonths(n) {
+  const out = [];
+  const now = new Date();
+  for (let i = n - 1; i >= 0; i--) {
+    out.push(mk(new Date(now.getFullYear(), now.getMonth() - i, 1)));
+  }
+  return out;
+}
+
+// Y axis = total debt, X axis = months.
+function MonthlyDebtChart({ data }) {
+  const w = 460,
+    h = 170,
+    padL = 50,
+    padB = 22,
+    padT = 14,
+    padR = 14;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+  const maxVal = Math.max(1, ...data.map((d) => d.debt));
+  const stepX = data.length > 1 ? plotW / (data.length - 1) : 0;
+  const points = data.map((d, i) => ({
+    x: padL + i * stepX,
+    y: padT + plotH - (d.debt / maxVal) * plotH,
+    ...d,
+  }));
+  const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+  const areaD =
+    points.length > 0
+      ? `${pathD} L ${points[points.length - 1].x} ${padT + plotH} L ${points[0].x} ${padT + plotH} Z`
+      : "";
+  const yTicks = [0, 0.5, 1].map((f) => ({ val: maxVal * f, y: padT + plotH - f * plotH }));
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height: "170px", display: "block" }}>
+      {yTicks.map((t, i) => (
+        <g key={i}>
+          <line x1={padL} y1={t.y} x2={w - padR} y2={t.y} stroke="var(--border)" strokeWidth="1" />
+          <text x={padL - 6} y={t.y + 3} fontSize="9" fill="var(--text3)" textAnchor="end">
+            {fmtAmt(t.val)}
+          </text>
+        </g>
+      ))}
+      {points.length > 1 && <path d={areaD} fill="var(--accent)" opacity="0.12" />}
+      {points.length > 1 && <path d={pathD} fill="none" stroke="var(--accent)" strokeWidth="2" />}
+      {points.map((p, i) => (
+        <g key={i}>
+          <circle cx={p.x} cy={p.y} r="3.5" fill="var(--accent)">
+            <title>{`${p.label}: ${fmtAmt(p.debt)}`}</title>
+          </circle>
+          <text x={p.x} y={h - 5} fontSize="9" fill="var(--text3)" textAnchor="middle">
+            {p.label.split(" ")[0]}
+          </text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+// Pie chart of current debt share per ledger, colored to match each ledger's own color.
+function DebtPieChart({ slices, mode }) {
+  const total = slices.reduce((s, x) => s + x.value, 0);
+  const size = 150,
+    r = 64,
+    cx = size / 2,
+    cy = size / 2;
+  if (total <= 0) {
+    return (
+      <div style={{ fontSize: "12px", color: "var(--text3)", textAlign: "center", padding: "44px 0", width: "150px" }}>
+        No debt right now 🎉
+      </div>
+    );
+  }
+  let angleStart = -90;
+  const toRad = (a) => (a * Math.PI) / 180;
+  const arcs = slices
+    .filter((s) => s.value > 0)
+    .map((s) => {
+      const angle = (s.value / total) * 360;
+      const angleEnd = angleStart + angle;
+      const large = angle > 180 ? 1 : 0;
+      const x1 = cx + r * Math.cos(toRad(angleStart));
+      const y1 = cy + r * Math.sin(toRad(angleStart));
+      const x2 = cx + r * Math.cos(toRad(angleEnd));
+      const y2 = cy + r * Math.sin(toRad(angleEnd));
+      const d = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
+      const out = { ...s, d, pct: (s.value / total) * 100 };
+      angleStart = angleEnd;
+      return out;
+    });
+  return (
+    <svg viewBox={`0 0 ${size} ${size}`} style={{ width: "150px", height: "150px", flexShrink: 0 }}>
+      {arcs.map((a, i) => (
+        <path key={i} d={a.d} fill={a.color} stroke="white" strokeWidth="1.5">
+          <title>{`${a.name}: ${mode === "percent" ? a.pct.toFixed(0) + "%" : fmtAmt(a.value)}`}</title>
+        </path>
+      ))}
+    </svg>
+  );
+}
+
 // Real layout detection (not just CSS fluidity) — components branch their JSX/inline
 // styles on this where a genuinely different desktop layout is needed (vs. mobile,
 // which always keeps rendering its existing, untouched code path).
@@ -13078,6 +13189,7 @@ function Dashboard({
   const curMk = mk(new Date());
   const [tab, setTab] = useState("active");
   const [filterCover, setFilterCover] = useState(null);
+  const [pieMode, setPieMode] = useState("percent"); // "percent" | "amount"
   const isDesktop = useIsDesktop();
   const activeLedgers = ledgers.filter((l) => !l.archived);
   const archivedLedgers = ledgers.filter((l) => l.archived);
@@ -13533,19 +13645,30 @@ function Dashboard({
             const total = currExp
               .filter((e) => !e.is_settlement && e.approval_status === "approved")
               .reduce((s, e) => s + e.amount, 0);
-            return { id: l.id, name: l.name, total, net };
+            const debt = Math.max(0, -net);
+            return { id: l.id, name: l.name, total, net, debt, color: ledgerSolidColor(l) };
           });
           const grandTotal = rows.reduce((s, r) => s + r.total, 0);
           const grandNet = rows.reduce((s, r) => s + r.net, 0);
-          const maxTotal = Math.max(1, ...rows.map((r) => r.total));
           if (rows.length === 0) return null;
+
+          const months = lastMonths(6);
+          const monthlyData = months.map((mkey) => {
+            const debt = activeLedgers.reduce((sum, l) => {
+              const exp = l.expenses.filter((e) => mk(e.expense_date) === mkey);
+              const bals = computeBalances(l, exp);
+              const mine = bals.find((b) => b.user_id === currentUser.id);
+              const net = mine?.net || 0;
+              return sum + Math.max(0, -net);
+            }, 0);
+            return { key: mkey, label: mlbl(mkey), debt };
+          });
+
+          const pieSlices = rows.map((r) => ({ name: r.name, value: r.debt, color: r.color }));
+
           return (
             <div
               style={{
-                display: "grid",
-                gridTemplateColumns: "auto 1fr",
-                gap: "24px",
-                alignItems: "stretch",
                 marginBottom: "22px",
                 background: "var(--white)",
                 border: "1px solid var(--border)",
@@ -13553,7 +13676,7 @@ function Dashboard({
                 padding: "18px 22px",
               }}
             >
-              <div style={{ display: "flex", gap: "32px", alignItems: "center" }}>
+              <div style={{ display: "flex", gap: "32px", alignItems: "center", marginBottom: "18px" }}>
                 <div>
                   <div className="bal-label" style={{ fontSize: "11px" }}>
                     Total this month
@@ -13584,36 +13707,52 @@ function Dashboard({
                   </div>
                 </div>
               </div>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: "14px", minHeight: "64px" }}>
-                {rows.map((r) => (
-                  <div
-                    key={r.id}
-                    title={`${r.name}: ${fmtAmt(r.total)}`}
-                    style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", flex: 1, minWidth: 0 }}
-                  >
-                    <div
-                      style={{
-                        width: "100%",
-                        maxWidth: "36px",
-                        height: `${8 + (r.total / maxTotal) * 56}px`,
-                        background: r.total > 0 ? "var(--accent)" : "var(--border)",
-                        borderRadius: "4px 4px 0 0",
-                      }}
-                    />
-                    <div
-                      style={{
-                        fontSize: "10px",
-                        color: "var(--text3)",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        maxWidth: "70px",
-                      }}
-                    >
-                      {r.name}
-                    </div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr auto",
+                  gap: "28px",
+                  alignItems: "center",
+                }}
+              >
+                <div>
+                  <div className="bal-label" style={{ fontSize: "11px", marginBottom: "4px", textAlign: "center" }}>
+                    Total debt by month
                   </div>
-                ))}
+                  <MonthlyDebtChart data={monthlyData} />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <div className="bal-label" style={{ fontSize: "11px" }}>
+                      Debt by ledger
+                    </div>
+                    <button
+                      onClick={() => setPieMode(pieMode === "percent" ? "amount" : "percent")}
+                      className="btn btn-secondary"
+                      style={{ fontSize: "10px", padding: "3px 9px" }}
+                    >
+                      {pieMode === "percent" ? "Show amount" : "Show %"}
+                    </button>
+                  </div>
+                  <DebtPieChart slices={pieSlices} mode={pieMode} />
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
+                    {rows
+                      .filter((r) => r.debt > 0)
+                      .map((r) => {
+                        const total = rows.reduce((s, x) => s + x.debt, 0);
+                        const pct = total > 0 ? (r.debt / total) * 100 : 0;
+                        return (
+                          <div key={r.id} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "10px", color: "var(--text3)" }}>
+                            <span style={{ width: "8px", height: "8px", borderRadius: "2px", background: r.color, flexShrink: 0 }} />
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
+                            <span style={{ marginLeft: "auto", fontFamily: "var(--mono)" }}>
+                              {pieMode === "percent" ? `${pct.toFixed(0)}%` : fmtAmt(r.debt)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
               </div>
             </div>
           );
