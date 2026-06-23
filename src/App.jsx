@@ -503,14 +503,27 @@ function lastMonths(n) {
   return out;
 }
 
+function timeAgo(dateStr) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  return `${months}mo ago`;
+}
+
 // Y axis = total debt, X axis = months.
 function MonthlyDebtChart({ data }) {
   const w = 460,
     h = 170,
-    padL = 50,
+    padL = 46,
     padB = 22,
     padT = 14,
-    padR = 14;
+    padR = 8;
   const plotW = w - padL - padR;
   const plotH = h - padT - padB;
   const maxVal = Math.max(1, ...data.map((d) => d.debt));
@@ -520,30 +533,49 @@ function MonthlyDebtChart({ data }) {
     y: padT + plotH - (d.debt / maxVal) * plotH,
     ...d,
   }));
-  const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+  // Smooth the line with simple cubic bezier segments between points.
+  const smoothPath = (pts) => {
+    if (pts.length < 2) return pts.length ? `M ${pts[0].x} ${pts[0].y}` : "";
+    let d = `M ${pts[0].x} ${pts[0].y}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i],
+        p1 = pts[i + 1];
+      const mx = (p0.x + p1.x) / 2;
+      d += ` C ${mx} ${p0.y}, ${mx} ${p1.y}, ${p1.x} ${p1.y}`;
+    }
+    return d;
+  };
+  const pathD = smoothPath(points);
   const areaD =
-    points.length > 0
+    points.length > 1
       ? `${pathD} L ${points[points.length - 1].x} ${padT + plotH} L ${points[0].x} ${padT + plotH} Z`
       : "";
   const yTicks = [0, 0.5, 1].map((f) => ({ val: maxVal * f, y: padT + plotH - f * plotH }));
+  const gradId = "debtAreaGrad";
   return (
     <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height: "170px", display: "block" }}>
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#42C3E6" stopOpacity="0.45" />
+          <stop offset="100%" stopColor="#42C3E6" stopOpacity="0" />
+        </linearGradient>
+      </defs>
       {yTicks.map((t, i) => (
         <g key={i}>
-          <line x1={padL} y1={t.y} x2={w - padR} y2={t.y} stroke="var(--border)" strokeWidth="1" />
-          <text x={padL - 6} y={t.y + 3} fontSize="9" fill="var(--text3)" textAnchor="end">
+          <line x1={padL} y1={t.y} x2={w - padR} y2={t.y} stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+          <text x={padL - 6} y={t.y + 3} fontSize="9" fill="rgba(255,255,255,0.45)" textAnchor="end">
             {fmtAmt(t.val)}
           </text>
         </g>
       ))}
-      {points.length > 1 && <path d={areaD} fill="var(--accent)" opacity="0.12" />}
-      {points.length > 1 && <path d={pathD} fill="none" stroke="var(--accent)" strokeWidth="2" />}
+      {points.length > 1 && <path d={areaD} fill={`url(#${gradId})`} />}
+      {points.length > 1 && <path d={pathD} fill="none" stroke="#42C3E6" strokeWidth="2.5" strokeLinecap="round" />}
       {points.map((p, i) => (
         <g key={i}>
-          <circle cx={p.x} cy={p.y} r="3.5" fill="var(--accent)">
+          <circle cx={p.x} cy={p.y} r="3.5" fill="#0B1422" stroke="#42C3E6" strokeWidth="2">
             <title>{`${p.label}: ${fmtAmt(p.debt)}`}</title>
           </circle>
-          <text x={p.x} y={h - 5} fontSize="9" fill="var(--text3)" textAnchor="middle">
+          <text x={p.x} y={h - 5} fontSize="9" fill="rgba(255,255,255,0.45)" textAnchor="middle">
             {p.label.split(" ")[0]}
           </text>
         </g>
@@ -552,16 +584,18 @@ function MonthlyDebtChart({ data }) {
   );
 }
 
-// Pie chart of current debt share per ledger, colored to match each ledger's own color.
-function DebtPieChart({ slices, mode }) {
+// Donut chart of current debt share per ledger, colored to match each ledger's own color,
+// with the grand total shown in the center hole.
+function DebtPieChart({ slices, mode, centerLabel }) {
   const total = slices.reduce((s, x) => s + x.value, 0);
   const size = 150,
     r = 64,
+    rInner = 42,
     cx = size / 2,
     cy = size / 2;
   if (total <= 0) {
     return (
-      <div style={{ fontSize: "12px", color: "var(--text3)", textAlign: "center", padding: "44px 0", width: "150px" }}>
+      <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", textAlign: "center", padding: "44px 0", width: "150px" }}>
         No debt right now 🎉
       </div>
     );
@@ -578,19 +612,43 @@ function DebtPieChart({ slices, mode }) {
       const y1 = cy + r * Math.sin(toRad(angleStart));
       const x2 = cx + r * Math.cos(toRad(angleEnd));
       const y2 = cy + r * Math.sin(toRad(angleEnd));
-      const d = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
+      const xi1 = cx + rInner * Math.cos(toRad(angleEnd));
+      const yi1 = cy + rInner * Math.sin(toRad(angleEnd));
+      const xi2 = cx + rInner * Math.cos(toRad(angleStart));
+      const yi2 = cy + rInner * Math.sin(toRad(angleStart));
+      const d = `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${xi1} ${yi1} A ${rInner} ${rInner} 0 ${large} 0 ${xi2} ${yi2} Z`;
       const out = { ...s, d, pct: (s.value / total) * 100 };
       angleStart = angleEnd;
       return out;
     });
   return (
-    <svg viewBox={`0 0 ${size} ${size}`} style={{ width: "150px", height: "150px", flexShrink: 0 }}>
-      {arcs.map((a, i) => (
-        <path key={i} d={a.d} fill={a.color} stroke="white" strokeWidth="1.5">
-          <title>{`${a.name}: ${mode === "percent" ? a.pct.toFixed(0) + "%" : fmtAmt(a.value)}`}</title>
-        </path>
-      ))}
-    </svg>
+    <div style={{ position: "relative", width: "150px", height: "150px", flexShrink: 0 }}>
+      <svg viewBox={`0 0 ${size} ${size}`} style={{ width: "150px", height: "150px" }}>
+        {arcs.map((a, i) => (
+          <path key={i} d={a.d} fill={a.color} stroke="#151E2B" strokeWidth="2">
+            <title>{`${a.name}: ${mode === "percent" ? a.pct.toFixed(0) + "%" : fmtAmt(a.value)}`}</title>
+          </path>
+        ))}
+      </svg>
+      {centerLabel && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            pointerEvents: "none",
+          }}
+        >
+          <div style={{ fontSize: "9px", color: "rgba(255,255,255,0.45)" }}>Total debt</div>
+          <div style={{ fontSize: "14px", fontWeight: "800", color: "white", fontFamily: "var(--mono)" }}>
+            {centerLabel}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -13642,14 +13700,22 @@ function Dashboard({
             const bals = computeBalances(l, currExp);
             const mine = bals.find((b) => b.user_id === currentUser.id);
             const net = mine?.net || 0;
-            const total = currExp
-              .filter((e) => !e.is_settlement && e.approval_status === "approved")
-              .reduce((s, e) => s + e.amount, 0);
+            const approvedExp = currExp.filter((e) => !e.is_settlement && e.approval_status === "approved");
+            const total = approvedExp.reduce((s, e) => s + e.amount, 0);
             const debt = Math.max(0, -net);
-            return { id: l.id, name: l.name, total, net, debt, color: ledgerSolidColor(l) };
+            return {
+              id: l.id,
+              name: l.name,
+              total,
+              net,
+              debt,
+              color: ledgerSolidColor(l),
+              approvedCount: approvedExp.length,
+            };
           });
           const grandTotal = rows.reduce((s, r) => s + r.total, 0);
           const grandNet = rows.reduce((s, r) => s + r.net, 0);
+          const approvedCount = rows.reduce((s, r) => s + r.approvedCount, 0);
           if (rows.length === 0) return null;
 
           const months = lastMonths(6);
@@ -13665,84 +13731,117 @@ function Dashboard({
           });
 
           const pieSlices = rows.map((r) => ({ name: r.name, value: r.debt, color: r.color }));
+          const grandDebt = rows.reduce((s, r) => s + r.debt, 0);
+
+          // Latest changes across every active ledger — most recent dated expenses first.
+          const feed = activeLedgers
+            .flatMap((l) => l.expenses.map((e) => ({ ...e, ledgerName: l.name, ledgerColor: ledgerSolidColor(l) })))
+            .sort((a, b) => new Date(b.expense_date) - new Date(a.expense_date))
+            .slice(0, 7);
+
+          const statusStyle = {
+            approved: { bg: "rgba(46,125,86,0.18)", fg: "#6FDDA8" },
+            pending: { bg: "rgba(183,119,13,0.18)", fg: "#F0B94D" },
+            denied: { bg: "rgba(192,57,43,0.18)", fg: "#F08C82" },
+          };
 
           return (
             <div
               style={{
                 marginBottom: "22px",
-                background: "var(--white)",
-                border: "1px solid var(--border)",
+                background: "linear-gradient(160deg,#151E2B,#1B2738)",
+                border: "1px solid rgba(255,255,255,0.06)",
                 borderRadius: "var(--radius-lg)",
-                padding: "18px 22px",
+                padding: "24px 26px",
+                boxShadow: "0 16px 40px rgba(10,16,28,0.35)",
               }}
             >
-              <div style={{ display: "flex", gap: "32px", alignItems: "center", marginBottom: "18px" }}>
-                <div>
-                  <div className="bal-label" style={{ fontSize: "11px" }}>
-                    Total this month
-                  </div>
+              {/* Stat tiles */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "18px", marginBottom: "22px" }}>
+                {[
+                  { label: "Total spent", value: fmtAmt(grandTotal), accent: "#42C3E6" },
+                  {
+                    label: "Your balance",
+                    value: `${grandNet > 0.01 ? "+" : ""}${fmtAmt(grandNet)}`,
+                    accent: grandNet > 0.01 ? "#6FDDA8" : grandNet < -0.01 ? "#F08C82" : "rgba(255,255,255,0.7)",
+                  },
+                  { label: "Approved this month", value: String(approvedCount), accent: "#42C3E6" },
+                  { label: "Active ledgers", value: String(rows.length), accent: "#42C3E6" },
+                ].map((tile, i) => (
                   <div
+                    key={i}
                     style={{
-                      fontSize: "22px",
-                      fontFamily: "var(--mono)",
-                      fontWeight: "800",
-                      color: "var(--text2)",
+                      background: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.06)",
+                      borderRadius: "12px",
+                      padding: "14px 16px",
                     }}
                   >
-                    {fmtAmt(grandTotal)}
+                    <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", marginBottom: "6px" }}>
+                      {tile.label}
+                    </div>
+                    <div style={{ fontSize: "21px", fontWeight: "800", fontFamily: "var(--mono)", color: tile.accent }}>
+                      {tile.value}
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <div className="bal-label" style={{ fontSize: "11px" }}>
-                    Your total balance
-                  </div>
-                  <div
-                    className={`bal-val ${
-                      grandNet > 0.01 ? "bal-pos" : grandNet < -0.01 ? "bal-neg" : "bal-zero"
-                    }`}
-                    style={{ fontSize: "22px" }}
-                  >
-                    {grandNet > 0.01 ? "+" : ""}
-                    {fmtAmt(grandNet)}
-                  </div>
-                </div>
+                ))}
               </div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr auto",
-                  gap: "28px",
-                  alignItems: "center",
-                }}
-              >
-                <div>
-                  <div className="bal-label" style={{ fontSize: "11px", marginBottom: "4px", textAlign: "center" }}>
-                    Total debt by month
+
+              {/* Charts row */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "26px", alignItems: "stretch", marginBottom: "22px" }}>
+                <div
+                  style={{
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(255,255,255,0.06)",
+                    borderRadius: "12px",
+                    padding: "14px 16px",
+                  }}
+                >
+                  <div style={{ fontSize: "12px", fontWeight: "700", color: "rgba(255,255,255,0.85)", marginBottom: "6px" }}>
+                    Debt over time
                   </div>
                   <MonthlyDebtChart data={monthlyData} />
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <div className="bal-label" style={{ fontSize: "11px" }}>
+                <div
+                  style={{
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(255,255,255,0.06)",
+                    borderRadius: "12px",
+                    padding: "14px 16px",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "10px",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", alignSelf: "stretch", justifyContent: "space-between" }}>
+                    <div style={{ fontSize: "12px", fontWeight: "700", color: "rgba(255,255,255,0.85)" }}>
                       Debt by ledger
                     </div>
                     <button
                       onClick={() => setPieMode(pieMode === "percent" ? "amount" : "percent")}
-                      className="btn btn-secondary"
-                      style={{ fontSize: "10px", padding: "3px 9px" }}
+                      style={{
+                        fontSize: "10px",
+                        padding: "3px 9px",
+                        borderRadius: "20px",
+                        border: "1px solid rgba(255,255,255,0.15)",
+                        background: "rgba(255,255,255,0.06)",
+                        color: "rgba(255,255,255,0.8)",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
                     >
                       {pieMode === "percent" ? "Show amount" : "Show %"}
                     </button>
                   </div>
-                  <DebtPieChart slices={pieSlices} mode={pieMode} />
+                  <DebtPieChart slices={pieSlices} mode={pieMode} centerLabel={fmtAmt(grandDebt)} />
                   <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
                     {rows
                       .filter((r) => r.debt > 0)
                       .map((r) => {
-                        const total = rows.reduce((s, x) => s + x.debt, 0);
-                        const pct = total > 0 ? (r.debt / total) * 100 : 0;
+                        const pct = grandDebt > 0 ? (r.debt / grandDebt) * 100 : 0;
                         return (
-                          <div key={r.id} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "10px", color: "var(--text3)" }}>
+                          <div key={r.id} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "10px", color: "rgba(255,255,255,0.6)" }}>
                             <span style={{ width: "8px", height: "8px", borderRadius: "2px", background: r.color, flexShrink: 0 }} />
                             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
                             <span style={{ marginLeft: "auto", fontFamily: "var(--mono)" }}>
@@ -13753,6 +13852,73 @@ function Dashboard({
                       })}
                   </div>
                 </div>
+              </div>
+
+              {/* Latest changes feed */}
+              <div
+                style={{
+                  background: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                  borderRadius: "12px",
+                  padding: "14px 16px",
+                }}
+              >
+                <div style={{ fontSize: "12px", fontWeight: "700", color: "rgba(255,255,255,0.85)", marginBottom: "10px" }}>
+                  Latest changes
+                </div>
+                {feed.length === 0 ? (
+                  <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.45)", padding: "10px 0" }}>
+                    Nothing yet — add an expense to see it here.
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                    {feed.map((e) => {
+                      const st = statusStyle[e.approval_status] || statusStyle.approved;
+                      return (
+                        <div
+                          key={e.id}
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "10px 1fr auto auto auto",
+                            alignItems: "center",
+                            gap: "12px",
+                            padding: "8px 4px",
+                            borderTop: "1px solid rgba(255,255,255,0.05)",
+                          }}
+                        >
+                          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: e.ledgerColor }} />
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: "12.5px", color: "white", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {e.description || (e.is_settlement ? "Settlement" : "Expense")}
+                            </div>
+                            <div style={{ fontSize: "10.5px", color: "rgba(255,255,255,0.45)" }}>
+                              {e.ledgerName} · {e.paid_by_name || "—"}
+                            </div>
+                          </div>
+                          <div style={{ fontSize: "12px", fontFamily: "var(--mono)", color: "rgba(255,255,255,0.8)", whiteSpace: "nowrap" }}>
+                            {fmtAmt(e.amount)}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "10px",
+                              fontWeight: "700",
+                              padding: "2px 9px",
+                              borderRadius: "20px",
+                              background: st.bg,
+                              color: st.fg,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {e.approval_status}
+                          </div>
+                          <div style={{ fontSize: "10.5px", color: "rgba(255,255,255,0.4)", whiteSpace: "nowrap" }}>
+                            {timeAgo(e.expense_date)}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           );
