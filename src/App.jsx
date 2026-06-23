@@ -562,8 +562,8 @@ function MonthlyDebtChart({ data }) {
       </defs>
       {yTicks.map((t, i) => (
         <g key={i}>
-          <line x1={padL} y1={t.y} x2={w - padR} y2={t.y} stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
-          <text x={padL - 6} y={t.y + 3} fontSize="9" fill="rgba(255,255,255,0.45)" textAnchor="end">
+          <line x1={padL} y1={t.y} x2={w - padR} y2={t.y} stroke="var(--border)" strokeWidth="1" />
+          <text x={padL - 6} y={t.y + 3} fontSize="9" fill="var(--text3)" textAnchor="end">
             {fmtAmt(t.val)}
           </text>
         </g>
@@ -572,10 +572,10 @@ function MonthlyDebtChart({ data }) {
       {points.length > 1 && <path d={pathD} fill="none" stroke="#42C3E6" strokeWidth="2.5" strokeLinecap="round" />}
       {points.map((p, i) => (
         <g key={i}>
-          <circle cx={p.x} cy={p.y} r="3.5" fill="#0B1422" stroke="#42C3E6" strokeWidth="2">
+          <circle cx={p.x} cy={p.y} r="3.5" fill="var(--white)" stroke="#42C3E6" strokeWidth="2">
             <title>{`${p.label}: ${fmtAmt(p.debt)}`}</title>
           </circle>
-          <text x={p.x} y={h - 5} fontSize="9" fill="rgba(255,255,255,0.45)" textAnchor="middle">
+          <text x={p.x} y={h - 5} fontSize="9" fill="var(--text3)" textAnchor="middle">
             {p.label.split(" ")[0]}
           </text>
         </g>
@@ -595,7 +595,7 @@ function DebtPieChart({ slices, mode, centerLabel }) {
     cy = size / 2;
   if (total <= 0) {
     return (
-      <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", textAlign: "center", padding: "44px 0", width: "150px" }}>
+      <div style={{ fontSize: "12px", color: "var(--text3)", textAlign: "center", padding: "44px 0", width: "150px" }}>
         No debt right now 🎉
       </div>
     );
@@ -625,7 +625,7 @@ function DebtPieChart({ slices, mode, centerLabel }) {
     <div style={{ position: "relative", width: "150px", height: "150px", flexShrink: 0 }}>
       <svg viewBox={`0 0 ${size} ${size}`} style={{ width: "150px", height: "150px" }}>
         {arcs.map((a, i) => (
-          <path key={i} d={a.d} fill={a.color} stroke="#151E2B" strokeWidth="2">
+          <path key={i} d={a.d} fill={a.color} stroke="var(--white)" strokeWidth="2">
             <title>{`${a.name}: ${mode === "percent" ? a.pct.toFixed(0) + "%" : fmtAmt(a.value)}`}</title>
           </path>
         ))}
@@ -642,8 +642,8 @@ function DebtPieChart({ slices, mode, centerLabel }) {
             pointerEvents: "none",
           }}
         >
-          <div style={{ fontSize: "9px", color: "rgba(255,255,255,0.45)" }}>Total debt</div>
-          <div style={{ fontSize: "14px", fontWeight: "800", color: "white", fontFamily: "var(--mono)" }}>
+          <div style={{ fontSize: "9px", color: "var(--text3)" }}>Total debt</div>
+          <div style={{ fontSize: "14px", fontWeight: "800", color: "var(--text)", fontFamily: "var(--mono)" }}>
             {centerLabel}
           </div>
         </div>
@@ -13693,6 +13693,13 @@ function Dashboard({
           })}
         </div>
       )}
+      <div
+        style={
+          isDesktop
+            ? { display: "grid", gridTemplateColumns: "1fr 380px", gap: "22px", alignItems: "start" }
+            : undefined
+        }
+      >
       {isDesktop &&
         (() => {
           const rows = activeLedgers.map((l) => {
@@ -13749,11 +13756,11 @@ function Dashboard({
             <div
               style={{
                 marginBottom: "22px",
-                background: "linear-gradient(160deg,#151E2B,#1B2738)",
-                border: "1px solid rgba(255,255,255,0.06)",
+                background: "var(--white)",
+                border: "1px solid var(--border)",
                 borderRadius: "var(--radius-lg)",
                 padding: "24px 26px",
-                boxShadow: "0 16px 40px rgba(10,16,28,0.35)",
+                boxShadow: "var(--shadow)",
               }}
             >
               {/* Stat tiles */}
@@ -13763,7 +13770,7 @@ function Dashboard({
                   {
                     label: "Your balance",
                     value: `${grandNet > 0.01 ? "+" : ""}${fmtAmt(grandNet)}`,
-                    accent: grandNet > 0.01 ? "#6FDDA8" : grandNet < -0.01 ? "#F08C82" : "rgba(255,255,255,0.7)",
+                    accent: grandNet > 0.01 ? "var(--success)" : grandNet < -0.01 ? "var(--danger)" : "var(--text2)",
                   },
                   { label: "Approved this month", value: String(approvedCount), accent: "#42C3E6" },
                   { label: "Active ledgers", value: String(rows.length), accent: "#42C3E6" },
@@ -13771,13 +13778,13 @@ function Dashboard({
                   <div
                     key={i}
                     style={{
-                      background: "rgba(255,255,255,0.04)",
-                      border: "1px solid rgba(255,255,255,0.06)",
+                      background: "var(--bg)",
+                      border: "1px solid var(--border)",
                       borderRadius: "12px",
                       padding: "14px 16px",
                     }}
                   >
-                    <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", marginBottom: "6px" }}>
+                    <div style={{ fontSize: "11px", color: "var(--text3)", marginBottom: "6px" }}>
                       {tile.label}
                     </div>
                     <div style={{ fontSize: "21px", fontWeight: "800", fontFamily: "var(--mono)", color: tile.accent }}>
@@ -13791,21 +13798,21 @@ function Dashboard({
               <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "26px", alignItems: "stretch", marginBottom: "22px" }}>
                 <div
                   style={{
-                    background: "rgba(255,255,255,0.03)",
-                    border: "1px solid rgba(255,255,255,0.06)",
+                    background: "var(--bg)",
+                    border: "1px solid var(--border)",
                     borderRadius: "12px",
                     padding: "14px 16px",
                   }}
                 >
-                  <div style={{ fontSize: "12px", fontWeight: "700", color: "rgba(255,255,255,0.85)", marginBottom: "6px" }}>
+                  <div style={{ fontSize: "12px", fontWeight: "700", color: "var(--text)", marginBottom: "6px" }}>
                     Debt over time
                   </div>
                   <MonthlyDebtChart data={monthlyData} />
                 </div>
                 <div
                   style={{
-                    background: "rgba(255,255,255,0.03)",
-                    border: "1px solid rgba(255,255,255,0.06)",
+                    background: "var(--bg)",
+                    border: "1px solid var(--border)",
                     borderRadius: "12px",
                     padding: "14px 16px",
                     display: "flex",
@@ -13815,21 +13822,13 @@ function Dashboard({
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", alignSelf: "stretch", justifyContent: "space-between" }}>
-                    <div style={{ fontSize: "12px", fontWeight: "700", color: "rgba(255,255,255,0.85)" }}>
+                    <div style={{ fontSize: "12px", fontWeight: "700", color: "var(--text)" }}>
                       Debt by ledger
                     </div>
                     <button
                       onClick={() => setPieMode(pieMode === "percent" ? "amount" : "percent")}
-                      style={{
-                        fontSize: "10px",
-                        padding: "3px 9px",
-                        borderRadius: "20px",
-                        border: "1px solid rgba(255,255,255,0.15)",
-                        background: "rgba(255,255,255,0.06)",
-                        color: "rgba(255,255,255,0.8)",
-                        cursor: "pointer",
-                        fontFamily: "inherit",
-                      }}
+                      className="btn btn-secondary"
+                      style={{ fontSize: "10px", padding: "3px 9px" }}
                     >
                       {pieMode === "percent" ? "Show amount" : "Show %"}
                     </button>
@@ -13841,7 +13840,7 @@ function Dashboard({
                       .map((r) => {
                         const pct = grandDebt > 0 ? (r.debt / grandDebt) * 100 : 0;
                         return (
-                          <div key={r.id} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "10px", color: "rgba(255,255,255,0.6)" }}>
+                          <div key={r.id} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "10px", color: "var(--text3)" }}>
                             <span style={{ width: "8px", height: "8px", borderRadius: "2px", background: r.color, flexShrink: 0 }} />
                             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
                             <span style={{ marginLeft: "auto", fontFamily: "var(--mono)" }}>
@@ -13857,17 +13856,17 @@ function Dashboard({
               {/* Latest changes feed */}
               <div
                 style={{
-                  background: "rgba(255,255,255,0.03)",
-                  border: "1px solid rgba(255,255,255,0.06)",
+                  background: "var(--bg)",
+                  border: "1px solid var(--border)",
                   borderRadius: "12px",
                   padding: "14px 16px",
                 }}
               >
-                <div style={{ fontSize: "12px", fontWeight: "700", color: "rgba(255,255,255,0.85)", marginBottom: "10px" }}>
+                <div style={{ fontSize: "12px", fontWeight: "700", color: "var(--text)", marginBottom: "10px" }}>
                   Latest changes
                 </div>
                 {feed.length === 0 ? (
-                  <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.45)", padding: "10px 0" }}>
+                  <div style={{ fontSize: "12px", color: "var(--text3)", padding: "10px 0" }}>
                     Nothing yet — add an expense to see it here.
                   </div>
                 ) : (
@@ -13883,19 +13882,19 @@ function Dashboard({
                             alignItems: "center",
                             gap: "12px",
                             padding: "8px 4px",
-                            borderTop: "1px solid rgba(255,255,255,0.05)",
+                            borderTop: "1px solid var(--border)",
                           }}
                         >
                           <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: e.ledgerColor }} />
                           <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: "12.5px", color: "white", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            <div style={{ fontSize: "12.5px", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {e.description || (e.is_settlement ? "Settlement" : "Expense")}
                             </div>
-                            <div style={{ fontSize: "10.5px", color: "rgba(255,255,255,0.45)" }}>
+                            <div style={{ fontSize: "10.5px", color: "var(--text3)" }}>
                               {e.ledgerName} · {e.paid_by_name || "—"}
                             </div>
                           </div>
-                          <div style={{ fontSize: "12px", fontFamily: "var(--mono)", color: "rgba(255,255,255,0.8)", whiteSpace: "nowrap" }}>
+                          <div style={{ fontSize: "12px", fontFamily: "var(--mono)", color: "var(--text2)", whiteSpace: "nowrap" }}>
                             {fmtAmt(e.amount)}
                           </div>
                           <div
@@ -13911,7 +13910,7 @@ function Dashboard({
                           >
                             {e.approval_status}
                           </div>
-                          <div style={{ fontSize: "10.5px", color: "rgba(255,255,255,0.4)", whiteSpace: "nowrap" }}>
+                          <div style={{ fontSize: "10.5px", color: "var(--text3)", whiteSpace: "nowrap" }}>
                             {timeAgo(e.expense_date)}
                           </div>
                         </div>
@@ -13923,7 +13922,7 @@ function Dashboard({
             </div>
           );
         })()}
-      <div className="ledger-grid">
+      <div className="ledger-grid" style={isDesktop ? { gridTemplateColumns: "1fr" } : undefined}>
         {shown.map((l) => {
           const cover =
             COVERS.find((c) => c.id === (l.cover || "house")) || COVERS[0];
@@ -14283,6 +14282,7 @@ function Dashboard({
             )}
           </div>
         )}
+      </div>
       </div>
     </div>
   );
@@ -16353,6 +16353,7 @@ export default function App() {
       members: final,
       expenses: [],
       lockedMonths: {},
+      auto_lock: true,
       _syncing: ENV === "production",
     };
     setLedgers((p) => [...p, newLedger]);
@@ -16365,6 +16366,7 @@ export default function App() {
           cover: data.cover || "house",
           require_approval: data.require_approval,
           notifications_enabled: true,
+          auto_lock: true,
           locked_months: {},
         })
         .select()
