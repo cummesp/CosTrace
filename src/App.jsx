@@ -256,10 +256,10 @@ const css = `
     .main-content{margin-left:0;margin-top:64px;max-width:100vw;padding:32px 40px 48px;}
   }
   @media(max-width:768px){.main-content{margin-top:0!important;}}
-  .mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--header);border-top:1px solid var(--header-border);padding:8px 0 18px;gap:0;z-index:100;box-shadow:0 -4px 24px rgba(0,0,0,0.2);}
-  .mobile-nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:4px;padding:6px 4px 0;border-radius:0;font-size:10px;font-weight:600;color:rgba(255,255,255,0.45);cursor:pointer;border:none;background:none;}
-  .mobile-nav-item .nav-icon{width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-  .mobile-nav-item svg{width:24px;height:24px;flex-shrink:0;}
+  .mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--header);border-top:1px solid var(--header-border);padding:8px 0 18px;gap:0;z-index:100;box-shadow:0 -4px 24px rgba(0,0,0,0.2);overflow:hidden;}
+  .mobile-nav-item{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3px;padding:6px 2px 0;border-radius:0;font-size:9px;font-weight:600;color:rgba(255,255,255,0.45);cursor:pointer;border:none;background:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .mobile-nav-item .nav-icon{width:20px;height:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .mobile-nav-item svg{width:20px;height:20px;flex-shrink:0;}
   .mobile-nav-item.active{color:#7BA3D4;}
   /* PAGE */
   .page-header{margin-bottom:22px;}
@@ -13289,10 +13289,11 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
                 borderRadius: "var(--radius-lg)",
                 padding: "24px 26px",
                 boxShadow: "var(--shadow)",
+                overflowX: "hidden",
               }}
             >
               {/* Stat tiles */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "18px", marginBottom: "22px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "repeat(4,1fr)" : "repeat(2,1fr)", gap: "12px", marginBottom: "22px" }}>
                 {[
                   { label: "Total spent", value: fmtAmt(grandTotal), accent: "#42C3E6" },
                   {
@@ -13309,13 +13310,25 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
                       background: "var(--bg)",
                       border: "1px solid var(--border)",
                       borderRadius: "12px",
-                      padding: "14px 16px",
+                      padding: isDesktop ? "14px 16px" : "10px 12px",
+                      minWidth: 0,
+                      overflow: "hidden",
                     }}
                   >
-                    <div style={{ fontSize: "11px", color: "var(--text3)", marginBottom: "6px" }}>
+                    <div style={{ fontSize: "11px", color: "var(--text3)", marginBottom: "6px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {tile.label}
                     </div>
-                    <div style={{ fontSize: "21px", fontWeight: "800", fontFamily: "var(--mono)", color: tile.accent }}>
+                    <div
+                      style={{
+                        fontSize: isDesktop ? "21px" : "17px",
+                        fontWeight: "800",
+                        fontFamily: "var(--mono)",
+                        color: tile.accent,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
                       {tile.value}
                     </div>
                   </div>
@@ -13408,40 +13421,46 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
                           key={e.id}
                           style={{
                             display: "grid",
-                            gridTemplateColumns: "10px 1fr auto auto auto",
+                            gridTemplateColumns: isDesktop ? "10px 1fr auto auto auto" : "8px 1fr auto",
                             alignItems: "center",
-                            gap: "12px",
+                            gap: isDesktop ? "12px" : "8px",
                             padding: "8px 4px",
                             borderTop: "1px solid var(--border)",
+                            minWidth: 0,
                           }}
                         >
-                          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: e.ledgerColor }} />
+                          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: e.ledgerColor, flexShrink: 0 }} />
                           <div style={{ minWidth: 0 }}>
                             <div style={{ fontSize: "12.5px", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {e.description || (e.is_settlement ? "Settlement" : "Expense")}
                             </div>
-                            <div style={{ fontSize: "10.5px", color: "var(--text3)" }}>
+                            <div style={{ fontSize: "10.5px", color: "var(--text3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {e.ledgerName} · {e.paid_by_name || "—"}
+                              {!isDesktop && ` · ${timeAgo(e.expense_date)}`}
                             </div>
                           </div>
-                          <div style={{ fontSize: "12px", fontFamily: "var(--mono)", color: "var(--text2)", whiteSpace: "nowrap" }}>
-                            {fmtAmt(e.amount)}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: "10px",
-                              fontWeight: "700",
-                              padding: "2px 9px",
-                              borderRadius: "20px",
-                              background: st.bg,
-                              color: st.fg,
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {e.approval_status}
-                          </div>
-                          <div style={{ fontSize: "10.5px", color: "var(--text3)", whiteSpace: "nowrap" }}>
-                            {timeAgo(e.expense_date)}
+                          <div style={{ display: "flex", flexDirection: isDesktop ? "row" : "column", alignItems: isDesktop ? "center" : "flex-end", gap: isDesktop ? "12px" : "3px" }}>
+                            <div style={{ fontSize: isDesktop ? "12px" : "11.5px", fontFamily: "var(--mono)", color: "var(--text2)", whiteSpace: "nowrap" }}>
+                              {fmtAmt(e.amount)}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: "10px",
+                                fontWeight: "700",
+                                padding: "2px 9px",
+                                borderRadius: "20px",
+                                background: st.bg,
+                                color: st.fg,
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {e.approval_status}
+                            </div>
+                            {isDesktop && (
+                              <div style={{ fontSize: "10.5px", color: "var(--text3)", whiteSpace: "nowrap" }}>
+                                {timeAgo(e.expense_date)}
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
@@ -13950,16 +13969,10 @@ function Dashboard({
       >
       {isDesktop && (
         <div>
-          <h2 style={{ fontSize: "15px", fontWeight: "800", color: "var(--text)", marginBottom: "10px" }}>
-            Statistics
-          </h2>
           <LedgerStatsOverview ledgers={ledgers} currentUser={currentUser} />
         </div>
       )}
       <div>
-        <h2 style={{ fontSize: "15px", fontWeight: "800", color: "var(--text)", marginBottom: "10px" }}>
-          My ledgers
-        </h2>
         <div className="ledger-grid" style={isDesktop ? { gridTemplateColumns: "repeat(2, 1fr)" } : undefined}>
         {shown.map((l) => {
           const cover =
