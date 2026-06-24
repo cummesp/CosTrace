@@ -10803,25 +10803,55 @@ const MOCK_NETWORKS = [
 
 function NetworkPage({ ledgers, currentUser, onCreateLedgerWith }) {
   const [tab, setTab] = useState("networks");
-  const [networks, setNetworks] = useState(() => {
-    try {
-      const saved = localStorage.getItem(
-        `eq_networks_${currentUser?.id || "guest"}`
-      );
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      return [];
-    }
-  });
-  // Persist networks to localStorage on change
+  const [networks, setNetworks] = useState([]);
+  const [networksLoaded, setNetworksLoaded] = useState(false);
+  // Load networks from Supabase (falls back to a one-time localStorage migration
+  // for anyone who had networks saved on this device from before this synced).
   useEffect(() => {
-    try {
-      localStorage.setItem(
-        `eq_networks_${currentUser?.id || "guest"}`,
-        JSON.stringify(networks)
-      );
-    } catch (e) {}
-  }, [networks]);
+    let cancelled = false;
+    (async () => {
+      if (!currentUser?.id) return;
+      const { data, error } = await sb
+        .from("user_networks")
+        .select("networks")
+        .eq("user_id", currentUser.id)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error) {
+        console.error("loadNetworks failed", error);
+        setNetworksLoaded(true);
+        return;
+      }
+      if (data) {
+        setNetworks(data.networks || []);
+      } else {
+        // Nothing in the DB yet — migrate this device's local copy once, if any.
+        let local = [];
+        try {
+          const saved = localStorage.getItem(`eq_networks_${currentUser.id}`);
+          local = saved ? JSON.parse(saved) : [];
+        } catch (e) {}
+        setNetworks(local);
+        if (local.length > 0) {
+          await sb.from("user_networks").upsert({ user_id: currentUser.id, networks: local });
+        }
+      }
+      setNetworksLoaded(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.id]);
+  // Persist networks to Supabase on change (skip the very first load so we don't
+  // immediately re-write what we just fetched).
+  useEffect(() => {
+    if (!networksLoaded || !currentUser?.id) return;
+    sb.from("user_networks")
+      .upsert({ user_id: currentUser.id, networks })
+      .then(({ error }) => {
+        if (error) console.error("saveNetworks failed", error);
+      });
+  }, [networks, networksLoaded, currentUser?.id]);
   const [showNew, setShowNew] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [newName, setNewName] = useState("");
