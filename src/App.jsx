@@ -13227,6 +13227,7 @@ function AdBanner({ onShowUpgrade, onRemoveAds, style = {} }) {
 
 function LedgerStatsOverview({ ledgers, currentUser }) {
   const [pieMode, setPieMode] = useState("percent");
+  const isDesktop = useIsDesktop();
   const curMk = mk(new Date());
   const activeLedgers = ledgers.filter((l) => !l.archived);
           const rows = activeLedgers.map((l) => {
@@ -13321,7 +13322,8 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
                 ))}
               </div>
 
-              {/* Charts row */}
+              {/* Charts row — desktop only; mobile keeps the stat tiles and Latest changes feed below */}
+              {isDesktop && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "26px", alignItems: "stretch", marginBottom: "22px" }}>
                 <div
                   style={{
@@ -13379,6 +13381,7 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
                   </div>
                 </div>
               </div>
+              )}
 
               {/* Latest changes feed */}
               <div
@@ -13945,8 +13948,19 @@ function Dashboard({
             : undefined
         }
       >
-      {isDesktop && <LedgerStatsOverview ledgers={ledgers} currentUser={currentUser} />}
-      <div className="ledger-grid" style={isDesktop ? { gridTemplateColumns: "repeat(2, 1fr)" } : undefined}>
+      {isDesktop && (
+        <div>
+          <h2 style={{ fontSize: "15px", fontWeight: "800", color: "var(--text)", marginBottom: "10px" }}>
+            Statistics
+          </h2>
+          <LedgerStatsOverview ledgers={ledgers} currentUser={currentUser} />
+        </div>
+      )}
+      <div>
+        <h2 style={{ fontSize: "15px", fontWeight: "800", color: "var(--text)", marginBottom: "10px" }}>
+          My ledgers
+        </h2>
+        <div className="ledger-grid" style={isDesktop ? { gridTemplateColumns: "repeat(2, 1fr)" } : undefined}>
         {shown.map((l) => {
           const cover =
             COVERS.find((c) => c.id === (l.cover || "house")) || COVERS[0];
@@ -14306,6 +14320,7 @@ function Dashboard({
             )}
           </div>
         )}
+      </div>
       </div>
       </div>
     </div>
