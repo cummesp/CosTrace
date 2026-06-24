@@ -13225,6 +13225,252 @@ function AdBanner({ onShowUpgrade, onRemoveAds, style = {} }) {
   );
 }
 
+function LedgerStatsOverview({ ledgers, currentUser }) {
+  const [pieMode, setPieMode] = useState("percent");
+  const curMk = mk(new Date());
+  const activeLedgers = ledgers.filter((l) => !l.archived);
+          const rows = activeLedgers.map((l) => {
+            const currExp = l.expenses.filter((e) => mk(e.expense_date) === curMk);
+            const bals = computeBalances(l, currExp);
+            const mine = bals.find((b) => b.user_id === currentUser.id);
+            const net = mine?.net || 0;
+            const approvedExp = currExp.filter((e) => !e.is_settlement && e.approval_status === "approved");
+            const total = approvedExp.reduce((s, e) => s + e.amount, 0);
+            const debt = Math.max(0, -net);
+            return {
+              id: l.id,
+              name: l.name,
+              total,
+              net,
+              debt,
+              color: ledgerSolidColor(l),
+              approvedCount: approvedExp.length,
+            };
+          });
+          const grandTotal = rows.reduce((s, r) => s + r.total, 0);
+          const grandNet = rows.reduce((s, r) => s + r.net, 0);
+          const approvedCount = rows.reduce((s, r) => s + r.approvedCount, 0);
+          if (rows.length === 0) return null;
+
+          const months = lastMonths(6);
+          const monthlyData = months.map((mkey) => {
+            const debt = activeLedgers.reduce((sum, l) => {
+              const exp = l.expenses.filter((e) => mk(e.expense_date) === mkey);
+              const bals = computeBalances(l, exp);
+              const mine = bals.find((b) => b.user_id === currentUser.id);
+              const net = mine?.net || 0;
+              return sum + Math.max(0, -net);
+            }, 0);
+            return { key: mkey, label: mlbl(mkey), debt };
+          });
+
+          const pieSlices = rows.map((r) => ({ name: r.name, value: r.debt, color: r.color }));
+          const grandDebt = rows.reduce((s, r) => s + r.debt, 0);
+
+          // Latest changes across every active ledger — most recent dated expenses first.
+          const feed = activeLedgers
+            .flatMap((l) => l.expenses.map((e) => ({ ...e, ledgerName: l.name, ledgerColor: ledgerSolidColor(l) })))
+            .sort((a, b) => new Date(b.expense_date) - new Date(a.expense_date))
+            .slice(0, 7);
+
+          const statusStyle = {
+            approved: { bg: "rgba(46,125,86,0.18)", fg: "#6FDDA8" },
+            pending: { bg: "rgba(183,119,13,0.18)", fg: "#F0B94D" },
+            denied: { bg: "rgba(192,57,43,0.18)", fg: "#F08C82" },
+          };
+
+          return (
+            <div
+              style={{
+                marginBottom: "22px",
+                background: "var(--white)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-lg)",
+                padding: "24px 26px",
+                boxShadow: "var(--shadow)",
+              }}
+            >
+              {/* Stat tiles */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "18px", marginBottom: "22px" }}>
+                {[
+                  { label: "Total spent", value: fmtAmt(grandTotal), accent: "#42C3E6" },
+                  {
+                    label: "Your balance",
+                    value: `${grandNet > 0.01 ? "+" : ""}${fmtAmt(grandNet)}`,
+                    accent: grandNet > 0.01 ? "var(--success)" : grandNet < -0.01 ? "var(--danger)" : "var(--text2)",
+                  },
+                  { label: "Approved this month", value: String(approvedCount), accent: "#42C3E6" },
+                  { label: "Active ledgers", value: String(rows.length), accent: "#42C3E6" },
+                ].map((tile, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      background: "var(--bg)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "12px",
+                      padding: "14px 16px",
+                    }}
+                  >
+                    <div style={{ fontSize: "11px", color: "var(--text3)", marginBottom: "6px" }}>
+                      {tile.label}
+                    </div>
+                    <div style={{ fontSize: "21px", fontWeight: "800", fontFamily: "var(--mono)", color: tile.accent }}>
+                      {tile.value}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Charts row */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "26px", alignItems: "stretch", marginBottom: "22px" }}>
+                <div
+                  style={{
+                    background: "var(--bg)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "12px",
+                    padding: "14px 16px",
+                  }}
+                >
+                  <div style={{ fontSize: "12px", fontWeight: "700", color: "var(--text)", marginBottom: "6px" }}>
+                    Debt over time
+                  </div>
+                  <MonthlyDebtChart data={monthlyData} />
+                </div>
+                <div
+                  style={{
+                    background: "var(--bg)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "12px",
+                    padding: "14px 16px",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "10px",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", alignSelf: "stretch", justifyContent: "space-between" }}>
+                    <div style={{ fontSize: "12px", fontWeight: "700", color: "var(--text)" }}>
+                      Debt by ledger
+                    </div>
+                    <button
+                      onClick={() => setPieMode(pieMode === "percent" ? "amount" : "percent")}
+                      className="btn btn-secondary"
+                      style={{ fontSize: "10px", padding: "3px 9px" }}
+                    >
+                      {pieMode === "percent" ? "Show amount" : "Show %"}
+                    </button>
+                  </div>
+                  <DebtPieChart slices={pieSlices} mode={pieMode} centerLabel={fmtAmt(grandDebt)} />
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
+                    {rows
+                      .filter((r) => r.debt > 0)
+                      .map((r) => {
+                        const pct = grandDebt > 0 ? (r.debt / grandDebt) * 100 : 0;
+                        return (
+                          <div key={r.id} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "10px", color: "var(--text3)" }}>
+                            <span style={{ width: "8px", height: "8px", borderRadius: "2px", background: r.color, flexShrink: 0 }} />
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
+                            <span style={{ marginLeft: "auto", fontFamily: "var(--mono)" }}>
+                              {pieMode === "percent" ? `${pct.toFixed(0)}%` : fmtAmt(r.debt)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Latest changes feed */}
+              <div
+                style={{
+                  background: "var(--bg)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "12px",
+                  padding: "14px 16px",
+                }}
+              >
+                <div style={{ fontSize: "12px", fontWeight: "700", color: "var(--text)", marginBottom: "10px" }}>
+                  Latest changes
+                </div>
+                {feed.length === 0 ? (
+                  <div style={{ fontSize: "12px", color: "var(--text3)", padding: "10px 0" }}>
+                    Nothing yet — add an expense to see it here.
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                    {feed.map((e) => {
+                      const st = statusStyle[e.approval_status] || statusStyle.approved;
+                      return (
+                        <div
+                          key={e.id}
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "10px 1fr auto auto auto",
+                            alignItems: "center",
+                            gap: "12px",
+                            padding: "8px 4px",
+                            borderTop: "1px solid var(--border)",
+                          }}
+                        >
+                          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: e.ledgerColor }} />
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: "12.5px", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {e.description || (e.is_settlement ? "Settlement" : "Expense")}
+                            </div>
+                            <div style={{ fontSize: "10.5px", color: "var(--text3)" }}>
+                              {e.ledgerName} · {e.paid_by_name || "—"}
+                            </div>
+                          </div>
+                          <div style={{ fontSize: "12px", fontFamily: "var(--mono)", color: "var(--text2)", whiteSpace: "nowrap" }}>
+                            {fmtAmt(e.amount)}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "10px",
+                              fontWeight: "700",
+                              padding: "2px 9px",
+                              borderRadius: "20px",
+                              background: st.bg,
+                              color: st.fg,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {e.approval_status}
+                          </div>
+                          <div style={{ fontSize: "10.5px", color: "var(--text3)", whiteSpace: "nowrap" }}>
+                            {timeAgo(e.expense_date)}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+}
+
+function StatsPage({ ledgers, currentUser }) {
+  const hasActive = ledgers.some((l) => !l.archived);
+  return (
+    <div>
+      <div className="page-header">
+        <h1>Statistics</h1>
+        <p>Spending and debt across your ledgers</p>
+      </div>
+      {hasActive ? (
+        <LedgerStatsOverview ledgers={ledgers} currentUser={currentUser} />
+      ) : (
+        <div className="empty-state">
+          <div className="empty-icon"></div>
+          <h2>Nothing to show yet</h2>
+          <p>Create a ledger and add some expenses to see your stats here.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Dashboard({
   ledgers,
   currentUser,
@@ -13247,7 +13493,6 @@ function Dashboard({
   const curMk = mk(new Date());
   const [tab, setTab] = useState("active");
   const [filterCover, setFilterCover] = useState(null);
-  const [pieMode, setPieMode] = useState("percent"); // "percent" | "amount"
   const isDesktop = useIsDesktop();
   const activeLedgers = ledgers.filter((l) => !l.archived);
   const archivedLedgers = ledgers.filter((l) => l.archived);
@@ -13696,233 +13941,12 @@ function Dashboard({
       <div
         style={
           isDesktop
-            ? { display: "grid", gridTemplateColumns: "1fr 380px", gap: "22px", alignItems: "start" }
+            ? { display: "grid", gridTemplateColumns: "1fr 560px", gap: "22px", alignItems: "start" }
             : undefined
         }
       >
-      {isDesktop &&
-        (() => {
-          const rows = activeLedgers.map((l) => {
-            const currExp = l.expenses.filter((e) => mk(e.expense_date) === curMk);
-            const bals = computeBalances(l, currExp);
-            const mine = bals.find((b) => b.user_id === currentUser.id);
-            const net = mine?.net || 0;
-            const approvedExp = currExp.filter((e) => !e.is_settlement && e.approval_status === "approved");
-            const total = approvedExp.reduce((s, e) => s + e.amount, 0);
-            const debt = Math.max(0, -net);
-            return {
-              id: l.id,
-              name: l.name,
-              total,
-              net,
-              debt,
-              color: ledgerSolidColor(l),
-              approvedCount: approvedExp.length,
-            };
-          });
-          const grandTotal = rows.reduce((s, r) => s + r.total, 0);
-          const grandNet = rows.reduce((s, r) => s + r.net, 0);
-          const approvedCount = rows.reduce((s, r) => s + r.approvedCount, 0);
-          if (rows.length === 0) return null;
-
-          const months = lastMonths(6);
-          const monthlyData = months.map((mkey) => {
-            const debt = activeLedgers.reduce((sum, l) => {
-              const exp = l.expenses.filter((e) => mk(e.expense_date) === mkey);
-              const bals = computeBalances(l, exp);
-              const mine = bals.find((b) => b.user_id === currentUser.id);
-              const net = mine?.net || 0;
-              return sum + Math.max(0, -net);
-            }, 0);
-            return { key: mkey, label: mlbl(mkey), debt };
-          });
-
-          const pieSlices = rows.map((r) => ({ name: r.name, value: r.debt, color: r.color }));
-          const grandDebt = rows.reduce((s, r) => s + r.debt, 0);
-
-          // Latest changes across every active ledger — most recent dated expenses first.
-          const feed = activeLedgers
-            .flatMap((l) => l.expenses.map((e) => ({ ...e, ledgerName: l.name, ledgerColor: ledgerSolidColor(l) })))
-            .sort((a, b) => new Date(b.expense_date) - new Date(a.expense_date))
-            .slice(0, 7);
-
-          const statusStyle = {
-            approved: { bg: "rgba(46,125,86,0.18)", fg: "#6FDDA8" },
-            pending: { bg: "rgba(183,119,13,0.18)", fg: "#F0B94D" },
-            denied: { bg: "rgba(192,57,43,0.18)", fg: "#F08C82" },
-          };
-
-          return (
-            <div
-              style={{
-                marginBottom: "22px",
-                background: "var(--white)",
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius-lg)",
-                padding: "24px 26px",
-                boxShadow: "var(--shadow)",
-              }}
-            >
-              {/* Stat tiles */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "18px", marginBottom: "22px" }}>
-                {[
-                  { label: "Total spent", value: fmtAmt(grandTotal), accent: "#42C3E6" },
-                  {
-                    label: "Your balance",
-                    value: `${grandNet > 0.01 ? "+" : ""}${fmtAmt(grandNet)}`,
-                    accent: grandNet > 0.01 ? "var(--success)" : grandNet < -0.01 ? "var(--danger)" : "var(--text2)",
-                  },
-                  { label: "Approved this month", value: String(approvedCount), accent: "#42C3E6" },
-                  { label: "Active ledgers", value: String(rows.length), accent: "#42C3E6" },
-                ].map((tile, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      background: "var(--bg)",
-                      border: "1px solid var(--border)",
-                      borderRadius: "12px",
-                      padding: "14px 16px",
-                    }}
-                  >
-                    <div style={{ fontSize: "11px", color: "var(--text3)", marginBottom: "6px" }}>
-                      {tile.label}
-                    </div>
-                    <div style={{ fontSize: "21px", fontWeight: "800", fontFamily: "var(--mono)", color: tile.accent }}>
-                      {tile.value}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Charts row */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "26px", alignItems: "stretch", marginBottom: "22px" }}>
-                <div
-                  style={{
-                    background: "var(--bg)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "12px",
-                    padding: "14px 16px",
-                  }}
-                >
-                  <div style={{ fontSize: "12px", fontWeight: "700", color: "var(--text)", marginBottom: "6px" }}>
-                    Debt over time
-                  </div>
-                  <MonthlyDebtChart data={monthlyData} />
-                </div>
-                <div
-                  style={{
-                    background: "var(--bg)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "12px",
-                    padding: "14px 16px",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: "10px",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", alignSelf: "stretch", justifyContent: "space-between" }}>
-                    <div style={{ fontSize: "12px", fontWeight: "700", color: "var(--text)" }}>
-                      Debt by ledger
-                    </div>
-                    <button
-                      onClick={() => setPieMode(pieMode === "percent" ? "amount" : "percent")}
-                      className="btn btn-secondary"
-                      style={{ fontSize: "10px", padding: "3px 9px" }}
-                    >
-                      {pieMode === "percent" ? "Show amount" : "Show %"}
-                    </button>
-                  </div>
-                  <DebtPieChart slices={pieSlices} mode={pieMode} centerLabel={fmtAmt(grandDebt)} />
-                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
-                    {rows
-                      .filter((r) => r.debt > 0)
-                      .map((r) => {
-                        const pct = grandDebt > 0 ? (r.debt / grandDebt) * 100 : 0;
-                        return (
-                          <div key={r.id} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "10px", color: "var(--text3)" }}>
-                            <span style={{ width: "8px", height: "8px", borderRadius: "2px", background: r.color, flexShrink: 0 }} />
-                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
-                            <span style={{ marginLeft: "auto", fontFamily: "var(--mono)" }}>
-                              {pieMode === "percent" ? `${pct.toFixed(0)}%` : fmtAmt(r.debt)}
-                            </span>
-                          </div>
-                        );
-                      })}
-                  </div>
-                </div>
-              </div>
-
-              {/* Latest changes feed */}
-              <div
-                style={{
-                  background: "var(--bg)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "12px",
-                  padding: "14px 16px",
-                }}
-              >
-                <div style={{ fontSize: "12px", fontWeight: "700", color: "var(--text)", marginBottom: "10px" }}>
-                  Latest changes
-                </div>
-                {feed.length === 0 ? (
-                  <div style={{ fontSize: "12px", color: "var(--text3)", padding: "10px 0" }}>
-                    Nothing yet — add an expense to see it here.
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                    {feed.map((e) => {
-                      const st = statusStyle[e.approval_status] || statusStyle.approved;
-                      return (
-                        <div
-                          key={e.id}
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "10px 1fr auto auto auto",
-                            alignItems: "center",
-                            gap: "12px",
-                            padding: "8px 4px",
-                            borderTop: "1px solid var(--border)",
-                          }}
-                        >
-                          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: e.ledgerColor }} />
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: "12.5px", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {e.description || (e.is_settlement ? "Settlement" : "Expense")}
-                            </div>
-                            <div style={{ fontSize: "10.5px", color: "var(--text3)" }}>
-                              {e.ledgerName} · {e.paid_by_name || "—"}
-                            </div>
-                          </div>
-                          <div style={{ fontSize: "12px", fontFamily: "var(--mono)", color: "var(--text2)", whiteSpace: "nowrap" }}>
-                            {fmtAmt(e.amount)}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: "10px",
-                              fontWeight: "700",
-                              padding: "2px 9px",
-                              borderRadius: "20px",
-                              background: st.bg,
-                              color: st.fg,
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {e.approval_status}
-                          </div>
-                          <div style={{ fontSize: "10.5px", color: "var(--text3)", whiteSpace: "nowrap" }}>
-                            {timeAgo(e.expense_date)}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })()}
-      <div className="ledger-grid" style={isDesktop ? { gridTemplateColumns: "1fr" } : undefined}>
+      {isDesktop && <LedgerStatsOverview ledgers={ledgers} currentUser={currentUser} />}
+      <div className="ledger-grid" style={isDesktop ? { gridTemplateColumns: "repeat(2, 1fr)" } : undefined}>
         {shown.map((l) => {
           const cover =
             COVERS.find((c) => c.id === (l.cover || "house")) || COVERS[0];
@@ -17008,6 +17032,8 @@ export default function App() {
                 setPage("home");
               }}
             />
+          ) : page === "stats" ? (
+            <StatsPage ledgers={ledgers} currentUser={user} />
           ) : ledgers.length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon"></div>
@@ -17122,6 +17148,33 @@ export default function App() {
             </svg>
           </div>
           <span>Network</span>
+        </button>
+        <button
+          className={`mobile-nav-item${
+            page === "stats" ? " active" : ""
+          }`}
+          onClick={() => {
+            setActiveLedgerId(null);
+            setPage("stats");
+          }}
+        >
+          <div className="nav-icon">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="5" y1="20" x2="5" y2="12" />
+              <line x1="12" y1="20" x2="12" y2="6" />
+              <line x1="19" y1="20" x2="19" y2="14" />
+            </svg>
+          </div>
+          <span>Stats</span>
         </button>
         <button
           className="mobile-nav-item"
