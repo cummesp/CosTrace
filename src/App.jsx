@@ -13382,7 +13382,7 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
               }}
             >
               {/* Stat tiles */}
-              <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "35fr 35fr 15fr 15fr" : "repeat(2,1fr)", gap: "12px", marginBottom: "22px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "30fr 30fr 20fr 20fr" : "repeat(2,1fr)", gap: "12px", marginBottom: "22px" }}>
                 {[
                   { label: "Total spent", value: fmtAmt(grandTotal), accent: "#42C3E6" },
                   {
