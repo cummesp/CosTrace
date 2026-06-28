@@ -2377,6 +2377,61 @@ function computeBalances(ledger, expenses) {
     }));
 }
 
+// Given a month that's being locked, compute each member's net for that month
+// and turn it into real "Carry-over" expenses dated at the start of the next
+// month — paid_by the creditor, owed by the debtor. Because this reuses the
+// exact same paid/owed math as every other expense, the new month's balance
+// automatically includes it with no separate "carryover" calculation needed
+// anywhere else. Returns [] if everyone is already settled for that month.
+function buildCarryoverExpenses(ledger, lockedMonth) {
+  const monthExpenses = ledger.expenses.filter(
+    (e) => mk(e.expense_date) === lockedMonth
+  );
+  const balances = computeBalances(ledger, monthExpenses);
+  const debtors = balances
+    .filter((b) => b.net < -0.01)
+    .map((b) => ({ ...b, rem: -b.net }))
+    .sort((a, b) => b.rem - a.rem);
+  const creditors = balances
+    .filter((b) => b.net > 0.01)
+    .map((b) => ({ ...b, rem: b.net }))
+    .sort((a, b) => b.rem - a.rem);
+  const [y, m] = lockedMonth.split("-").map(Number);
+  const nextMonthDate = new Date(y, m, 1); // m is 1-based in the key, so this lands on day 1 of the following month
+  const expenses = [];
+  let di = 0,
+    ci = 0;
+  while (di < debtors.length && ci < creditors.length) {
+    const d = debtors[di],
+      c = creditors[ci];
+    const amt = Math.min(d.rem, c.rem);
+    if (amt > 0.01) {
+      const rounded = parseFloat(amt.toFixed(2));
+      expenses.push({
+        id: `ecarry${Date.now()}_${di}_${ci}_${Math.random()
+          .toString(36)
+          .slice(2, 6)}`,
+        description: `Carry-over from ${mlbl(lockedMonth)}`,
+        amount: rounded,
+        paid_by_name: c.display_name,
+        paid_by_id: c.user_id || null,
+        expense_date: nextMonthDate.toISOString(),
+        approval_status: "approved",
+        is_settlement: false,
+        is_carryover: true,
+        splits: [
+          { member_id: d.id, share_percent: 100, amount_owed: rounded },
+        ],
+      });
+    }
+    d.rem -= amt;
+    c.rem -= amt;
+    if (d.rem < 0.01) di++;
+    if (c.rem < 0.01) ci++;
+  }
+  return expenses;
+}
+
 function getMonths(l) {
   return [...new Set(l.expenses.map((e) => mk(e.expense_date)))].sort();
 }
@@ -4008,6 +4063,10 @@ function LedgerSettingsModal({
               <div>
                 Auto-lock: <strong>{ledger.auto_lock ? "Yes" : "No"}</strong>
               </div>
+              <div>
+                Carry over balance:{" "}
+                <strong>{ledger.carry_balance ? "Yes" : "No"}</strong>
+              </div>
             </div>
             <div style={{ marginBottom: "14px" }}>
               <div
@@ -4188,6 +4247,9 @@ function LedgerSettingsModal({
     ledger.notifications_enabled !== false
   );
   const [autoLock, setAutoLock] = useState(ledger.auto_lock || false);
+  const [carryBalance, setCarryBalance] = useState(
+    ledger.carry_balance || false
+  );
   // Payout mode: "offset_ledger" | "offset_custom" | "record_no_split" | "record_ledger" | "record_custom"
   const [payoutMode, setPayoutMode] = useState(
     ledger.payout_mode || "offset_ledger"
@@ -4301,6 +4363,7 @@ function LedgerSettingsModal({
       cover: selectedCover,
       notifications_enabled: notifEnabled,
       auto_lock: autoLock,
+      carry_balance: carryBalance,
       payout_mode: payoutMode,
       payout_custom_splits:
         payoutMode === "offset_custom" || payoutMode === "record_custom"
@@ -4759,6 +4822,26 @@ function LedgerSettingsModal({
                     type="checkbox"
                     checked={autoLock}
                     onChange={(e) => setAutoLock(e.target.checked)}
+                  />
+                  <span className="toggle-slider" />
+                </label>
+              </div>
+              <div className="settings-row">
+                <div>
+                  <div className="settings-label">
+                    Carry over balance to next month
+                  </div>
+                  <div className="settings-sub">
+                    When a month is locked, each member's +/- is recorded as a
+                    "Carry-over" entry at the start of the next month, instead
+                    of resetting to 0
+                  </div>
+                </div>
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={carryBalance}
+                    onChange={(e) => setCarryBalance(e.target.checked)}
                   />
                   <span className="toggle-slider" />
                 </label>
@@ -6513,6 +6596,15 @@ function StatementCard({
       };
     });
   const hasCarry = prevLocked.length > 0;
+  const lifetimeBalances = ledger.carry_balance
+    ? computeBalances(
+        ledger,
+        ledger.expenses.filter((e) => e.approval_status === "approved")
+      )
+    : null;
+  const myLifetimeBalance = lifetimeBalances
+    ? lifetimeBalances.find((b) => b.user_id === currentUser.id)
+    : null;
   const debtors = combined.filter((m) => m.total < -0.01);
   const creditors = combined.filter((m) => m.total > 0.01);
   const pendingCount = monthExpenses.filter(
@@ -6531,6 +6623,57 @@ function StatementCard({
         </span>
       </div>
       <div className="stmt-body">
+        {ledger.carry_balance && myLifetimeBalance && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              background: "var(--bg)",
+              border: "1.5px solid var(--border)",
+              borderRadius: "var(--radius-sm)",
+              padding: "10px 14px",
+              marginBottom: "12px",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: "11px",
+                  fontWeight: "700",
+                  color: "var(--text3)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.3px",
+                }}
+              >
+                Lifetime balance
+              </div>
+              <div
+                style={{ fontSize: "10px", color: "var(--text3)", marginTop: "1px" }}
+              >
+                Carried across all locked months
+              </div>
+            </div>
+            <div
+              className={
+                myLifetimeBalance.net > 0.01
+                  ? "net-pos"
+                  : myLifetimeBalance.net < -0.01
+                  ? "net-neg"
+                  : "net-zero"
+              }
+              style={{
+                fontSize: "18px",
+                fontWeight: "800",
+                fontFamily: "var(--font)",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {myLifetimeBalance.net > 0.01 ? "+" : ""}
+              {fmtAmt(myLifetimeBalance.net)} {currency}
+            </div>
+          </div>
+        )}
         {(pendingCount > 0 || deniedCount > 0) && (
           <div
             style={{
@@ -6663,7 +6806,7 @@ function StatementCard({
               </div>
             </div>
           )}
-        {isCurrentMonth && hasCarry && (
+        {!ledger.carry_balance && isCurrentMonth && hasCarry && (
           <div className="carry-note">
             Carry-over from previous locked months (info only):
             <div className="carry-info">
@@ -8689,16 +8832,26 @@ function LedgerDetail({
     }
   };
   const lockMonth = () => {
+    const carryExpenses = ledger.carry_balance
+      ? buildCarryoverExpenses(ledger, activeMonth)
+      : [];
     onUpdate({
       ...ledger,
       lockedMonths: { ...(ledger.lockedMonths || {}), [activeMonth]: true },
+      expenses: carryExpenses.length
+        ? [...ledger.expenses, ...carryExpenses]
+        : ledger.expenses,
     });
     setLockConfirm(false);
     if (ledger.notifications_enabled !== false)
       onNotify(
         "locked",
         "Month locked",
-        `${mlbl(activeMonth)} is now finalized`,
+        carryExpenses.length
+          ? `${mlbl(
+              activeMonth
+            )} is finalized — balances carried into next month`
+          : `${mlbl(activeMonth)} is now finalized`,
         ledger.name
       );
   };
@@ -10092,9 +10245,12 @@ function LedgerDetail({
                       const isPending = exp.approval_status === "pending";
                       const isDenied = exp.approval_status === "denied";
                       const isSettle = exp.is_settlement;
+                      const isCarryover = exp.is_carryover;
                       const rowClass = isPayout
                         ? "row-settle"
                         : isSettle
+                        ? "row-settle"
+                        : isCarryover
                         ? "row-settle"
                         : isPending
                         ? "row-pending"
@@ -10104,11 +10260,13 @@ function LedgerDetail({
                       const isNew =
                         !effectiveSeenExpenses.has(exp.id) &&
                         !isSettle &&
+                        !isCarryover &&
                         !isPayout &&
                         !isPending &&
                         !isDenied;
                       // % badge for expenses with custom split vs ledger shares
                       const hasCustomSplit =
+                        !isCarryover &&
                         !isSettle &&
                         !isPayout &&
                         exp.splits &&
@@ -10175,6 +10333,20 @@ function LedgerDetail({
                                     ? "Offsets balances"
                                     : "Payout"}
                                 </span>
+                              ) : isCarryover &&
+                                exp.splits?.length === 1 &&
+                                ledger.members.find(
+                                  (m) => m.id === exp.splits[0].member_id
+                                ) ? (
+                                <span style={{ color: "var(--settle)" }}>
+                                  {
+                                    ledger.members.find(
+                                      (m) =>
+                                        m.id === exp.splits[0].member_id
+                                    ).display_name
+                                  }{" "}
+                                  owes {exp.paid_by_name}
+                                </span>
                               ) : (
                                 exp.paid_by_name +
                                 " paid" +
@@ -10239,6 +10411,13 @@ function LedgerDetail({
                                 style={{ fontSize: "9px", padding: "1px 5px" }}
                               >
                                 Settlement
+                              </span>
+                            ) : isCarryover ? (
+                              <span
+                                className="status-tag tag-settle"
+                                style={{ fontSize: "9px", padding: "1px 5px" }}
+                              >
+                                Carry-over
                               </span>
                             ) : isPending ? (
                               <span
@@ -14465,7 +14644,8 @@ function getDowngradeConflicts(ledger, newPlan) {
 function getMonthlyExpenseCount(ledger) {
   const curMk = mk(new Date());
   return ledger.expenses.filter(
-    (e) => !e.is_settlement && mk(e.expense_date) === curMk
+    (e) =>
+      !e.is_settlement && !e.is_carryover && mk(e.expense_date) === curMk
   ).length;
 }
 
@@ -16131,6 +16311,7 @@ export default function App() {
           expense_date: e.expense_date,
           approval_status: e.approval_status || "approved",
           is_settlement: e.is_settlement || false,
+          is_carryover: e.is_carryover || false,
           is_payout: e.is_payout || false,
           payout_mode: e.payout_mode || null,
           splits: (allSplits || [])
@@ -16148,7 +16329,7 @@ export default function App() {
         require_approval: l.require_approval || false,
         notifications_enabled: l.notifications_enabled !== false,
         auto_lock: l.auto_lock || false,
-        coverColor: l.cover_color || null,
+        carry_balance: l.carry_balance || false,
         labelColor: l.label_color || null,
         customLabel: l.custom_label || null,
         cardColor: l.card_color || null,
@@ -16211,6 +16392,7 @@ export default function App() {
         expense_date: exp.expense_date,
         approval_status: exp.approval_status,
         is_settlement: exp.is_settlement || false,
+        is_carryover: exp.is_carryover || false,
         is_payout: exp.is_payout || false,
         payout_mode: exp.payout_mode || null,
       })
@@ -16279,6 +16461,7 @@ export default function App() {
       require_approval: l.require_approval || false,
       notifications_enabled: l.notifications_enabled !== false,
       auto_lock: l.auto_lock || false,
+      carry_balance: l.carry_balance || false,
       cover_color: l.coverColor || null,
       label_color: l.labelColor || null,
       custom_label: l.customLabel || null,
