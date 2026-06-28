@@ -2333,9 +2333,16 @@ function computeBalances(ledger, expenses) {
   expenses
     .filter((e) => e.approval_status === "approved")
     .forEach((exp) => {
+      // Only compare by user_id when paid_by_id is truthy. Two virtual (no-account)
+      // members both have user_id === null/undefined, so "m.user_id === exp.paid_by_id"
+      // would match the FIRST such member whenever paid_by_id is also null/undefined —
+      // attributing the payment to the wrong person in ledgers with 2+ accountless
+      // members. Falling back to display_name match only is unambiguous here because
+      // paid_by_name is always set to the exact member that was actually selected.
       const payer = ledger.members.find(
         (m) =>
-          m.user_id === exp.paid_by_id || m.display_name === exp.paid_by_name
+          (exp.paid_by_id && m.user_id === exp.paid_by_id) ||
+          m.display_name === exp.paid_by_name
       );
       if (exp.is_settlement) {
         if (payer) paid[payer.id] = (paid[payer.id] || 0) + exp.amount;
@@ -2828,8 +2835,33 @@ function NewLedgerModal({
     setMembers(n);
   };
 
+  // Duplicate-name guard: two members (or a member and the creator) sharing the
+  // same name make the payer-matching logic in computeBalances ambiguous —
+  // it has no way to tell them apart since neither has a user_id yet. Block it
+  // here, before it ever becomes a ledger with mixed-up payments.
+  const allNamesRaw = [
+    currentUser?.full_name || "",
+    ...members.map((m) => m.name),
+  ];
+  const nameCounts = {};
+  allNamesRaw.forEach((n) => {
+    const key = n.trim().toLowerCase();
+    if (!key) return;
+    nameCounts[key] = (nameCounts[key] || 0) + 1;
+  });
+  const duplicateNameKeys = Object.keys(nameCounts).filter(
+    (k) => nameCounts[k] > 1
+  );
+  const hasDuplicateNames = duplicateNameKeys.length > 0;
+  const duplicateNameLabel = (() => {
+    if (!hasDuplicateNames) return "";
+    const key = duplicateNameKeys[0];
+    const original = allNamesRaw.find((n) => n.trim().toLowerCase() === key);
+    return original ? original.trim() : key;
+  })();
+
   const create = () => {
-    if (!name.trim() || overLimit) return;
+    if (!name.trim() || overLimit || hasDuplicateNames) return;
     const valid = members.filter((m) => m.name.trim());
     const count = valid.length + 1;
     const eq = parseFloat((100 / count).toFixed(2));
@@ -3108,6 +3140,12 @@ function NewLedgerModal({
                   : `Total: ${totalAll.toFixed(1)}% (must equal 100%)`}
               </div>
             )}
+            {hasDuplicateNames && (
+              <div className="pct-error">
+                ! "{duplicateNameLabel}" is used more than once — every member
+                needs a different name.
+              </div>
+            )}
             <p className="tip">
               Leave % empty for equal split. You can customize cover & style
               later in Settings.
@@ -3130,7 +3168,7 @@ function NewLedgerModal({
           <button
             className="btn btn-primary"
             onClick={create}
-            disabled={!name.trim() || overLimit}
+            disabled={!name.trim() || overLimit || hasDuplicateNames}
           >
             Create →
           </button>
@@ -4276,8 +4314,18 @@ function LedgerSettingsModal({
     });
     onClose();
   };
+  // Duplicate-name guard — same reasoning as in NewLedgerModal: two members
+  // with the same name can't be told apart once neither has a user_id, and
+  // computeBalances' payer-matching would attribute payments to the wrong one.
+  const isDuplicateNewMemberName = (() => {
+    const key = newM.name.trim().toLowerCase();
+    if (!key) return false;
+    return members.some((m) => m.display_name.trim().toLowerCase() === key);
+  })();
+
   const addM = () => {
     if (!newM.name.trim()) return;
+    if (isDuplicateNewMemberName) return;
     const activeCurrent = members.filter((m) => !m.is_spectator);
     if (plan.maxMembers && activeCurrent.length >= plan.maxMembers) {
       onShowUpgrade && onShowUpgrade();
@@ -5677,11 +5725,17 @@ function LedgerSettingsModal({
                     All active members' percentages will be split equally unless
                     you enter a custom %.
                   </p>
+                  {isDuplicateNewMemberName && (
+                    <div className="pct-error" style={{ marginBottom: "10px" }}>
+                      ! "{newM.name.trim()}" is already a member — every member
+                      needs a different name.
+                    </div>
+                  )}
                   <button
                     className="btn btn-primary"
                     style={{ width: "100%", fontSize: "13px", padding: "10px" }}
                     onClick={addM}
-                    disabled={!newM.name.trim()}
+                    disabled={!newM.name.trim() || isDuplicateNewMemberName}
                   >
                     <Icon.Plus /> Add member
                   </button>
