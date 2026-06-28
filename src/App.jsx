@@ -190,15 +190,26 @@ const css = `
   /* AUTH */
   .auth-wrap{min-height:100vh;display:grid;grid-template-columns:1fr 1fr;}
   @media(max-width:768px){.auth-wrap{grid-template-columns:1fr;}.auth-side{display:none;}}
-  .auth-side{background:linear-gradient(135deg,#1e1b4b 0%,#312e81 40%,#4f46e5 70%,#7c3aed 100%);display:flex;flex-direction:column;justify-content:center;align-items:flex-start;padding:64px;position:relative;overflow:hidden;}
-  .auth-logo{font-size:26px;font-weight:800;color:white;letter-spacing:-0.5px;margin-bottom:52px;}
-  .auth-logo span{color:#a5b4fc;}
-  .auth-side h2{font-size:38px;font-weight:800;color:white;line-height:1.15;margin-bottom:16px;}
-  .auth-side p{font-size:16px;color:rgba(255,255,255,0.55);line-height:1.65;max-width:320px;}
-  .auth-features{margin-top:52px;display:flex;flex-direction:column;gap:14px;}
-  .auth-feature{display:flex;align-items:center;gap:12px;}
-  .auth-feature-dot{width:28px;height:28px;border-radius:8px;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
-  .auth-feature span{font-size:14px;color:rgba(255,255,255,0.7);}
+  .auth-side{background:linear-gradient(160deg,#0B1220 0%,#101A2E 50%,#16213A 100%);display:flex;flex-direction:column;justify-content:center;align-items:flex-start;padding:64px;position:relative;overflow:hidden;}
+  .auth-logo-img{height:32px;object-fit:contain;display:block;margin-bottom:56px;}
+  .auth-side h2{font-size:36px;font-weight:800;color:white;line-height:1.2;letter-spacing:-0.5px;margin-bottom:16px;max-width:420px;}
+  .auth-side p{font-size:15px;color:rgba(255,255,255,0.5);line-height:1.65;max-width:340px;}
+  .auth-features{margin-top:36px;display:flex;flex-direction:column;gap:14px;}
+  .auth-feature{display:flex;align-items:flex-start;gap:11px;}
+  .auth-feature-dot{width:22px;height:22px;border-radius:7px;background:rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+  .auth-feature span{font-size:13.5px;color:rgba(255,255,255,0.68);line-height:1.5;}
+  .auth-receipt{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:16px;padding:18px 20px;margin-top:40px;max-width:330px;width:100%;}
+  .auth-receipt-title{font-size:10.5px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:rgba(255,255,255,0.35);margin-bottom:12px;}
+  .auth-receipt-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.07);animation:authSettleIn 0.55s ease both;}
+  .auth-receipt-row:last-child{border-bottom:none;}
+  .auth-receipt-who{display:flex;align-items:center;gap:8px;}
+  .auth-receipt-dot{width:7px;height:7px;border-radius:50%;background:#C9A35C;flex-shrink:0;}
+  .auth-receipt-name{font-size:13px;font-weight:600;color:rgba(255,255,255,0.82);}
+  .auth-receipt-paid{font-size:10.5px;color:rgba(255,255,255,0.35);margin-top:1px;}
+  .auth-receipt-net{font-family:'DM Mono',monospace;font-size:14px;font-weight:700;white-space:nowrap;}
+  .auth-receipt-net.pos{color:#5FBE8A;}
+  .auth-receipt-net.neg{color:#E2796B;}
+  @keyframes authSettleIn{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:translateY(0);}}
   .auth-form-wrap{background:var(--white);display:flex;flex-direction:column;justify-content:center;align-items:center;padding:48px 32px;}
   .auth-form-inner{width:100%;max-width:400px;}
   .auth-form-inner h1{font-size:26px;font-weight:800;color:var(--text);margin-bottom:4px;}
@@ -2490,41 +2501,80 @@ function AuthScreen({ onLogin }) {
   };
 
   return (
-    <div
-      style={{
-        background: "#f4f5f9",
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "24px",
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "400px",
-          background: "white",
-          borderRadius: "24px",
-          padding: "36px 32px 40px",
-          boxShadow: "0 8px 40px rgba(79,110,247,0.12)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            marginBottom: "32px",
-            justifyContent: "center",
-          }}
-        >
-          <img
-            src={LOGO_ICON}
-            alt="CosTrace"
-            style={{ height: "52px", objectFit: "contain", borderRadius: "8px" }}
-          />
+    <div className="auth-wrap">
+      <div className="auth-side">
+        <img src={LOGO_SIDEBAR} alt="CosTrace" className="auth-logo-img" />
+        <h2>Know exactly who owes who.</h2>
+        <p>
+          Split shared costs with the people in your life — track every
+          expense, see a clear monthly statement, and settle up without
+          spreadsheets or guesswork.
+        </p>
+        <div className="auth-features">
+          <div className="auth-feature">
+            <div className="auth-feature-dot">
+              <Icon.Home />
+            </div>
+            <span>A clear monthly statement for every shared ledger</span>
+          </div>
+          <div className="auth-feature">
+            <div className="auth-feature-dot">
+              <Icon.Plus />
+            </div>
+            <span>Settle up in one tap — no spreadsheets, no guessing</span>
+          </div>
+          <div className="auth-feature">
+            <div className="auth-feature-dot">
+              <Icon.Lock />
+            </div>
+            <span>Lock a month once it's settled, so the history stays put</span>
+          </div>
         </div>
+        <div className="auth-receipt">
+          <div className="auth-receipt-title">Household — June</div>
+          {[
+            { name: "You", paid: "8,500.00", net: "+2,100.00", pos: true, delay: "0s" },
+            { name: "Ana", paid: "3,200.00", net: "-1,050.00", pos: false, delay: "0.12s" },
+            { name: "Marko", paid: "1,150.00", net: "-1,050.00", pos: false, delay: "0.24s" },
+          ].map((r) => (
+            <div
+              key={r.name}
+              className="auth-receipt-row"
+              style={{ animationDelay: r.delay }}
+            >
+              <div className="auth-receipt-who">
+                <span className="auth-receipt-dot" />
+                <div>
+                  <div className="auth-receipt-name">{r.name}</div>
+                  <div className="auth-receipt-paid">paid {r.paid}</div>
+                </div>
+              </div>
+              <span
+                className={`auth-receipt-net ${r.pos ? "pos" : "neg"}`}
+              >
+                {r.net}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="auth-form-wrap">
+        <div className="auth-form-inner">
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              marginBottom: "32px",
+              justifyContent: "center",
+            }}
+          >
+            <img
+              src={LOGO_ICON}
+              alt="CosTrace"
+              style={{ height: "52px", objectFit: "contain", borderRadius: "8px" }}
+            />
+          </div>
         <h2
           style={{
             fontSize: "24px",
@@ -2724,7 +2774,7 @@ function AuthScreen({ onLogin }) {
             padding: "16px",
             borderRadius: "14px",
             border: "none",
-            background: "linear-gradient(90deg,#4338ca,#6d28d9)",
+            background: "linear-gradient(90deg,#3B5998,#2d4a82)",
             color: "white",
             fontSize: "16px",
             fontWeight: "800",
@@ -2810,7 +2860,7 @@ function AuthScreen({ onLogin }) {
               No account?{" "}
               <span
                 style={{
-                  color: "#4f46e5",
+                  color: "#3B5998",
                   fontWeight: "700",
                   cursor: "pointer",
                 }}
@@ -2827,7 +2877,7 @@ function AuthScreen({ onLogin }) {
               Already have one?{" "}
               <span
                 style={{
-                  color: "#4f46e5",
+                  color: "#3B5998",
                   fontWeight: "700",
                   cursor: "pointer",
                 }}
@@ -2852,6 +2902,7 @@ function AuthScreen({ onLogin }) {
         >
           v 1.0.0
         </p>
+        </div>
       </div>
     </div>
   );
