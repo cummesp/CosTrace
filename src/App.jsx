@@ -3285,7 +3285,12 @@ function AddExpenseModal({
       description: desc,
       amount: amt,
       paid_by_name: payer?.display_name || currentUser.full_name,
-      paid_by_id: payer?.user_id || currentUser.id,
+      // Only fall back to currentUser.id when there's truly no payer selected.
+      // If a payer IS selected but has no account (user_id is null — a virtual
+      // member like Vesna before she signs up), keep it null. Falling back to
+      // currentUser.id here was silently reattributing the payment to whoever
+      // is logged in, instead of the member actually picked in "Someone else paid".
+      paid_by_id: payer ? payer.user_id || null : currentUser.id,
       expense_date: now(),
       approval_status:
         ledger.require_approval && !isSettle && !isPayout
