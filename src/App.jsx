@@ -742,7 +742,7 @@ async function persistArchivedLedgerCopy(sbClient, original, ownerUserId) {
       cover: original.cover || "house",
       require_approval: original.require_approval || false,
       notifications_enabled: original.notifications_enabled !== false,
-      auto_lock: original.auto_lock || false,
+      auto_lock: original.auto_lock !== false,
       cover_color: original.coverColor || null,
       label_color: original.labelColor || null,
       custom_label: original.customLabel || null,
@@ -4061,7 +4061,7 @@ function LedgerSettingsModal({
                 <strong>{ledger.require_approval ? "Yes" : "No"}</strong>
               </div>
               <div>
-                Auto-lock: <strong>{ledger.auto_lock ? "Yes" : "No"}</strong>
+                Auto-lock: <strong>{ledger.auto_lock !== false ? "Yes" : "No"}</strong>
               </div>
               <div>
                 Carry over balance:{" "}
@@ -4246,7 +4246,7 @@ function LedgerSettingsModal({
   const [notifEnabled, setNotifEnabled] = useState(
     ledger.notifications_enabled !== false
   );
-  const [autoLock, setAutoLock] = useState(ledger.auto_lock || false);
+  const [autoLock, setAutoLock] = useState(ledger.auto_lock !== false);
   const [carryBalance, setCarryBalance] = useState(
     ledger.carry_balance || false
   );
@@ -8717,6 +8717,42 @@ function LedgerDetail({
     : null;
   // During the countdown the ledger is locked: no new expenses.
   const deleteLock = inCountdown;
+
+  // Auto-lock: actually perform the lock (not just display it as locked) for
+  // any past month that hasn't been locked yet, the moment this ledger is
+  // opened on or after the 1st of the following month. Without this, months
+  // were only ever "treated as locked" in the UI — lockMonth() itself, and
+  // therefore carry-over generation, never ran unless an admin clicked the
+  // lock button by hand.
+  useEffect(() => {
+    if (ledger.auto_lock === false || isArchived || deleteLock) return;
+    const nowMk = mk(new Date());
+    const monthsPresent = [
+      ...new Set(ledger.expenses.map((e) => mk(e.expense_date))),
+    ];
+    const toLock = monthsPresent
+      .filter((m) => m < nowMk && !ledger.lockedMonths?.[m])
+      .sort();
+    if (toLock.length === 0) return;
+    let workingExpenses = ledger.expenses;
+    const newLockedMonths = { ...(ledger.lockedMonths || {}) };
+    toLock.forEach((m) => {
+      newLockedMonths[m] = true;
+      if (ledger.carry_balance) {
+        const carry = buildCarryoverExpenses(
+          { ...ledger, expenses: workingExpenses },
+          m
+        );
+        if (carry.length) workingExpenses = [...workingExpenses, ...carry];
+      }
+    });
+    onUpdate({
+      ...ledger,
+      lockedMonths: newLockedMonths,
+      expenses: workingExpenses,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ledger.id, ledger.auto_lock, ledger.carry_balance, isArchived, deleteLock]);
   const allMks = getMonths(ledger);
   const curMk = mk(new Date());
   const prevMk = (() => {
@@ -8753,7 +8789,7 @@ function LedgerDetail({
   const effectiveLocked = (monthKey) => {
     if (isArchived) return true;
     if (ledger.lockedMonths?.[monthKey]) return true;
-    if (ledger.auto_lock && monthKey < curMk) return true;
+    if (ledger.auto_lock !== false && monthKey < curMk) return true;
     return false;
   };
   const isLocked = effectiveLocked(activeMonth);
@@ -10478,7 +10514,7 @@ function LedgerDetail({
         monthExpenses.filter(
           (e) => e.approval_status === "approved" && !e.is_payout
         ).length > 0 &&
-        !ledger.auto_lock &&
+        ledger.auto_lock === false &&
         isAdmin && (
           <div className="lock-section">
             {!lockConfirm ? (
@@ -10510,7 +10546,7 @@ function LedgerDetail({
             )}
           </div>
         )}
-      {ledger.auto_lock && activeMonth < mk(new Date()) === false && (
+      {ledger.auto_lock !== false && activeMonth < mk(new Date()) === false && (
         <div
           style={{
             fontSize: "11px",
@@ -16328,7 +16364,7 @@ export default function App() {
         cover: l.cover || "house",
         require_approval: l.require_approval || false,
         notifications_enabled: l.notifications_enabled !== false,
-        auto_lock: l.auto_lock || false,
+        auto_lock: l.auto_lock !== false,
         carry_balance: l.carry_balance || false,
         labelColor: l.label_color || null,
         customLabel: l.custom_label || null,
@@ -16460,7 +16496,7 @@ export default function App() {
       cover: l.cover || "house",
       require_approval: l.require_approval || false,
       notifications_enabled: l.notifications_enabled !== false,
-      auto_lock: l.auto_lock || false,
+      auto_lock: l.auto_lock !== false,
       carry_balance: l.carry_balance || false,
       cover_color: l.coverColor || null,
       label_color: l.labelColor || null,
