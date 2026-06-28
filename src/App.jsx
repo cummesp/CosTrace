@@ -13382,7 +13382,7 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
               }}
             >
               {/* Stat tiles */}
-              <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "30fr 30fr 20fr 20fr" : "repeat(2,1fr)", gap: "12px", marginBottom: "22px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "27fr 27fr 26fr 20fr" : "repeat(2,1fr)", gap: "12px", marginBottom: "22px" }}>
                 {[
                   { label: "Total spent", value: fmtAmt(grandTotal), accent: "#42C3E6" },
                   {
@@ -13402,9 +13402,10 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
                       padding: isDesktop ? "14px 16px" : "10px 12px",
                       minWidth: 0,
                       overflow: "hidden",
+                      textAlign: "center",
                     }}
                   >
-                    <div style={{ fontSize: "11px", color: "var(--text3)", marginBottom: "6px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <div style={{ fontSize: "11px", color: "var(--text3)", marginBottom: "6px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "center" }}>
                       {tile.label}
                     </div>
                     <div
@@ -13417,6 +13418,7 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
                         whiteSpace: "nowrap",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
+                        textAlign: "center",
                       }}
                     >
                       {tile.value}
