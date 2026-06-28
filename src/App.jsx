@@ -16506,6 +16506,16 @@ export default function App() {
 
   const onOpenLedger = (l) => {
     setActiveLedgerId(l.id);
+    // Mark all current expenses as "seen" immediately on open — the NEW badge
+    // should disappear the moment the ledger is opened, not only when the user
+    // exits through the back button. This way it doesn't linger if they navigate
+    // away via the sidebar, browser back, or just close the tab.
+    const nextSeen = {
+      ...seenMap,
+      [l.id]: new Set(l.expenses.map((e) => e.id)),
+    };
+    setSeenMap(nextSeen);
+    saveSeenToStorage(nextSeen);
     // Refresh profiles (avatars, names) for this ledger's members
     const userIds = [
       ...new Set(l.members.map((m) => m.user_id).filter(Boolean)),
@@ -16542,17 +16552,7 @@ export default function App() {
   };
 
   const onCloseLedger = () => {
-    if (activeLedgerId) {
-      const l = ledgers.find((x) => x.id === activeLedgerId);
-      if (l) {
-        const nextSeen = {
-          ...seenMap,
-          [l.id]: new Set(l.expenses.map((e) => e.id)),
-        };
-        setSeenMap(nextSeen);
-        saveSeenToStorage(nextSeen);
-      }
-    }
+    // Seen-tracking now happens on open (see onOpenLedger), so closing just navigates back.
     setActiveLedgerId(null);
     setPage("home");
   };
