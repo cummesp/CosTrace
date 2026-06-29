@@ -188,31 +188,37 @@ const css = `
   body{font-family:var(--font);background:#F2F4F7;color:var(--text);-webkit-font-smoothing:antialiased;}
   .app{min-height:100vh;}
   /* AUTH */
-  .auth-wrap{min-height:100vh;display:grid;grid-template-columns:1fr 1fr;}
-  @media(max-width:768px){.auth-wrap{grid-template-columns:1fr;}.auth-side{display:none;}}
-  .auth-side{background:linear-gradient(160deg,#0A0A0D 0%,#120A0C 55%,#1A0C0E 100%);display:flex;flex-direction:column;justify-content:flex-start;align-items:flex-start;padding:48px 44px;position:relative;overflow-y:auto;}
-  .auth-logo-img{height:30px;object-fit:contain;display:block;margin-bottom:22px;}
-  .auth-pill{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,0.04);border:1px solid rgba(220,38,38,0.35);border-radius:20px;padding:6px 14px;font-size:11.5px;font-weight:700;color:rgba(255,255,255,0.8);margin-bottom:22px;}
-  .auth-side h2{font-size:32px;font-weight:800;color:white;line-height:1.18;letter-spacing:-0.5px;margin-bottom:14px;max-width:420px;}
-  .auth-side h2 .accent{color:#E0303D;}
-  .auth-side p{font-size:14px;color:rgba(255,255,255,0.5);line-height:1.6;max-width:340px;}
-  .auth-cta{display:inline-flex;align-items:center;gap:8px;background:#DC2626;color:white;border:none;border-radius:11px;padding:11px 20px;font-size:13.5px;font-weight:800;cursor:pointer;font-family:inherit;margin-top:18px;}
-  .auth-cta:hover{background:#c41f1f;}
-  .auth-secure{display:flex;align-items:center;gap:7px;font-size:11.5px;color:rgba(255,255,255,0.35);margin-top:12px;}
-  .auth-collage{position:relative;margin-top:34px;width:100%;max-width:340px;height:230px;}
-  .auth-collage-img{position:absolute;border-radius:14px;object-fit:cover;border:1px solid rgba(255,255,255,0.1);box-shadow:0 10px 26px rgba(0,0,0,0.45);}
-  .auth-badge-chip{position:absolute;background:#0F0A0B;border:1px solid rgba(220,38,38,0.3);border-radius:10px;padding:7px 10px;font-size:10px;font-weight:700;color:rgba(255,255,255,0.85);display:flex;align-items:center;gap:6px;box-shadow:0 6px 16px rgba(0,0,0,0.4);white-space:nowrap;}
-  .auth-features-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 18px;margin-top:34px;width:100%;max-width:380px;}
-  .auth-feature{display:flex;align-items:flex-start;gap:9px;}
-  .auth-feature-dot{width:24px;height:24px;border-radius:7px;background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.3);color:#E0303D;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-  .auth-feature-label{font-size:12.5px;font-weight:700;color:rgba(255,255,255,0.88);line-height:1.3;}
-  .auth-feature-desc{font-size:11px;color:rgba(255,255,255,0.4);line-height:1.4;margin-top:2px;}
-  .auth-tagline{font-size:13px;font-weight:700;color:rgba(255,255,255,0.75);margin-top:38px;margin-bottom:12px;}
-  .auth-tagline .accent{color:#E0303D;}
-  .auth-tags{display:flex;flex-wrap:wrap;gap:8px;max-width:400px;}
-  .auth-tag{display:flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,0.12);border-radius:20px;padding:6px 12px;font-size:11px;font-weight:600;color:rgba(255,255,255,0.65);}
+  .auth-page{min-height:100vh;background:linear-gradient(160deg,#0A0A0D 0%,#120A0C 55%,#1A0C0E 100%);padding:36px 6vw 70px;color:white;}
+  .auth-page-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:42px;flex-wrap:wrap;gap:14px;}
+  .auth-logo-img{height:30px;object-fit:contain;display:block;}
+  .auth-pill{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,0.04);border:1px solid rgba(220,38,38,0.35);border-radius:20px;padding:6px 14px;font-size:11.5px;font-weight:700;color:rgba(255,255,255,0.8);}
+  .auth-hero-row{display:flex;gap:48px;align-items:center;flex-wrap:wrap;margin-bottom:64px;}
+  .auth-hero-text{flex:1 1 380px;min-width:300px;}
+  .auth-hero-text h2{font-size:46px;font-weight:800;color:white;line-height:1.12;letter-spacing:-1px;margin-bottom:18px;}
+  .auth-hero-text h2 .accent{color:#E0303D;}
+  .auth-hero-text p{font-size:16px;color:rgba(255,255,255,0.5);line-height:1.65;max-width:460px;margin-bottom:8px;}
+  .auth-hero-text .lead{font-size:16px;color:rgba(255,255,255,0.85);font-weight:700;margin-bottom:22px;}
+  .auth-secure{display:flex;align-items:center;gap:7px;font-size:11.5px;color:rgba(255,255,255,0.35);margin-top:14px;}
+  .auth-hero-photos{position:relative;flex:1 1 360px;min-width:300px;height:380px;}
+  @media(max-width:680px){.auth-hero-photos{height:300px;}.auth-hero-text h2{font-size:34px;}}
+  .auth-collage-img{position:absolute;border-radius:14px;object-fit:cover;border:1px solid rgba(255,255,255,0.1);box-shadow:0 14px 32px rgba(0,0,0,0.5);}
+  .auth-badge-chip{position:absolute;background:#0F0A0B;border:1px solid rgba(220,38,38,0.3);border-radius:10px;padding:8px 12px;font-size:11px;font-weight:700;color:rgba(255,255,255,0.85);display:flex;align-items:center;gap:6px;box-shadow:0 6px 16px rgba(0,0,0,0.4);white-space:nowrap;}
+  .auth-features-row{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin-bottom:60px;}
+  .auth-feature-card{flex:1 1 170px;max-width:210px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px;}
+  .auth-feature-dot{width:30px;height:30px;border-radius:8px;background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.3);color:#E0303D;display:flex;align-items:center;justify-content:center;margin-bottom:10px;}
+  .auth-feature-label{font-size:13px;font-weight:700;color:rgba(255,255,255,0.9);line-height:1.3;margin-bottom:4px;}
+  .auth-feature-desc{font-size:11.5px;color:rgba(255,255,255,0.42);line-height:1.45;}
+  .auth-tagline-row{text-align:center;font-size:18px;font-weight:700;color:rgba(255,255,255,0.8);margin-bottom:18px;}
+  .auth-tagline-row .accent{color:#E0303D;}
+  .auth-tags-row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:60px;}
+  .auth-tag{display:flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,0.14);border-radius:20px;padding:8px 16px;font-size:12px;font-weight:600;color:rgba(255,255,255,0.68);}
   .auth-tag svg{color:#E0303D;}
-  .auth-receipt{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:16px 18px;margin-top:30px;max-width:330px;width:100%;}
+  .auth-final-cta{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;}
+  .auth-btn-primary{background:#DC2626;color:white;border:none;border-radius:11px;padding:14px 30px;font-size:14.5px;font-weight:800;cursor:pointer;font-family:inherit;}
+  .auth-btn-primary:hover{background:#c41f1f;}
+  .auth-btn-secondary{background:transparent;color:white;border:1.5px solid rgba(255,255,255,0.25);border-radius:11px;padding:14px 30px;font-size:14.5px;font-weight:800;cursor:pointer;font-family:inherit;}
+  .auth-btn-secondary:hover{border-color:rgba(255,255,255,0.5);background:rgba(255,255,255,0.04);}
+  .auth-receipt{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:16px 18px;max-width:330px;width:100%;margin:0 auto 60px;}
   .auth-receipt-title{font-size:10.5px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:rgba(255,255,255,0.3);margin-bottom:10px;}
   .auth-receipt-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06);animation:authSettleIn 0.55s ease both;}
   .auth-receipt-row:last-child{border-bottom:none;}
@@ -224,7 +230,6 @@ const css = `
   .auth-receipt-net.pos{color:#5FBE8A;}
   .auth-receipt-net.neg{color:#E2796B;}
   @keyframes authSettleIn{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:translateY(0);}}
-  .auth-form-wrap{background:var(--white);display:flex;flex-direction:column;justify-content:center;align-items:center;padding:48px 32px;}
   .auth-form-inner{width:100%;max-width:400px;}
   .auth-form-inner h1{font-size:26px;font-weight:800;color:var(--text);margin-bottom:4px;}
   .auth-form-inner .subtitle{font-size:14px;color:var(--text3);margin-bottom:32px;}
@@ -2470,6 +2475,7 @@ function getMonths(l) {
 
 function AuthScreen({ onLogin }) {
   const [mode, setMode] = useState("login");
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -2573,523 +2579,499 @@ function AuthScreen({ onLogin }) {
   };
 
   return (
-    <div className="auth-wrap">
-      <div className="auth-side">
+    <div className="auth-page">
+      <div className="auth-page-top">
         <img src={LOGO_SIDEBAR} alt="CosTrace" className="auth-logo-img" />
         <div className="auth-pill">
           <HeroIcon.Shield />
           Shared Expenses. One Truth.
         </div>
-        <h2>
-          Shared Expenses.
-          <br />
-          One <span className="accent">Truth.</span>
-        </h2>
-        <p>
-          Every expense, settlement and adjustment preserved in one
-          transparent history. Today, tomorrow, always.
-        </p>
-        <button
-          type="button"
-          className="auth-cta"
-          onClick={() => {
-            setMode("register");
-            setError("");
-          }}
-        >
-          Get started for free
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
-            <line x1="5" y1="12" x2="19" y2="12" />
-            <polyline points="12 5 19 12 12 19" />
-          </svg>
-        </button>
-        <div className="auth-secure">
-          <Icon.Lock />
-          Your data is secure and private.
+      </div>
+
+      <div className="auth-hero-row">
+        <div className="auth-hero-text">
+          <h2>
+            Shared Expenses.
+            <br />
+            One <span className="accent">Truth.</span>
+          </h2>
+          <p>
+            Every expense, settlement and adjustment preserved in one
+            transparent history.
+          </p>
+          <div className="lead">Today, tomorrow, always.</div>
+          <div className="auth-secure">
+            <Icon.Lock />
+            Your data is secure and private.
+          </div>
         </div>
 
-        <div className="auth-collage">
+        <div className="auth-hero-photos">
           <img
             src={AUTH_PHOTO_CAMPFIRE}
             alt="Friends around a campfire"
             className="auth-collage-img"
-            style={{ top: 0, left: 0, width: "225px", height: "120px", zIndex: 1, transform: "rotate(-2deg)" }}
+            style={{ top: 0, left: 0, width: "62%", height: "46%", zIndex: 1, transform: "rotate(-1.5deg)" }}
           />
           <img
             src={AUTH_PHOTO_BEACH}
             alt="Family walking on the beach at sunset"
             className="auth-collage-img"
-            style={{ top: "52px", right: 0, width: "195px", height: "130px", zIndex: 2, transform: "rotate(2deg)" }}
+            style={{ top: "20%", right: 0, width: "55%", height: "48%", zIndex: 2, transform: "rotate(1.5deg)" }}
           />
           <img
             src={AUTH_PHOTO_PIZZA}
             alt="Friends sharing pizza"
             className="auth-collage-img"
-            style={{ top: "138px", left: "28px", width: "225px", height: "118px", zIndex: 3, transform: "rotate(-1deg)" }}
+            style={{ top: "56%", left: "10%", width: "62%", height: "44%", zIndex: 3, transform: "rotate(-1deg)" }}
           />
-          <div className="auth-badge-chip" style={{ top: "-8px", right: "-4px" }}>
+          <div className="auth-badge-chip" style={{ top: "-10px", right: "8%" }}>
             <HeroIcon.Clock />
             History that stays
           </div>
-          <div className="auth-badge-chip" style={{ bottom: "-8px", left: "-4px" }}>
+          <div className="auth-badge-chip" style={{ bottom: "-10px", left: "4%" }}>
             <Icon.Lock />
             Monthly locking
           </div>
         </div>
+      </div>
 
-        <div className="auth-features-grid">
-          <div className="auth-feature">
-            <div className="auth-feature-dot">
-              <HeroIcon.People />
-            </div>
-            <div>
-              <div className="auth-feature-label">Smart cost splits</div>
-              <div className="auth-feature-desc">Divide expenses by % or exact amounts</div>
-            </div>
+      <div className="auth-features-row">
+        <div className="auth-feature-card">
+          <div className="auth-feature-dot">
+            <HeroIcon.People />
           </div>
-          <div className="auth-feature">
-            <div className="auth-feature-dot">
-              <HeroIcon.Shield />
-            </div>
-            <div>
-              <div className="auth-feature-label">Approval workflow</div>
-              <div className="auth-feature-desc">Review and approve with full control</div>
-            </div>
-          </div>
-          <div className="auth-feature">
-            <div className="auth-feature-dot">
-              <HeroIcon.Eye />
-            </div>
-            <div>
-              <div className="auth-feature-label">Complete transparency</div>
-              <div className="auth-feature-desc">See who paid, who owes, always clear</div>
-            </div>
-          </div>
-          <div className="auth-feature">
-            <div className="auth-feature-dot">
-              <Icon.Lock />
-            </div>
-            <div>
-              <div className="auth-feature-label">Monthly locking</div>
-              <div className="auth-feature-desc">Close the month, avoid changes later</div>
-            </div>
-          </div>
-          <div className="auth-feature">
-            <div className="auth-feature-dot">
-              <HeroIcon.Check />
-            </div>
-            <div>
-              <div className="auth-feature-label">Easy settlements</div>
-              <div className="auth-feature-desc">Track payments, close the loop fast</div>
-            </div>
-          </div>
+          <div className="auth-feature-label">Smart cost splits</div>
+          <div className="auth-feature-desc">Divide expenses by % or exact amounts</div>
         </div>
+        <div className="auth-feature-card">
+          <div className="auth-feature-dot">
+            <HeroIcon.Shield />
+          </div>
+          <div className="auth-feature-label">Approval workflow</div>
+          <div className="auth-feature-desc">Review and approve with full control</div>
+        </div>
+        <div className="auth-feature-card">
+          <div className="auth-feature-dot">
+            <HeroIcon.Eye />
+          </div>
+          <div className="auth-feature-label">Complete transparency</div>
+          <div className="auth-feature-desc">See who paid, who owes, always clear</div>
+        </div>
+        <div className="auth-feature-card">
+          <div className="auth-feature-dot">
+            <Icon.Lock />
+          </div>
+          <div className="auth-feature-label">Monthly locking</div>
+          <div className="auth-feature-desc">Close the month, avoid changes later</div>
+        </div>
+        <div className="auth-feature-card">
+          <div className="auth-feature-dot">
+            <HeroIcon.Check />
+          </div>
+          <div className="auth-feature-label">Easy settlements</div>
+          <div className="auth-feature-desc">Track payments, close the loop fast</div>
+        </div>
+      </div>
 
-        <div className="auth-tagline">
-          Built for <span className="accent">real life</span> shared
-          experiences.
+      <div className="auth-tagline-row">
+        Built for <span className="accent">real life</span> shared experiences.
+      </div>
+      <div className="auth-tags-row">
+        <div className="auth-tag">
+          <HeroIcon.People />
+          Friends &amp; Roommates
         </div>
-        <div className="auth-tags">
-          <div className="auth-tag">
-            <HeroIcon.People />
-            Friends &amp; Roommates
-          </div>
-          <div className="auth-tag">
-            <HeroIcon.Heart />
-            Couples
-          </div>
-          <div className="auth-tag">
-            <HeroIcon.People />
-            Families
-          </div>
-          <div className="auth-tag">
-            <HeroIcon.Plane />
-            Travel Groups
-          </div>
-          <div className="auth-tag">
-            <HeroIcon.People />
-            Co-parents
-          </div>
-          <div className="auth-tag">
-            <HeroIcon.Briefcase />
-            Teams &amp; Projects
-          </div>
+        <div className="auth-tag">
+          <HeroIcon.Heart />
+          Couples
         </div>
+        <div className="auth-tag">
+          <HeroIcon.People />
+          Families
+        </div>
+        <div className="auth-tag">
+          <HeroIcon.Plane />
+          Travel Groups
+        </div>
+        <div className="auth-tag">
+          <HeroIcon.People />
+          Co-parents
+        </div>
+        <div className="auth-tag">
+          <HeroIcon.Briefcase />
+          Teams &amp; Projects
+        </div>
+      </div>
 
-        <div className="auth-receipt">
-          <div className="auth-receipt-title">Household — June</div>
-          {[
-            { name: "You", paid: "8,500.00", net: "+2,100.00", pos: true, delay: "0s" },
-            { name: "Ana", paid: "3,200.00", net: "-1,050.00", pos: false, delay: "0.12s" },
-            { name: "Marko", paid: "1,150.00", net: "-1,050.00", pos: false, delay: "0.24s" },
-          ].map((r) => (
-            <div
-              key={r.name}
-              className="auth-receipt-row"
-              style={{ animationDelay: r.delay }}
-            >
-              <div className="auth-receipt-who">
-                <span className="auth-receipt-dot" />
-                <div>
-                  <div className="auth-receipt-name">{r.name}</div>
-                  <div className="auth-receipt-paid">paid {r.paid}</div>
-                </div>
+      <div className="auth-receipt">
+        <div className="auth-receipt-title">Household — June</div>
+        {[
+          { name: "You", paid: "8,500.00", net: "+2,100.00", pos: true, delay: "0s" },
+          { name: "Ana", paid: "3,200.00", net: "-1,050.00", pos: false, delay: "0.12s" },
+          { name: "Marko", paid: "1,150.00", net: "-1,050.00", pos: false, delay: "0.24s" },
+        ].map((r) => (
+          <div key={r.name} className="auth-receipt-row" style={{ animationDelay: r.delay }}>
+            <div className="auth-receipt-who">
+              <span className="auth-receipt-dot" />
+              <div>
+                <div className="auth-receipt-name">{r.name}</div>
+                <div className="auth-receipt-paid">paid {r.paid}</div>
               </div>
-              <span
-                className={`auth-receipt-net ${r.pos ? "pos" : "neg"}`}
-              >
-                {r.net}
-              </span>
             </div>
-          ))}
-        </div>
+            <span className={`auth-receipt-net ${r.pos ? "pos" : "neg"}`}>{r.net}</span>
+          </div>
+        ))}
       </div>
-      <div className="auth-form-wrap">
-        <div className="auth-form-inner">
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-              marginBottom: "32px",
-              justifyContent: "center",
-            }}
-          >
-            <img
-              src={LOGO_ICON}
-              alt="CosTrace"
-              style={{ height: "52px", objectFit: "contain", borderRadius: "8px" }}
-            />
-          </div>
-        <h2
-          style={{
-            fontSize: "24px",
-            fontWeight: "800",
-            color: "#0f172a",
-            marginBottom: "2px",
-            textAlign: "center",
-          }}
-        >
-          {mode === "login" ? "Welcome back" : "Create account"}
-        </h2>
-        <p
-          style={{
-            fontSize: "13px",
-            color: "#9ca3af",
-            marginBottom: "24px",
-            textAlign: "center",
-          }}
-        >
-          {mode === "login"
-            ? "Sign in to your account"
-            : "Join CosTrace for free"}
-        </p>
-        {error && (
-          <div
-            style={{
-              background: "#fef2f2",
-              border: "1.5px solid #fecaca",
-              borderRadius: "10px",
-              padding: "10px 14px",
-              fontSize: "13px",
-              color: "#ef4444",
-              marginBottom: "12px",
-            }}
-          >
-            {error}
-          </div>
-        )}
-        {mode === "register" && (
-          <div style={{ marginBottom: "12px" }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: "11px",
-                fontWeight: "700",
-                color: "#374151",
-                marginBottom: "5px",
-                letterSpacing: "0.5px",
-                textTransform: "uppercase",
-              }}
-            >
-              Full name
-            </label>
-            <input
-              placeholder="Your name"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              style={{
-                width: "100%",
-                padding: "13px 16px",
-                border: "1.5px solid #e5e7eb",
-                borderRadius: "12px",
-                fontSize: "15px",
-                fontFamily: "inherit",
-                outline: "none",
-                boxSizing: "border-box",
-              }}
-            />
-          </div>
-        )}
-        <div style={{ marginBottom: "12px" }}>
-          <label
-            style={{
-              display: "block",
-              fontSize: "11px",
-              fontWeight: "700",
-              color: "#374151",
-              marginBottom: "5px",
-              letterSpacing: "0.5px",
-              textTransform: "uppercase",
-            }}
-          >
-            Email
-          </label>
-          <div style={{ position: "relative" }}>
-            <svg
-              width="16"
-              height="16"
-              fill="none"
-              stroke="#9ca3af"
-              strokeWidth="1.5"
-              viewBox="0 0 24 24"
-              style={{
-                position: "absolute",
-                left: "14px",
-                top: "50%",
-                transform: "translateY(-50%)",
-                pointerEvents: "none",
-              }}
-            >
-              <rect x="2" y="4" width="20" height="16" rx="2" />
-              <path d="m2 7 10 7 10-7" />
-            </svg>
-            <input
-              type="email"
-              placeholder="you@example.com"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              style={{
-                width: "100%",
-                padding: "13px 16px 13px 40px",
-                border: "1.5px solid #e5e7eb",
-                borderRadius: "12px",
-                fontSize: "15px",
-                fontFamily: "inherit",
-                outline: "none",
-                boxSizing: "border-box",
-              }}
-            />
-          </div>
-        </div>
-        <div style={{ marginBottom: "24px" }}>
-          <label
-            style={{
-              display: "block",
-              fontSize: "11px",
-              fontWeight: "700",
-              color: "#374151",
-              marginBottom: "5px",
-              letterSpacing: "0.5px",
-              textTransform: "uppercase",
-            }}
-          >
-            Password
-          </label>
-          <div style={{ position: "relative" }}>
-            <svg
-              width="16"
-              height="16"
-              fill="none"
-              stroke="#9ca3af"
-              strokeWidth="1.5"
-              viewBox="0 0 24 24"
-              style={{
-                position: "absolute",
-                left: "14px",
-                top: "50%",
-                transform: "translateY(-50%)",
-                pointerEvents: "none",
-              }}
-            >
-              <rect x="3" y="11" width="18" height="11" rx="2" />
-              <path d="M7 11V7a5 5 0 0110 0v4" />
-            </svg>
-            <input
-              type={showPwd ? "text" : "password"}
-              placeholder="........"
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              onKeyDown={(e) => e.key === "Enter" && submit()}
-              style={{
-                width: "100%",
-                padding: "13px 60px 13px 40px",
-                border: "1.5px solid #e5e7eb",
-                borderRadius: "12px",
-                fontSize: "15px",
-                fontFamily: "inherit",
-                outline: "none",
-                boxSizing: "border-box",
-              }}
-            />
-            <button
-              onClick={() => setShowPwd((p) => !p)}
-              style={{
-                position: "absolute",
-                right: "14px",
-                top: "50%",
-                transform: "translateY(-50%)",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                fontSize: "13px",
-                fontWeight: "600",
-                color: "#6b7280",
-                fontFamily: "inherit",
-              }}
-            >
-              {showPwd ? "Hide" : "Show"}
-            </button>
-          </div>
-        </div>
+
+      <div className="auth-final-cta">
         <button
-          onClick={submit}
-          disabled={loading}
-          style={{
-            width: "100%",
-            padding: "16px",
-            borderRadius: "14px",
-            border: "none",
-            background: "linear-gradient(90deg,#DC2626,#b91c1c)",
-            color: "white",
-            fontSize: "16px",
-            fontWeight: "800",
-            cursor: "pointer",
-            marginBottom: "14px",
-            opacity: loading ? 0.7 : 1,
-            fontFamily: "inherit",
+          type="button"
+          className="auth-btn-primary"
+          onClick={() => {
+            setMode("register");
+            setError("");
+            setShowAuthModal(true);
           }}
         >
-          {loading
-            ? "Please wait..."
-            : mode === "login"
-            ? "Sign in"
-            : "Create account"}
+          Try for free
         </button>
+        <button
+          type="button"
+          className="auth-btn-secondary"
+          onClick={() => {
+            setMode("login");
+            setError("");
+            setShowAuthModal(true);
+          }}
+        >
+          Log in
+        </button>
+      </div>
+
+      {showAuthModal && (
         <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-            marginBottom: "14px",
-          }}
+          className="modal-overlay"
+          onClick={(e) => e.target === e.currentTarget && setShowAuthModal(false)}
         >
-          <div style={{ flex: 1, height: "1px", background: "#e5e7eb" }} />
-          <span style={{ fontSize: "13px", color: "#9ca3af" }}>or</span>
-          <div style={{ flex: 1, height: "1px", background: "#e5e7eb" }} />
-        </div>
-        <button
-          onClick={async () => {
-            await sb.auth.signInWithOAuth({
-              provider: "google",
-              options: { redirectTo: window.location.origin },
-            });
-          }}
-          style={{
-            width: "100%",
-            padding: "14px",
-            borderRadius: "14px",
-            border: "1.5px solid #e5e7eb",
-            background: "white",
-            fontSize: "15px",
-            fontWeight: "700",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "10px",
-            marginBottom: "20px",
-            fontFamily: "inherit",
-            color: "#0f172a",
-          }}
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24">
-            <path
-              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-              fill="#4285F4"
-            />
-            <path
-              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-              fill="#34A853"
-            />
-            <path
-              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
-              fill="#FBBC05"
-            />
-            <path
-              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-              fill="#EA4335"
-            />
-          </svg>
-          Continue with Google
-        </button>
-        <p
-          style={{
-            textAlign: "center",
-            fontSize: "14px",
-            color: "#6b7280",
-            margin: 0,
-          }}
-        >
-          {mode === "login" ? (
-            <>
-              No account?{" "}
-              <span
+          <div className="modal" style={{ maxWidth: "420px" }}>
+            <div className="modal-header">
+              <div
                 style={{
-                  color: "#DC2626",
-                  fontWeight: "700",
-                  cursor: "pointer",
-                }}
-                onClick={() => {
-                  setMode("register");
-                  setError("");
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
                 }}
               >
-                Sign up free
-              </span>
-            </>
-          ) : (
-            <>
-              Already have one?{" "}
-              <span
-                style={{
-                  color: "#DC2626",
-                  fontWeight: "700",
-                  cursor: "pointer",
-                }}
-                onClick={() => {
-                  setMode("login");
-                  setError("");
-                }}
-              >
-                Sign in
-              </span>
-            </>
-          )}
-        </p>
-        <p
-          style={{
-            textAlign: "center",
-            fontSize: "11px",
-            color: "#d1d5db",
-            marginTop: "14px",
-            marginBottom: 0,
-          }}
-        >
-          v 1.0.0
-        </p>
+                <img
+                  src={LOGO_ICON}
+                  alt="CosTrace"
+                  style={{ height: "32px", objectFit: "contain", borderRadius: "6px" }}
+                />
+                <h2>{mode === "login" ? "Welcome back" : "Create account"}</h2>
+              </div>
+              <button className="btn-icon" onClick={() => setShowAuthModal(false)}>
+                <Icon.X />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="auth-form-inner" style={{ maxWidth: "none" }}>
+                <p
+                  style={{
+                    fontSize: "13px",
+                    color: "#9ca3af",
+                    marginBottom: "20px",
+                  }}
+                >
+                  {mode === "login"
+                    ? "Sign in to your account"
+                    : "Join CosTrace for free"}
+                </p>
+                {error && (
+                  <div
+                    style={{
+                      background: "#fef2f2",
+                      border: "1.5px solid #fecaca",
+                      borderRadius: "10px",
+                      padding: "10px 14px",
+                      fontSize: "13px",
+                      color: "#ef4444",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    {error}
+                  </div>
+                )}
+                {mode === "register" && (
+                  <div style={{ marginBottom: "12px" }}>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: "11px",
+                        fontWeight: "700",
+                        color: "#374151",
+                        marginBottom: "5px",
+                        letterSpacing: "0.5px",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Full name
+                    </label>
+                    <input
+                      placeholder="Your name"
+                      value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      style={{
+                        width: "100%",
+                        padding: "13px 16px",
+                        border: "1.5px solid #e5e7eb",
+                        borderRadius: "12px",
+                        fontSize: "15px",
+                        fontFamily: "inherit",
+                        outline: "none",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+                )}
+                <div style={{ marginBottom: "12px" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "11px",
+                      fontWeight: "700",
+                      color: "#374151",
+                      marginBottom: "5px",
+                      letterSpacing: "0.5px",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Email
+                  </label>
+                  <div style={{ position: "relative" }}>
+                    <svg
+                      width="16"
+                      height="16"
+                      fill="none"
+                      stroke="#9ca3af"
+                      strokeWidth="1.5"
+                      viewBox="0 0 24 24"
+                      style={{
+                        position: "absolute",
+                        left: "14px",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        pointerEvents: "none",
+                      }}
+                    >
+                      <rect x="2" y="4" width="20" height="16" rx="2" />
+                      <path d="m2 7 10 7 10-7" />
+                    </svg>
+                    <input
+                      type="email"
+                      placeholder="you@example.com"
+                      value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      style={{
+                        width: "100%",
+                        padding: "13px 16px 13px 40px",
+                        border: "1.5px solid #e5e7eb",
+                        borderRadius: "12px",
+                        fontSize: "15px",
+                        fontFamily: "inherit",
+                        outline: "none",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+                </div>
+                <div style={{ marginBottom: "20px" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "11px",
+                      fontWeight: "700",
+                      color: "#374151",
+                      marginBottom: "5px",
+                      letterSpacing: "0.5px",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Password
+                  </label>
+                  <div style={{ position: "relative" }}>
+                    <svg
+                      width="16"
+                      height="16"
+                      fill="none"
+                      stroke="#9ca3af"
+                      strokeWidth="1.5"
+                      viewBox="0 0 24 24"
+                      style={{
+                        position: "absolute",
+                        left: "14px",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        pointerEvents: "none",
+                      }}
+                    >
+                      <rect x="3" y="11" width="18" height="11" rx="2" />
+                      <path d="M7 11V7a5 5 0 0110 0v4" />
+                    </svg>
+                    <input
+                      type={showPwd ? "text" : "password"}
+                      placeholder="........"
+                      value={form.password}
+                      onChange={(e) => setForm({ ...form, password: e.target.value })}
+                      onKeyDown={(e) => e.key === "Enter" && submit()}
+                      style={{
+                        width: "100%",
+                        padding: "13px 60px 13px 40px",
+                        border: "1.5px solid #e5e7eb",
+                        borderRadius: "12px",
+                        fontSize: "15px",
+                        fontFamily: "inherit",
+                        outline: "none",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                    <button
+                      onClick={() => setShowPwd((p) => !p)}
+                      style={{
+                        position: "absolute",
+                        right: "14px",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        fontSize: "13px",
+                        fontWeight: "600",
+                        color: "#6b7280",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      {showPwd ? "Hide" : "Show"}
+                    </button>
+                  </div>
+                </div>
+                <button
+                  onClick={submit}
+                  disabled={loading}
+                  style={{
+                    width: "100%",
+                    padding: "16px",
+                    borderRadius: "14px",
+                    border: "none",
+                    background: "linear-gradient(90deg,#DC2626,#b91c1c)",
+                    color: "white",
+                    fontSize: "16px",
+                    fontWeight: "800",
+                    cursor: "pointer",
+                    marginBottom: "14px",
+                    opacity: loading ? 0.7 : 1,
+                    fontFamily: "inherit",
+                  }}
+                >
+                  {loading
+                    ? "Please wait..."
+                    : mode === "login"
+                    ? "Sign in"
+                    : "Create account"}
+                </button>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    marginBottom: "14px",
+                  }}
+                >
+                  <div style={{ flex: 1, height: "1px", background: "#e5e7eb" }} />
+                  <span style={{ fontSize: "13px", color: "#9ca3af" }}>or</span>
+                  <div style={{ flex: 1, height: "1px", background: "#e5e7eb" }} />
+                </div>
+                <button
+                  onClick={async () => {
+                    await sb.auth.signInWithOAuth({
+                      provider: "google",
+                      options: { redirectTo: window.location.origin },
+                    });
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "14px",
+                    borderRadius: "14px",
+                    border: "1.5px solid #e5e7eb",
+                    background: "white",
+                    fontSize: "15px",
+                    fontWeight: "700",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "10px",
+                    marginBottom: "8px",
+                    fontFamily: "inherit",
+                    color: "#0f172a",
+                  }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24">
+                    <path
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                      fill="#4285F4"
+                    />
+                    <path
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                      fill="#34A853"
+                    />
+                    <path
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
+                      fill="#FBBC05"
+                    />
+                    <path
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                      fill="#EA4335"
+                    />
+                  </svg>
+                  Continue with Google
+                </button>
+              </div>
+            </div>
+            <div className="modal-footer" style={{ justifyContent: "center" }}>
+              <p style={{ fontSize: "13px", color: "#6b7280", margin: 0 }}>
+                {mode === "login" ? (
+                  <>
+                    No account?{" "}
+                    <span
+                      style={{ color: "#DC2626", fontWeight: "700", cursor: "pointer" }}
+                      onClick={() => {
+                        setMode("register");
+                        setError("");
+                      }}
+                    >
+                      Sign up free
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    Already have one?{" "}
+                    <span
+                      style={{ color: "#DC2626", fontWeight: "700", cursor: "pointer" }}
+                      onClick={() => {
+                        setMode("login");
+                        setError("");
+                      }}
+                    >
+                      Sign in
+                    </span>
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
