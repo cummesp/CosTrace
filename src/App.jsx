@@ -188,16 +188,16 @@ const css = `
   body{font-family:var(--font);background:#F2F4F7;color:var(--text);-webkit-font-smoothing:antialiased;}
   .app{min-height:100vh;}
   /* AUTH */
-  :root{--auth-bg:#18344F;--auth-bg2:#20415F;--auth-surface:rgba(255,255,255,.045);--auth-border:rgba(255,255,255,.08);--auth-accent:#DC2626;}
+  :root{--auth-bg:#161E2B;--auth-bg2:#1D2738;--auth-surface:rgba(255,255,255,.045);--auth-border:rgba(255,255,255,.08);--auth-accent:#DC2626;}
   .auth-page{min-height:100vh;background:radial-gradient(circle at top right,rgba(255,255,255,.05),transparent 40%),linear-gradient(180deg,var(--auth-bg),var(--auth-bg2));padding:32px 0 80px;color:white;overflow-x:hidden;}
   .auth-container{max-width:1280px;margin:0 auto;padding:0 48px;}
   @media(max-width:1200px){.auth-container{padding:0 32px;}}
   @media(max-width:768px){.auth-container{padding:0 24px;}}
-  .auth-page-top{display:flex;align-items:center;justify-content:center;margin-bottom:64px;}
+  .auth-page-top{display:flex;align-items:center;justify-content:flex-start;margin-bottom:64px;}
   @media(max-width:768px){.auth-page-top{margin-bottom:40px;}}
-  .auth-logo-img{height:72px;object-fit:contain;display:block;}
-  @media(max-width:992px){.auth-logo-img{height:60px;}}
-  @media(max-width:768px){.auth-logo-img{height:48px;}}
+  .auth-logo-img{height:180px;object-fit:contain;display:block;}
+  @media(max-width:992px){.auth-logo-img{height:140px;}}
+  @media(max-width:768px){.auth-logo-img{height:100px;}}
   .auth-hero-row{display:grid;grid-template-columns:46% 54%;align-items:center;gap:64px;margin-bottom:100px;}
   @media(max-width:1200px){.auth-hero-row{grid-template-columns:1fr;gap:48px;text-align:center;}.auth-hero-text{margin:0 auto;}.auth-hero-text p{margin-left:auto;margin-right:auto;}.auth-hero-photos{margin:0 auto;max-width:720px;}}
   @media(max-width:992px){.auth-hero-row{grid-template-columns:1fr;}}
@@ -215,15 +215,15 @@ const css = `
   .auth-collage-img{position:absolute;border-radius:24px;object-fit:cover;border:1px solid rgba(255,255,255,.08);box-shadow:0 30px 70px rgba(0,0,0,.28);transition:transform .3s ease,box-shadow .3s ease;}
   .auth-collage-img:hover{transform:translateY(-6px) scale(1.02);box-shadow:0 40px 80px rgba(0,0,0,.35);}
   .auth-badge-chip{position:absolute;background:rgba(21,46,66,.96);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:8px 12px;font-size:11px;font-weight:700;color:rgba(255,255,255,0.85);display:flex;align-items:center;gap:6px;box-shadow:0 18px 45px rgba(0,0,0,.20);white-space:nowrap;}
-  .auth-features-row{display:grid;grid-template-columns:repeat(4,minmax(240px,1fr));gap:24px;margin:90px auto 120px;}
+  .auth-features-row{display:grid;grid-template-columns:repeat(4,minmax(96px,1fr));gap:10px;margin:36px auto 48px;}
   @media(max-width:1100px){.auth-features-row{grid-template-columns:repeat(2,1fr);}}
-  @media(max-width:768px){.auth-features-row{grid-template-columns:1fr;gap:20px;margin:60px auto;}}
-  .auth-feature-card{background:var(--auth-surface);border:1px solid var(--auth-border);border-radius:24px;padding:30px;min-height:220px;backdrop-filter:blur(18px);box-shadow:0 18px 45px rgba(0,0,0,.18);transition:all .3s ease;}
-  .auth-feature-card:hover{transform:translateY(-8px);border-color:rgba(255,255,255,.16);box-shadow:0 22px 48px rgba(0,0,0,.22);}
+  @media(max-width:768px){.auth-features-row{grid-template-columns:1fr;gap:8px;margin:24px auto;}}
+  .auth-feature-card{background:var(--auth-surface);border:1px solid var(--auth-border);border-radius:10px;padding:12px;min-height:88px;backdrop-filter:blur(18px);box-shadow:0 7px 18px rgba(0,0,0,.18);transition:all .3s ease;}
+  .auth-feature-card:hover{transform:translateY(-3px);border-color:rgba(255,255,255,.16);box-shadow:0 9px 19px rgba(0,0,0,.22);}
   @media(max-width:768px){.auth-feature-card{min-height:auto;}}
-  .auth-feature-dot{width:58px;height:58px;border-radius:16px;background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.3);color:var(--auth-accent);display:flex;align-items:center;justify-content:center;margin-bottom:24px;}
-  .auth-feature-label{font-size:22px;font-weight:700;line-height:1.35;margin-bottom:16px;color:#fff;}
-  .auth-feature-desc{font-size:15px;line-height:1.7;color:rgba(255,255,255,.72);}
+  .auth-feature-dot{width:23px;height:23px;border-radius:6px;background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.3);color:var(--auth-accent);display:flex;align-items:center;justify-content:center;margin-bottom:10px;}
+  .auth-feature-label{font-size:9px;font-weight:700;line-height:1.35;margin-bottom:6px;color:#fff;}
+  .auth-feature-desc{font-size:6px;line-height:1.7;color:rgba(255,255,255,.72);}
   .auth-build-section{max-width:1280px;margin:140px auto;padding:0 48px;}
   @media(max-width:768px){.auth-build-section{padding:0 24px;margin:90px auto;}}
   .auth-build-header{display:grid;grid-template-columns:1.4fr .9fr;gap:48px;align-items:end;margin-bottom:64px;}
@@ -238,7 +238,8 @@ const css = `
   .auth-build-card:hover{transform:translateY(-10px);box-shadow:0 24px 48px rgba(0,0,0,.22);}
   .auth-build-card h3{font-size:22px;font-weight:700;line-height:1.35;margin-bottom:16px;color:#fff;}
   .auth-build-card p{font-size:16px;line-height:1.8;color:rgba(255,255,255,.72);}
-  .auth-final-cta{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-bottom:80px;}
+  .auth-final-cta{display:flex;justify-content:flex-start;gap:14px;flex-wrap:wrap;margin-top:8px;}
+  @media(max-width:1200px){.auth-final-cta{justify-content:center;}}
   .auth-btn-primary{height:58px;display:inline-flex;align-items:center;gap:8px;background:var(--auth-accent);color:white;border:none;border-radius:16px;padding:0 34px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 10px 30px rgba(220,38,38,.28);transition:.3s ease;}
   .auth-btn-primary:hover{filter:brightness(1.08);}
   .auth-btn-secondary{height:58px;display:inline-flex;align-items:center;background:transparent;color:white;border:1.5px solid rgba(255,255,255,0.22);border-radius:16px;padding:0 34px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;transition:.3s ease;}
@@ -2614,6 +2615,30 @@ function AuthScreen({ onLogin }) {
             <Icon.Lock />
             Your data is secure and private.
           </div>
+          <div className="auth-final-cta">
+            <button
+              type="button"
+              className="auth-btn-primary"
+              onClick={() => {
+                setMode("register");
+                setError("");
+                setShowAuthModal(true);
+              }}
+            >
+              Try for free
+            </button>
+            <button
+              type="button"
+              className="auth-btn-secondary"
+              onClick={() => {
+                setMode("login");
+                setError("");
+                setShowAuthModal(true);
+              }}
+            >
+              Log in
+            </button>
+          </div>
         </div>
 
         <div className="auth-hero-photos">
@@ -2707,31 +2732,6 @@ function AuthScreen({ onLogin }) {
           </div>
         </div>
       </section>
-
-      <div className="auth-final-cta">
-        <button
-          type="button"
-          className="auth-btn-primary"
-          onClick={() => {
-            setMode("register");
-            setError("");
-            setShowAuthModal(true);
-          }}
-        >
-          Try for free
-        </button>
-        <button
-          type="button"
-          className="auth-btn-secondary"
-          onClick={() => {
-            setMode("login");
-            setError("");
-            setShowAuthModal(true);
-          }}
-        >
-          Log in
-        </button>
-      </div>
 
       <footer className="auth-footer">
         <div>© 2026 CosTrace</div>
