@@ -188,48 +188,63 @@ const css = `
   body{font-family:var(--font);background:#F2F4F7;color:var(--text);-webkit-font-smoothing:antialiased;}
   .app{min-height:100vh;}
   /* AUTH */
-  .auth-page{min-height:100vh;background:linear-gradient(160deg,#0A0A0D 0%,#120A0C 55%,#1A0C0E 100%);padding:36px 6vw 70px;color:white;}
-  .auth-page-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:42px;flex-wrap:wrap;gap:14px;}
-  .auth-logo-img{height:30px;object-fit:contain;display:block;}
-  .auth-pill{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,0.04);border:1px solid rgba(220,38,38,0.35);border-radius:20px;padding:6px 14px;font-size:11.5px;font-weight:700;color:rgba(255,255,255,0.8);}
-  .auth-hero-row{display:flex;gap:48px;align-items:center;flex-wrap:wrap;margin-bottom:64px;}
-  .auth-hero-text{flex:1 1 380px;min-width:300px;}
-  .auth-hero-text h2{font-size:46px;font-weight:800;color:white;line-height:1.12;letter-spacing:-1px;margin-bottom:18px;}
-  .auth-hero-text h2 .accent{color:#E0303D;}
-  .auth-hero-text p{font-size:16px;color:rgba(255,255,255,0.5);line-height:1.65;max-width:460px;margin-bottom:8px;}
-  .auth-hero-text .lead{font-size:16px;color:rgba(255,255,255,0.85);font-weight:700;margin-bottom:22px;}
-  .auth-secure{display:flex;align-items:center;gap:7px;font-size:11.5px;color:rgba(255,255,255,0.35);margin-top:14px;}
-  .auth-hero-photos{position:relative;flex:1 1 360px;min-width:300px;height:380px;}
-  @media(max-width:680px){.auth-hero-photos{height:300px;}.auth-hero-text h2{font-size:34px;}}
-  .auth-collage-img{position:absolute;border-radius:14px;object-fit:cover;border:1px solid rgba(255,255,255,0.1);box-shadow:0 14px 32px rgba(0,0,0,0.5);}
-  .auth-badge-chip{position:absolute;background:#0F0A0B;border:1px solid rgba(220,38,38,0.3);border-radius:10px;padding:8px 12px;font-size:11px;font-weight:700;color:rgba(255,255,255,0.85);display:flex;align-items:center;gap:6px;box-shadow:0 6px 16px rgba(0,0,0,0.4);white-space:nowrap;}
-  .auth-features-row{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin-bottom:60px;}
-  .auth-feature-card{flex:1 1 170px;max-width:210px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px;}
-  .auth-feature-dot{width:30px;height:30px;border-radius:8px;background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.3);color:#E0303D;display:flex;align-items:center;justify-content:center;margin-bottom:10px;}
-  .auth-feature-label{font-size:13px;font-weight:700;color:rgba(255,255,255,0.9);line-height:1.3;margin-bottom:4px;}
-  .auth-feature-desc{font-size:11.5px;color:rgba(255,255,255,0.42);line-height:1.45;}
-  .auth-tagline-row{text-align:center;font-size:18px;font-weight:700;color:rgba(255,255,255,0.8);margin-bottom:18px;}
-  .auth-tagline-row .accent{color:#E0303D;}
-  .auth-tags-row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:60px;}
-  .auth-tag{display:flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,0.14);border-radius:20px;padding:8px 16px;font-size:12px;font-weight:600;color:rgba(255,255,255,0.68);}
-  .auth-tag svg{color:#E0303D;}
-  .auth-final-cta{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;}
-  .auth-btn-primary{background:#DC2626;color:white;border:none;border-radius:11px;padding:14px 30px;font-size:14.5px;font-weight:800;cursor:pointer;font-family:inherit;}
-  .auth-btn-primary:hover{background:#c41f1f;}
-  .auth-btn-secondary{background:transparent;color:white;border:1.5px solid rgba(255,255,255,0.25);border-radius:11px;padding:14px 30px;font-size:14.5px;font-weight:800;cursor:pointer;font-family:inherit;}
+  :root{--auth-bg:#18344F;--auth-bg2:#20415F;--auth-surface:rgba(255,255,255,.045);--auth-border:rgba(255,255,255,.08);--auth-accent:#DC2626;}
+  .auth-page{min-height:100vh;background:radial-gradient(circle at top right,rgba(255,255,255,.05),transparent 40%),linear-gradient(180deg,var(--auth-bg),var(--auth-bg2));padding:32px 0 80px;color:white;overflow-x:hidden;}
+  .auth-container{max-width:1280px;margin:0 auto;padding:0 48px;}
+  @media(max-width:1200px){.auth-container{padding:0 32px;}}
+  @media(max-width:768px){.auth-container{padding:0 24px;}}
+  .auth-page-top{display:flex;align-items:center;justify-content:center;margin-bottom:64px;}
+  @media(max-width:768px){.auth-page-top{margin-bottom:40px;}}
+  .auth-logo-img{height:72px;object-fit:contain;display:block;}
+  @media(max-width:992px){.auth-logo-img{height:60px;}}
+  @media(max-width:768px){.auth-logo-img{height:48px;}}
+  .auth-hero-row{display:grid;grid-template-columns:46% 54%;align-items:center;gap:64px;margin-bottom:100px;}
+  @media(max-width:1200px){.auth-hero-row{grid-template-columns:1fr;gap:48px;text-align:center;}.auth-hero-text{margin:0 auto;}.auth-hero-text p{margin-left:auto;margin-right:auto;}.auth-hero-photos{margin:0 auto;max-width:720px;}}
+  @media(max-width:992px){.auth-hero-row{grid-template-columns:1fr;}}
+  .auth-hero-text h2{font-size:72px;font-weight:800;color:white;line-height:1.03;letter-spacing:-2px;max-width:620px;margin-bottom:28px;}
+  @media(max-width:1200px){.auth-hero-text h2{font-size:56px;max-width:760px;margin-left:auto;margin-right:auto;}}
+  @media(max-width:768px){.auth-hero-text h2{font-size:42px;}}
+  @media(max-width:480px){.auth-hero-text h2{font-size:36px;letter-spacing:-1px;}}
+  .auth-hero-text h2 .accent{color:var(--auth-accent);}
+  .auth-hero-text p{font-size:20px;line-height:1.75;color:rgba(255,255,255,.82);max-width:520px;margin-bottom:38px;}
+  @media(max-width:768px){.auth-hero-text p{font-size:17px;}}
+  .auth-secure{display:flex;align-items:center;gap:7px;font-size:11.5px;color:rgba(255,255,255,0.35);margin-top:14px;justify-content:center;}
+  @media(min-width:1201px){.auth-secure{justify-content:flex-start;}}
+  .auth-hero-photos{position:relative;height:520px;}
+  @media(max-width:768px){.auth-hero-photos{height:auto;min-height:340px;}}
+  .auth-collage-img{position:absolute;border-radius:24px;object-fit:cover;border:1px solid rgba(255,255,255,.08);box-shadow:0 30px 70px rgba(0,0,0,.28);transition:transform .3s ease,box-shadow .3s ease;}
+  .auth-collage-img:hover{transform:translateY(-6px) scale(1.02);box-shadow:0 40px 80px rgba(0,0,0,.35);}
+  .auth-badge-chip{position:absolute;background:rgba(21,46,66,.96);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:8px 12px;font-size:11px;font-weight:700;color:rgba(255,255,255,0.85);display:flex;align-items:center;gap:6px;box-shadow:0 18px 45px rgba(0,0,0,.20);white-space:nowrap;}
+  .auth-features-row{display:grid;grid-template-columns:repeat(4,minmax(240px,1fr));gap:24px;margin:90px auto 120px;}
+  @media(max-width:1100px){.auth-features-row{grid-template-columns:repeat(2,1fr);}}
+  @media(max-width:768px){.auth-features-row{grid-template-columns:1fr;gap:20px;margin:60px auto;}}
+  .auth-feature-card{background:var(--auth-surface);border:1px solid var(--auth-border);border-radius:24px;padding:30px;min-height:220px;backdrop-filter:blur(18px);box-shadow:0 18px 45px rgba(0,0,0,.18);transition:all .3s ease;}
+  .auth-feature-card:hover{transform:translateY(-8px);border-color:rgba(255,255,255,.16);box-shadow:0 22px 48px rgba(0,0,0,.22);}
+  @media(max-width:768px){.auth-feature-card{min-height:auto;}}
+  .auth-feature-dot{width:58px;height:58px;border-radius:16px;background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.3);color:var(--auth-accent);display:flex;align-items:center;justify-content:center;margin-bottom:24px;}
+  .auth-feature-label{font-size:22px;font-weight:700;line-height:1.35;margin-bottom:16px;color:#fff;}
+  .auth-feature-desc{font-size:15px;line-height:1.7;color:rgba(255,255,255,.72);}
+  .auth-build-section{max-width:1280px;margin:140px auto;padding:0 48px;}
+  @media(max-width:768px){.auth-build-section{padding:0 24px;margin:90px auto;}}
+  .auth-build-header{display:grid;grid-template-columns:1.4fr .9fr;gap:48px;align-items:end;margin-bottom:64px;}
+  @media(max-width:1100px){.auth-build-header{grid-template-columns:1fr;}}
+  .auth-build-header h2{font-size:56px;font-weight:800;line-height:1.08;letter-spacing:-1.6px;color:#fff;max-width:680px;}
+  @media(max-width:768px){.auth-build-header h2{font-size:38px;}}
+  .auth-build-header p{font-size:18px;line-height:1.7;color:rgba(255,255,255,.75);max-width:420px;}
+  .auth-build-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;}
+  @media(max-width:1100px){.auth-build-grid{grid-template-columns:repeat(2,1fr);}}
+  @media(max-width:768px){.auth-build-grid{grid-template-columns:1fr;gap:20px;}}
+  .auth-build-card{background:var(--auth-surface);border:1px solid var(--auth-border);border-radius:28px;padding:34px;min-height:270px;backdrop-filter:blur(18px);box-shadow:0 18px 45px rgba(0,0,0,.18);transition:.3s ease;}
+  .auth-build-card:hover{transform:translateY(-10px);box-shadow:0 24px 48px rgba(0,0,0,.22);}
+  .auth-build-card h3{font-size:22px;font-weight:700;line-height:1.35;margin-bottom:16px;color:#fff;}
+  .auth-build-card p{font-size:16px;line-height:1.8;color:rgba(255,255,255,.72);}
+  .auth-final-cta{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-bottom:80px;}
+  .auth-btn-primary{height:58px;display:inline-flex;align-items:center;gap:8px;background:var(--auth-accent);color:white;border:none;border-radius:16px;padding:0 34px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 10px 30px rgba(220,38,38,.28);transition:.3s ease;}
+  .auth-btn-primary:hover{filter:brightness(1.08);}
+  .auth-btn-secondary{height:58px;display:inline-flex;align-items:center;background:transparent;color:white;border:1.5px solid rgba(255,255,255,0.22);border-radius:16px;padding:0 34px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;transition:.3s ease;}
   .auth-btn-secondary:hover{border-color:rgba(255,255,255,0.5);background:rgba(255,255,255,0.04);}
-  .auth-receipt{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:16px 18px;max-width:330px;width:100%;margin:0 auto 60px;}
-  .auth-receipt-title{font-size:10.5px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:rgba(255,255,255,0.3);margin-bottom:10px;}
-  .auth-receipt-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06);animation:authSettleIn 0.55s ease both;}
-  .auth-receipt-row:last-child{border-bottom:none;}
-  .auth-receipt-who{display:flex;align-items:center;gap:8px;}
-  .auth-receipt-dot{width:7px;height:7px;border-radius:50%;background:#E0303D;flex-shrink:0;}
-  .auth-receipt-name{font-size:12.5px;font-weight:600;color:rgba(255,255,255,0.8);}
-  .auth-receipt-paid{font-size:10px;color:rgba(255,255,255,0.32);margin-top:1px;}
-  .auth-receipt-net{font-family:'DM Mono',monospace;font-size:13px;font-weight:700;white-space:nowrap;}
-  .auth-receipt-net.pos{color:#5FBE8A;}
-  .auth-receipt-net.neg{color:#E2796B;}
-  @keyframes authSettleIn{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:translateY(0);}}
+  @media(max-width:768px){.auth-btn-primary,.auth-btn-secondary{width:100%;max-width:340px;justify-content:center;}}
+  .auth-footer{max-width:1280px;margin:0 auto;padding:24px 48px;border-top:1px solid rgba(255,255,255,.08);color:rgba(255,255,255,.55);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:14px;}
   .auth-form-inner{width:100%;max-width:400px;}
   .auth-form-inner h1{font-size:26px;font-weight:800;color:var(--text);margin-bottom:4px;}
   .auth-form-inner .subtitle{font-size:14px;color:var(--text3);margin-bottom:32px;}
@@ -2580,15 +2595,11 @@ function AuthScreen({ onLogin }) {
 
   return (
     <div className="auth-page">
-      <div className="auth-page-top">
+      <div className="auth-page-top auth-container">
         <img src={LOGO_SIDEBAR} alt="CosTrace" className="auth-logo-img" />
-        <div className="auth-pill">
-          <HeroIcon.Shield />
-          Shared Expenses. One Truth.
-        </div>
       </div>
 
-      <div className="auth-hero-row">
+      <div className="auth-hero-row auth-container">
         <div className="auth-hero-text">
           <h2>
             Shared Expenses.
@@ -2597,9 +2608,8 @@ function AuthScreen({ onLogin }) {
           </h2>
           <p>
             Every expense, settlement and adjustment preserved in one
-            transparent history.
+            transparent history. Today, tomorrow, always.
           </p>
-          <div className="lead">Today, tomorrow, always.</div>
           <div className="auth-secure">
             <Icon.Lock />
             Your data is secure and private.
@@ -2636,7 +2646,7 @@ function AuthScreen({ onLogin }) {
         </div>
       </div>
 
-      <div className="auth-features-row">
+      <div className="auth-features-row auth-container">
         <div className="auth-feature-card">
           <div className="auth-feature-dot">
             <HeroIcon.People />
@@ -2674,55 +2684,29 @@ function AuthScreen({ onLogin }) {
         </div>
       </div>
 
-      <div className="auth-tagline-row">
-        Built for <span className="accent">real life</span> shared experiences.
-      </div>
-      <div className="auth-tags-row">
-        <div className="auth-tag">
-          <HeroIcon.People />
-          Friends &amp; Roommates
+      <section className="auth-build-section">
+        <div className="auth-build-header">
+          <h2>Build for real life shared experiences.</h2>
+          <p>
+            Everything you need to organize shared expenses, settle balances
+            and keep every participant on the same page.
+          </p>
         </div>
-        <div className="auth-tag">
-          <HeroIcon.Heart />
-          Couples
-        </div>
-        <div className="auth-tag">
-          <HeroIcon.People />
-          Families
-        </div>
-        <div className="auth-tag">
-          <HeroIcon.Plane />
-          Travel Groups
-        </div>
-        <div className="auth-tag">
-          <HeroIcon.People />
-          Co-parents
-        </div>
-        <div className="auth-tag">
-          <HeroIcon.Briefcase />
-          Teams &amp; Projects
-        </div>
-      </div>
-
-      <div className="auth-receipt">
-        <div className="auth-receipt-title">Household — June</div>
-        {[
-          { name: "You", paid: "8,500.00", net: "+2,100.00", pos: true, delay: "0s" },
-          { name: "Ana", paid: "3,200.00", net: "-1,050.00", pos: false, delay: "0.12s" },
-          { name: "Marko", paid: "1,150.00", net: "-1,050.00", pos: false, delay: "0.24s" },
-        ].map((r) => (
-          <div key={r.name} className="auth-receipt-row" style={{ animationDelay: r.delay }}>
-            <div className="auth-receipt-who">
-              <span className="auth-receipt-dot" />
-              <div>
-                <div className="auth-receipt-name">{r.name}</div>
-                <div className="auth-receipt-paid">paid {r.paid}</div>
-              </div>
-            </div>
-            <span className={`auth-receipt-net ${r.pos ? "pos" : "neg"}`}>{r.net}</span>
+        <div className="auth-build-grid">
+          <div className="auth-build-card">
+            <h3>Flexible Groups</h3>
+            <p>Create expense groups for trips, homes or teams.</p>
           </div>
-        ))}
-      </div>
+          <div className="auth-build-card">
+            <h3>Automatic Balances</h3>
+            <p>Instantly see who owes what after every expense.</p>
+          </div>
+          <div className="auth-build-card">
+            <h3>Transparent History</h3>
+            <p>Every change is visible and easy to verify.</p>
+          </div>
+        </div>
+      </section>
 
       <div className="auth-final-cta">
         <button
@@ -2748,6 +2732,11 @@ function AuthScreen({ onLogin }) {
           Log in
         </button>
       </div>
+
+      <footer className="auth-footer">
+        <div>© 2026 CosTrace</div>
+        <div>Privacy • Terms</div>
+      </footer>
 
       {showAuthModal && (
         <div
