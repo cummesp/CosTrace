@@ -2671,16 +2671,16 @@ function AuthScreen({ onLogin }) {
 
         <div className="auth-hero-photos">
           <img
-            src={AUTH_PHOTO_ROOMMATES}
-            alt="Roommates settling into their new place together"
-            className="auth-collage-img"
-            style={{ top: 0, left: 0, width: "72%", height: "53%", zIndex: 1, transform: "rotate(-1.5deg)" }}
-          />
-          <img
             src={AUTH_PHOTO_PARENT_CHILD}
             alt="Family with child saving money together"
             className="auth-collage-img"
-            style={{ top: "26%", left: "28%", width: "67%", height: "55%", zIndex: 2, transform: "rotate(1.5deg)" }}
+            style={{ top: "-8%", left: 0, width: "72%", height: "53%", zIndex: 1, transform: "rotate(-1.5deg)" }}
+          />
+          <img
+            src={AUTH_PHOTO_ROOMMATES}
+            alt="Roommates settling into their new place together"
+            className="auth-collage-img"
+            style={{ top: "26%", left: "33%", width: "67%", height: "55%", zIndex: 2, transform: "rotate(1.5deg)" }}
           />
           <img
             src={AUTH_PHOTO_PIZZA}
