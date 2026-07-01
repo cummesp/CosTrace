@@ -2674,25 +2674,25 @@ function AuthScreen({ onLogin }) {
             src={AUTH_PHOTO_ROOMMATES}
             alt="Roommates settling into their new place together"
             className="auth-collage-img"
-            style={{ top: 0, left: 0, width: "62%", height: "46%", zIndex: 1, transform: "rotate(-1.5deg)" }}
+            style={{ top: 0, left: 0, width: "60%", height: "44%", zIndex: 1, transform: "rotate(-1.5deg)" }}
           />
           <img
             src={AUTH_PHOTO_PARENT_CHILD}
             alt="Family with child saving money together"
             className="auth-collage-img"
-            style={{ top: "20%", right: 0, width: "55%", height: "48%", zIndex: 2, transform: "rotate(1.5deg)" }}
+            style={{ top: "26%", left: "clamp(30%, 36%, 42%)", width: "56%", height: "46%", zIndex: 2, transform: "rotate(1.5deg)" }}
           />
           <img
             src={AUTH_PHOTO_PIZZA}
             alt="Friends sharing pizza"
             className="auth-collage-img"
-            style={{ top: "56%", left: "10%", width: "62%", height: "44%", zIndex: 3, transform: "rotate(-1deg)" }}
+            style={{ top: "62%", left: "2%", width: "60%", height: "40%", zIndex: 3, transform: "rotate(-1deg)" }}
           />
-          <div className="auth-badge-chip" style={{ top: "-10px", right: "8%" }}>
+          <div className="auth-badge-chip" style={{ top: "-10px", right: "6%" }}>
             <HeroIcon.Clock />
             History that stays
           </div>
-          <div className="auth-badge-chip" style={{ bottom: "-10px", left: "4%" }}>
+          <div className="auth-badge-chip" style={{ bottom: "-10px", left: "2%" }}>
             <Icon.Lock />
             Monthly locking
           </div>
