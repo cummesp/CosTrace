@@ -185,7 +185,7 @@ const css = `
     --header:#1F2937;--header-border:#2d3748;
     --sidebar-bg:#151E2B;--sidebar-text:rgba(255,255,255,0.75);--sidebar-active:rgba(255,255,255,0.12);
   }
-  body{font-family:var(--font);background:#F2F4F7;color:var(--text);-webkit-font-smoothing:antialiased;}
+  body{font-family:var(--font);background:#F2F4F7;color:var(--text);-webkit-font-smoothing:antialiased;overflow-x:hidden;}
   .app{min-height:100vh;}
   /* AUTH — fluid responsive system
      Sizes are computed from viewport width (vw) using clamp(min, preferred, max).
@@ -197,7 +197,11 @@ const css = `
     --auth-accent:#DC2626;
     /* ── core scale ─────────────────────────────────────────────────── */
     --hero-size: clamp(28px, 5vw, 72px);       /* h2 headline */
-    --logo-h:    calc(var(--hero-size) * 0.5);  /* logo = ½ of headline */
+    /* Logo height independent — sized so "CosTrace" text in the image
+       appears at ~half the visual weight of --hero-size. The logo PNG is
+       700×466 and the text occupies ~40% of the height, so logo-h ≈
+       headline / 0.4 / 2 = headline * 1.25. clamp keeps it reasonable. */
+    --logo-h:    clamp(60px, 8vw, 130px);
     --sub-size:  clamp(13px, 1.4vw, 20px);      /* body / paragraph */
     --label-size:clamp(9px,  0.85vw, 12px);     /* feature card label */
     --desc-size: clamp(7px,  0.7vw,  10px);     /* feature card desc */
@@ -209,7 +213,7 @@ const css = `
     --card-r:    clamp(6px,  0.7vw,  10px);      /* feature card radius */
     --photo-h:   clamp(260px, 36vw,  520px);     /* collage container height */
   }
-  .auth-page{min-height:100vh;background:radial-gradient(circle at top right,rgba(255,255,255,.05),transparent 40%),linear-gradient(180deg,var(--auth-bg),var(--auth-bg2));padding:clamp(16px,2.5vw,40px) 0 clamp(40px,6vw,100px);color:white;overflow-x:hidden;}
+  .auth-page{min-height:100vh;background:radial-gradient(circle at top right,rgba(255,255,255,.05),transparent 40%),linear-gradient(180deg,var(--auth-bg),var(--auth-bg2));padding:clamp(16px,2.5vw,40px) 0 clamp(40px,6vw,100px);color:white;}
   /* container — consistent side margin = --pad, same on every viewport */
   .auth-container{max-width:1440px;margin:0 auto;padding:0 var(--pad);}
   /* header */
