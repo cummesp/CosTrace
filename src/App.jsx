@@ -2680,7 +2680,7 @@ function AuthScreen({ onLogin }) {
             src={AUTH_PHOTO_PARENT_CHILD}
             alt="Family with child saving money together"
             className="auth-collage-img"
-            style={{ top: "26%", left: "clamp(30%, 36%, 42%)", width: "67%", height: "55%", zIndex: 2, transform: "rotate(1.5deg)" }}
+            style={{ top: "26%", left: "28%", width: "67%", height: "55%", zIndex: 2, transform: "rotate(1.5deg)" }}
           />
           <img
             src={AUTH_PHOTO_PIZZA}
