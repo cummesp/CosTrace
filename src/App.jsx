@@ -196,13 +196,13 @@ const css = `
     --auth-surface:rgba(255,255,255,.045);--auth-border:rgba(255,255,255,.08);
     --auth-accent:#DC2626;
     /* ── core scale ─────────────────────────────────────────────────── */
-    --hero-size: clamp(22px, 4vw, 58px);       /* h2 headline */
+    --hero-size: clamp(28px, 5vw, 72px);       /* h2 headline */
     /* Logo height independent — sized so "CosTrace" text in the image
        appears at ~half the visual weight of --hero-size. The logo PNG is
        700×466 and the text occupies ~40% of the height, so logo-h ≈
        headline / 0.4 / 2 = headline * 1.25. clamp keeps it reasonable. */
     --logo-h:    clamp(60px, 8vw, 130px);
-    --sub-size:  clamp(10px, 1.1vw, 16px);      /* body / paragraph */
+    --sub-size:  clamp(13px, 1.4vw, 20px);      /* body / paragraph */
     --label-size:clamp(9px,  0.85vw, 12px);     /* feature card label */
     --desc-size: clamp(7px,  0.7vw,  10px);     /* feature card desc */
     --section-h2:clamp(22px, 3.5vw,  56px);     /* build section h2 */
@@ -2677,17 +2677,17 @@ function AuthScreen({ onLogin }) {
             src={AUTH_PHOTO_PARENT_CHILD}
             alt="Family with child saving money together"
             className="auth-collage-img"
-            style={{ top: "-28%", left: "-13%", width: "65%", height: "48%", zIndex: 1, transform: "rotate(-1.5deg)" }}
-          />
-          <img
-            src={AUTH_PHOTO_ROOMMATES}
-            alt="Roommates settling into their new place together"
-            className="auth-collage-img"
-            style={{ top: "13%", left: "28%", width: "60%", height: "50%", zIndex: 2, transform: "rotate(1.5deg)" }}
+            style={{ top: "-28%", left: "-8%", width: "65%", height: "48%", zIndex: 1, transform: "rotate(-1.5deg)" }}
           />
           <img
             src={AUTH_PHOTO_PIZZA}
             alt="Friends paying together at a bar"
+            className="auth-collage-img"
+            style={{ top: "13%", left: "28%", width: "60%", height: "50%", zIndex: 2, transform: "rotate(1.5deg)" }}
+          />
+          <img
+            src={AUTH_PHOTO_ROOMMATES}
+            alt="Roommates settling into their new place together"
             className="auth-collage-img"
             style={{ top: "60%", left: "2%", width: "65%", height: "43%", zIndex: 3, transform: "rotate(-1deg)" }}
           />
