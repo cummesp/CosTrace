@@ -217,10 +217,10 @@ const css = `
   /* container — consistent side margin = --pad, same on every viewport */
   .auth-container{max-width:1440px;margin:0 auto;padding:0 var(--pad);}
   /* header */
-  .auth-page-top{display:flex;align-items:center;justify-content:flex-start;gap:var(--gap);margin-bottom:clamp(24px,4vw,64px);}
+  .auth-page-top{display:flex;align-items:center;justify-content:flex-start;gap:var(--gap);margin-bottom:clamp(20px,2.5vw,40px);}
   .auth-logo-img{height:var(--logo-h);width:auto;object-fit:contain;display:block;}
   /* hero row */
-  .auth-hero-row{display:grid;grid-template-columns:46% 54%;align-items:center;gap:clamp(24px,4vw,64px);margin-bottom:clamp(40px,7vw,100px);}
+  .auth-hero-row{display:grid;grid-template-columns:46% 54%;align-items:flex-start;gap:clamp(24px,4vw,64px);margin-bottom:clamp(40px,7vw,100px);}
   @media(max-width:900px){
     .auth-hero-row{grid-template-columns:1fr;text-align:center;}
     .auth-hero-text{margin:0 auto;}
