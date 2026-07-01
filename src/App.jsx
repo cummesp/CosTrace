@@ -2636,16 +2636,12 @@ function AuthScreen({ onLogin }) {
             One <span className="accent">Truth.</span>
           </h2>
           <p>
-            Every expense, settlement
+            Every expense, settlement and adjustment
             <br />
-            and adjustment preserved in one transparent history.
+            preserved in one transparent history.
             <br />
             <strong style={{ color: "white", fontWeight: 800 }}>Today, tomorrow, always.</strong>
           </p>
-          <div className="auth-secure">
-            <Icon.Lock />
-            Your data is secure and private.
-          </div>
           <div className="auth-final-cta">
             <button
               type="button"
@@ -2670,6 +2666,10 @@ function AuthScreen({ onLogin }) {
               Log in
             </button>
           </div>
+          <div className="auth-secure">
+            <Icon.Lock />
+            Your data is secure and private.
+          </div>
         </div>
 
         <div className="auth-hero-photos">
@@ -2683,13 +2683,13 @@ function AuthScreen({ onLogin }) {
             src={AUTH_PHOTO_PIZZA}
             alt="Friends paying together at a bar"
             className="auth-collage-img"
-            style={{ top: "13%", left: "28%", width: "60%", height: "50%", zIndex: 2, transform: "rotate(1.5deg)" }}
+            style={{ top: "7%", left: "28%", width: "60%", height: "50%", zIndex: 2, transform: "rotate(-1.5deg)" }}
           />
           <img
             src={AUTH_PHOTO_ROOMMATES}
             alt="Roommates settling into their new place together"
             className="auth-collage-img"
-            style={{ top: "60%", left: "2%", width: "65%", height: "43%", zIndex: 3, transform: "rotate(-1deg)" }}
+            style={{ top: "60%", left: "2%", width: "65%", height: "43%", zIndex: 3, transform: "rotate(-1.5deg)" }}
           />
           <div className="auth-badge-chip" style={{ top: "-10px", right: "6%" }}>
             <HeroIcon.Clock />
