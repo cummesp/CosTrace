@@ -2509,6 +2509,34 @@ function getMonths(l) {
   return [...new Set(l.expenses.map((e) => mk(e.expense_date)))].sort();
 }
 
+// Sum each member's net across every locked month in this ledger.
+// Returns an array identical in shape to computeBalances() output,
+// so it can be used anywhere balances are displayed.
+// optMonths — optional explicit list of month keys to sum; if omitted, all
+// locked months in the ledger are used.
+function computeLifetimeBalance(ledger, optMonths) {
+  const lockedMks =
+    optMonths ||
+    getMonths(ledger).filter((m) => ledger.lockedMonths?.[m]);
+  const totals = {}; // { memberId: net }
+  ledger.members
+    .filter((m) => !m.is_spectator)
+    .forEach((m) => {
+      totals[m.id] = 0;
+    });
+  lockedMks.forEach((mkey) => {
+    const exps = ledger.expenses.filter(
+      (e) => mk(e.expense_date) === mkey
+    );
+    computeBalances(ledger, exps).forEach((b) => {
+      if (b.id in totals) totals[b.id] += b.net;
+    });
+  });
+  return ledger.members
+    .filter((m) => !m.is_spectator)
+    .map((m) => ({ ...m, net: totals[m.id] || 0 }));
+}
+
 // -- AUTH
 
 function AuthScreen({ onLogin }) {
@@ -6827,6 +6855,18 @@ function StatementCard({
   const myLifetimeBalance = lifetimeBalances
     ? lifetimeBalances.find((b) => b.user_id === currentUser.id)
     : null;
+
+  // Default mode (carry_balance OFF): compute lifetime balance across all
+  // locked months so members can see the cumulative picture even without
+  // automatic carry-over entries. -3000 + 2000 + 1000 - 3000 = -3000 total.
+  const lockedMks = getMonths(ledger).filter((m) => ledger.lockedMonths?.[m]);
+  const lifetimeBals = !ledger.carry_balance && lockedMks.length > 0
+    ? computeLifetimeBalance(ledger)
+    : null;
+  const myLifetimeBal = lifetimeBals
+    ? lifetimeBals.find((b) => b.user_id === currentUser.id)
+    : null;
+
   const debtors = combined.filter((m) => m.total < -0.01);
   const creditors = combined.filter((m) => m.total > 0.01);
   const pendingCount = monthExpenses.filter(
@@ -7050,6 +7090,115 @@ function StatementCard({
                 </span>
               ))}
             </div>
+          </div>
+        )}
+        {lifetimeBals && (
+          <div
+            style={{
+              marginTop: "14px",
+              paddingTop: "12px",
+              borderTop: "1.5px solid var(--border)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "11px",
+                fontWeight: "700",
+                color: "var(--text2)",
+                textTransform: "uppercase",
+                letterSpacing: "0.4px",
+                marginBottom: "10px",
+              }}
+            >
+              Total outstanding — all locked months
+            </div>
+            {lifetimeBals.map((b, i) => (
+              <div
+                key={b.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "7px 0",
+                  borderBottom:
+                    i < lifetimeBals.length - 1
+                      ? "1px solid var(--border)"
+                      : "none",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <div className={`stmt-av av${i % 6}`}>
+                    {initials(b.display_name)}
+                  </div>
+                  <span
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: "600",
+                      color: "var(--text)",
+                    }}
+                  >
+                    {b.display_name}
+                    {b.user_id === currentUser.id ? " (you)" : ""}
+                  </span>
+                </div>
+                <span
+                  className={`stmt-net ${
+                    b.net > 0.01
+                      ? "net-pos"
+                      : b.net < -0.01
+                      ? "net-neg"
+                      : "net-zero"
+                  }`}
+                >
+                  {b.net > 0.01 ? "+" : ""}
+                  {fmtAmt(b.net)} {currency}
+                </span>
+              </div>
+            ))}
+            {/* Outstanding debts across all locked months */}
+            {(() => {
+              const ltDebtors = lifetimeBals.filter((b) => b.net < -0.01);
+              const ltCreditors = lifetimeBals.filter((b) => b.net > 0.01);
+              if (ltDebtors.length === 0 && lifetimeBals.length > 0)
+                return (
+                  <div
+                    className="settle-box clear"
+                    style={{ marginTop: "10px" }}
+                  >
+                    <div className="settle-text">
+                      <strong>All settled across all locked months</strong>
+                    </div>
+                  </div>
+                );
+              return ltDebtors.map((d) => {
+                const cr = ltCreditors[0];
+                if (!cr) return null;
+                return (
+                  <div
+                    key={d.id}
+                    className="settle-box owes"
+                    style={{ marginTop: "10px" }}
+                  >
+                    <div className="settle-text">
+                      <strong>{d.display_name}</strong> owes{" "}
+                      <span className="settle-amt">
+                        {fmtAmt(Math.abs(d.net))} {currency}
+                      </span>{" "}
+                      to <strong>{cr.display_name}</strong>{" "}
+                      <span
+                        style={{
+                          fontSize: "11px",
+                          color: "var(--text3)",
+                          fontWeight: "400",
+                        }}
+                      >
+                        (lifetime)
+                      </span>
+                    </div>
+                  </div>
+                );
+              });
+            })()}
           </div>
         )}
       </div>
@@ -13764,18 +13913,24 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
             const approvedExp = currExp.filter((e) => !e.is_settlement && e.approval_status === "approved");
             const total = approvedExp.reduce((s, e) => s + e.amount, 0);
             const debt = Math.max(0, -net);
+            // Lifetime balance across all locked months for this ledger
+            const lifetimeBals = computeLifetimeBalance(l);
+            const lifetimeMine = lifetimeBals.find((b) => b.user_id === currentUser.id);
+            const lifetimeNet = lifetimeMine?.net || 0;
             return {
               id: l.id,
               name: l.name,
               total,
               net,
               debt,
+              lifetimeNet,
               color: ledgerSolidColor(l),
               approvedCount: approvedExp.length,
             };
           });
           const grandTotal = rows.reduce((s, r) => s + r.total, 0);
           const grandNet = rows.reduce((s, r) => s + r.net, 0);
+          const grandLifetimeNet = rows.reduce((s, r) => s + r.lifetimeNet, 0);
           const approvedCount = rows.reduce((s, r) => s + r.approvedCount, 0);
           if (rows.length === 0) return null;
 
@@ -13819,7 +13974,7 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
               }}
             >
               {/* Stat tiles */}
-              <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "27fr 27fr 26fr 20fr" : "repeat(2,1fr)", gap: "12px", marginBottom: "22px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "repeat(5,1fr)" : "repeat(2,1fr)", gap: "12px", marginBottom: "22px" }}>
                 {[
                   { label: "Total spent", value: fmtAmt(grandTotal), accent: "#42C3E6" },
                   {
@@ -13829,6 +13984,12 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
                   },
                   { label: "Approved this month", value: String(approvedCount), accent: "#42C3E6" },
                   { label: "Active ledgers", value: String(rows.length), accent: "#42C3E6" },
+                  {
+                    label: "Total outstanding",
+                    value: `${grandLifetimeNet > 0.01 ? "+" : ""}${fmtAmt(grandLifetimeNet)}`,
+                    accent: grandLifetimeNet > 0.01 ? "var(--success)" : grandLifetimeNet < -0.01 ? "var(--danger)" : "var(--text2)",
+                    sub: "all locked months",
+                  },
                 ].map((tile, i) => (
                   <div
                     key={i}
@@ -13860,6 +14021,11 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
                     >
                       {tile.value}
                     </div>
+                    {tile.sub && (
+                      <div style={{ fontSize: "9px", color: "var(--text3)", marginTop: "3px", textAlign: "center" }}>
+                        {tile.sub}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
