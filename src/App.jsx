@@ -13974,7 +13974,7 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
               }}
             >
               {/* Stat tiles */}
-              <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "repeat(5,1fr)" : "repeat(2,1fr)", gap: "12px", marginBottom: "22px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "27fr 27fr 26fr 20fr" : "repeat(2,1fr)", gap: "12px", marginBottom: "22px" }}>
                 {[
                   { label: "Total spent", value: fmtAmt(grandTotal), accent: "#42C3E6" },
                   {
@@ -13984,12 +13984,6 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
                   },
                   { label: "Approved this month", value: String(approvedCount), accent: "#42C3E6" },
                   { label: "Active ledgers", value: String(rows.length), accent: "#42C3E6" },
-                  {
-                    label: "Total outstanding",
-                    value: `${grandLifetimeNet > 0.01 ? "+" : ""}${fmtAmt(grandLifetimeNet)}`,
-                    accent: grandLifetimeNet > 0.01 ? "var(--success)" : grandLifetimeNet < -0.01 ? "var(--danger)" : "var(--text2)",
-                    sub: "all locked months",
-                  },
                 ].map((tile, i) => (
                   <div
                     key={i}
@@ -14089,6 +14083,68 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
                   </div>
                 </div>
               </div>
+              )}
+
+              {/* Total outstanding — full width, below charts */}
+              {rows.some((r) => r.lifetimeNet !== 0) && (
+                <div
+                  style={{
+                    background: "var(--bg)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "12px",
+                    padding: "14px 16px",
+                    marginBottom: "16px",
+                  }}
+                >
+                  <div style={{ fontSize: "12px", fontWeight: "700", color: "var(--text2)", marginBottom: "12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span>Total outstanding — all locked months</span>
+                    <span
+                      style={{
+                        fontFamily: "var(--mono)",
+                        fontSize: "14px",
+                        fontWeight: "800",
+                        color: grandLifetimeNet > 0.01 ? "var(--success)" : grandLifetimeNet < -0.01 ? "var(--danger)" : "var(--text3)",
+                      }}
+                    >
+                      {grandLifetimeNet > 0.01 ? "+" : ""}{fmtAmt(grandLifetimeNet)}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    {rows.map((r) => (
+                      <div
+                        key={r.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          padding: "6px 8px",
+                          borderRadius: "8px",
+                          background: "var(--white)",
+                          border: "1px solid var(--border)",
+                        }}
+                      >
+                        <span style={{ width: "8px", height: "8px", borderRadius: "2px", background: r.color, flexShrink: 0 }} />
+                        <span style={{ flex: 1, fontSize: "12px", fontWeight: "600", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {r.name}
+                        </span>
+                        <span
+                          style={{
+                            fontFamily: "var(--mono)",
+                            fontSize: "13px",
+                            fontWeight: "800",
+                            color: r.lifetimeNet > 0.01 ? "var(--success)" : r.lifetimeNet < -0.01 ? "var(--danger)" : "var(--text3)",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {r.lifetimeNet > 0.01 ? "+" : ""}{fmtAmt(r.lifetimeNet)}
+                        </span>
+                        <span style={{ fontSize: "10px", color: "var(--text3)", whiteSpace: "nowrap" }}>
+                          {r.lifetimeNet > 0.01 ? "you are owed" : r.lifetimeNet < -0.01 ? "you owe" : "settled"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
 
               {/* Latest changes feed */}
@@ -18107,3 +18163,4 @@ export default function App() {
     </div>
   );
 }
+  
