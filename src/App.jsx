@@ -240,16 +240,16 @@ const css = `
   .auth-collage-img:hover{transform:translateY(-4px) scale(1.02);}
   .auth-badge-chip{position:absolute;background:rgba(21,46,66,.96);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.08);border-radius:clamp(8px,1vw,18px);padding:clamp(5px,0.5vw,8px) clamp(8px,0.8vw,12px);font-size:clamp(8px,0.7vw,11px);font-weight:700;color:rgba(255,255,255,0.85);display:flex;align-items:center;gap:5px;box-shadow:0 6px 20px rgba(0,0,0,.3);white-space:nowrap;}
   /* feature cards — 5 in one row, all derived from --label-size */
-  .auth-features-row{display:grid;grid-template-columns:repeat(5,1fr);gap:clamp(5px,0.8vw,10px);margin:clamp(16px,3vw,36px) auto clamp(24px,4vw,48px);}
-  @media(max-width:700px){.auth-features-row{grid-template-columns:repeat(3,1fr);}}
-  @media(max-width:440px){.auth-features-row{grid-template-columns:repeat(2,1fr);}}
-  .auth-feature-card{background:var(--auth-surface);border:1px solid var(--auth-border);border-radius:var(--card-r);padding:clamp(6px,0.7vw,10px);backdrop-filter:blur(18px);box-shadow:0 4px 14px rgba(0,0,0,.18);transition:all .3s ease;display:flex;flex-direction:column;gap:clamp(3px,0.4vw,5px);}
-  .auth-feature-card:hover{transform:translateY(-2px);border-color:rgba(255,255,255,.16);}
-  .auth-feature-top{display:flex;align-items:center;gap:clamp(4px,0.5vw,7px);}
-  .auth-feature-dot{width:clamp(14px,1.4vw,20px);height:clamp(14px,1.4vw,20px);border-radius:4px;background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.3);color:var(--auth-accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-  .auth-feature-dot svg{width:clamp(8px,0.75vw,13px);height:clamp(8px,0.75vw,13px);}
-  .auth-feature-label{font-size:var(--label-size);font-weight:700;line-height:1.2;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .auth-feature-desc{font-size:var(--desc-size);line-height:1.35;color:rgba(255,255,255,.72);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .auth-features-row{display:grid;grid-template-columns:repeat(5,1fr);gap:clamp(8px,1vw,16px);margin:clamp(20px,3vw,44px) auto clamp(24px,3.5vw,44px);}
+  @media(max-width:900px){.auth-features-row{grid-template-columns:repeat(3,1fr);}}
+  @media(max-width:500px){.auth-features-row{grid-template-columns:repeat(2,1fr);}}
+  .auth-feature-card{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.09);border-radius:clamp(10px,1vw,16px);padding:clamp(14px,1.4vw,22px) clamp(12px,1.2vw,18px);min-height:clamp(120px,13vw,180px);backdrop-filter:blur(18px);transition:all .3s ease;display:flex;flex-direction:column;gap:clamp(8px,0.8vw,12px);}
+  .auth-feature-card:hover{transform:translateY(-3px);border-color:rgba(255,255,255,.18);box-shadow:0 8px 24px rgba(0,0,0,.22);}
+  .auth-feature-top{display:flex;align-items:center;gap:clamp(8px,0.8vw,12px);margin-bottom:clamp(4px,0.4vw,6px);}
+  .auth-feature-dot{width:clamp(30px,3vw,42px);height:clamp(30px,3vw,42px);border-radius:clamp(7px,0.7vw,10px);background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.25);color:var(--auth-accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .auth-feature-dot svg{width:clamp(14px,1.4vw,20px);height:clamp(14px,1.4vw,20px);}
+  .auth-feature-label{font-size:clamp(12px,1.05vw,15px);font-weight:700;line-height:1.3;color:#fff;}
+  .auth-feature-desc{font-size:clamp(10px,0.82vw,12.5px);line-height:1.6;color:rgba(255,255,255,.62);}
   /* buttons */
   .auth-final-cta{display:flex;justify-content:flex-start;gap:var(--gap);flex-wrap:wrap;margin-top:clamp(6px,0.8vw,10px);}
   @media(max-width:900px){.auth-final-cta{justify-content:center;}}
@@ -259,18 +259,12 @@ const css = `
   .auth-btn-secondary:hover{border-color:rgba(255,255,255,.5);background:rgba(255,255,255,.04);}
   @media(max-width:500px){.auth-btn-primary,.auth-btn-secondary{width:100%;max-width:320px;justify-content:center;}}
   /* build section */
-  .auth-build-section{max-width:1440px;margin:clamp(60px,8vw,140px) auto;padding:0 var(--pad);}
-  .auth-build-header{display:grid;grid-template-columns:1.4fr .9fr;gap:var(--gap);align-items:end;margin-bottom:clamp(28px,4vw,64px);}
-  @media(max-width:900px){.auth-build-header{grid-template-columns:1fr;}}
-  .auth-build-header h2{font-size:var(--section-h2);font-weight:800;line-height:1.08;letter-spacing:-0.03em;color:#fff;max-width:680px;}
-  .auth-build-header p{font-size:clamp(13px,1.2vw,18px);line-height:1.7;color:rgba(255,255,255,.75);}
-  .auth-build-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(12px,1.5vw,24px);}
-  @media(max-width:900px){.auth-build-grid{grid-template-columns:repeat(2,1fr);}}
-  @media(max-width:560px){.auth-build-grid{grid-template-columns:1fr;}}
-  .auth-build-card{background:var(--auth-surface);border:1px solid var(--auth-border);border-radius:clamp(14px,1.8vw,28px);padding:clamp(18px,2.5vw,34px);min-height:clamp(140px,18vw,270px);backdrop-filter:blur(18px);box-shadow:0 12px 30px rgba(0,0,0,.18);transition:.3s ease;}
-  .auth-build-card:hover{transform:translateY(-6px);box-shadow:0 20px 40px rgba(0,0,0,.22);}
-  .auth-build-card h3{font-size:clamp(14px,1.5vw,22px);font-weight:700;line-height:1.35;margin-bottom:clamp(8px,1vw,16px);color:#fff;}
-  .auth-build-card p{font-size:clamp(11px,1vw,16px);line-height:1.8;color:rgba(255,255,255,.72);}
+  .auth-tagline-wrap{margin:clamp(20px,3vw,44px) auto clamp(20px,3vw,44px);text-align:center;}
+  .auth-tagline-center{font-size:clamp(16px,1.6vw,24px);font-weight:700;color:rgba(255,255,255,.88);margin-bottom:clamp(14px,1.5vw,24px);}
+  .auth-tagline-center .accent{color:var(--auth-accent);}
+  .auth-tags-center{display:flex;flex-wrap:wrap;gap:clamp(8px,0.8vw,12px);justify-content:center;}
+  .auth-tag{display:flex;align-items:center;gap:clamp(6px,0.5vw,8px);border:1px solid rgba(255,255,255,.16);border-radius:20px;padding:clamp(8px,0.7vw,11px) clamp(14px,1.2vw,20px);font-size:clamp(11px,0.9vw,14px);font-weight:600;color:rgba(255,255,255,.75);}
+  .auth-tag svg{color:var(--auth-accent);width:clamp(13px,1.1vw,16px);height:clamp(13px,1.1vw,16px);}
   /* footer */
   .auth-footer{max-width:1440px;margin:0 auto;padding:clamp(16px,2vw,24px) var(--pad);border-top:1px solid rgba(255,255,255,.08);color:rgba(255,255,255,.55);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:clamp(11px,0.9vw,14px);}
   /* modal form classes (unchanged, used in overlay) */
@@ -2708,62 +2702,51 @@ function AuthScreen({ onLogin }) {
             <div className="auth-feature-dot"><HeroIcon.People /></div>
             <div className="auth-feature-label">Smart cost splits</div>
           </div>
-          <div className="auth-feature-desc">Divide expenses by % or exact amounts</div>
+          <div className="auth-feature-desc">Automatically divide expenses by % or exact amounts.</div>
         </div>
         <div className="auth-feature-card">
           <div className="auth-feature-top">
             <div className="auth-feature-dot"><HeroIcon.Shield /></div>
             <div className="auth-feature-label">Approval workflow</div>
           </div>
-          <div className="auth-feature-desc">Review and approve with full control</div>
+          <div className="auth-feature-desc">Review and approve with full control and clarity.</div>
         </div>
         <div className="auth-feature-card">
           <div className="auth-feature-top">
             <div className="auth-feature-dot"><HeroIcon.Eye /></div>
             <div className="auth-feature-label">Complete transparency</div>
           </div>
-          <div className="auth-feature-desc">See who paid, who owes, always clear</div>
+          <div className="auth-feature-desc">See who paid, who owes and keep everything clear.</div>
         </div>
         <div className="auth-feature-card">
           <div className="auth-feature-top">
             <div className="auth-feature-dot"><Icon.Lock /></div>
             <div className="auth-feature-label">Monthly locking</div>
           </div>
-          <div className="auth-feature-desc">Close the month, avoid changes later</div>
+          <div className="auth-feature-desc">Lock the month, generate records and avoid changes later.</div>
         </div>
         <div className="auth-feature-card">
           <div className="auth-feature-top">
             <div className="auth-feature-dot"><HeroIcon.Check /></div>
             <div className="auth-feature-label">Easy settlements</div>
           </div>
-          <div className="auth-feature-desc">Track payments, close the loop fast</div>
+          <div className="auth-feature-desc">Track payments and close the loop effortlessly.</div>
         </div>
       </div>
 
-      <section className="auth-build-section">
-        <div className="auth-build-header">
-          <h2>Build for real life shared experiences.</h2>
-          <p>
-            Everything you need to organize shared expenses, settle balances
-            and keep every participant on the same page.
-          </p>
+      <div className="auth-tagline-wrap auth-container">
+        <div className="auth-tagline-center">
+          Build for <span className="accent">real life</span> shared experiences.
         </div>
-        <div className="auth-build-grid">
-          <div className="auth-build-card">
-            <h3>Flexible Groups</h3>
-            <p>Create expense groups for trips, homes or teams.</p>
-          </div>
-          <div className="auth-build-card">
-            <h3>Automatic Balances</h3>
-            <p>Instantly see who owes what after every expense.</p>
-          </div>
-          <div className="auth-build-card">
-            <h3>Transparent History</h3>
-            <p>Every change is visible and easy to verify.</p>
-          </div>
+        <div className="auth-tags-center">
+          <div className="auth-tag"><HeroIcon.People />Friends &amp; Roommates</div>
+          <div className="auth-tag"><HeroIcon.Heart />Couples</div>
+          <div className="auth-tag"><HeroIcon.People />Families</div>
+          <div className="auth-tag"><HeroIcon.Plane />Travel Groups</div>
+          <div className="auth-tag"><HeroIcon.People />Co-parents</div>
+          <div className="auth-tag"><HeroIcon.Briefcase />Teams &amp; Projects</div>
         </div>
-      </section>
-
+      </div>
       <footer className="auth-footer">
         <div>© 2026 CosTrace</div>
         <div>Privacy • Terms</div>
