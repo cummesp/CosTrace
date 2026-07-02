@@ -211,7 +211,7 @@ const css = `
     --gap:       clamp(8px,  1.5vw,  24px);      /* universal gap unit */
     --pad:       clamp(10px, 2vw,    48px);      /* container side padding */
     --card-r:    clamp(6px,  0.7vw,  10px);      /* feature card radius */
-    --photo-h:   clamp(281px, 39vw,  562px);     /* collage container height */
+    --photo-h:   clamp(253px, 35vw,  506px);     /* collage container height */
   }
   .auth-page{min-height:100vh;background:radial-gradient(circle at top right,rgba(255,255,255,.05),transparent 40%),linear-gradient(180deg,var(--auth-bg),var(--auth-bg2));padding:clamp(16px,2.5vw,40px) 0 clamp(40px,6vw,100px);color:white;}
   /* container — consistent side margin = --pad, same on every viewport */
@@ -2677,19 +2677,19 @@ function AuthScreen({ onLogin }) {
             src={AUTH_PHOTO_PARENT_CHILD}
             alt="Family with child saving money together"
             className="auth-collage-img"
-            style={{ top: "-28%", left: "-8%", width: "65%", height: "48%", zIndex: 1, transform: "rotate(-1.5deg)" }}
+            style={{ top: "-28%", left: "-8%", width: "59%", height: "43%", zIndex: 1, transform: "rotate(-1.5deg)" }}
           />
           <img
             src={AUTH_PHOTO_PIZZA}
             alt="Friends paying together at a bar"
             className="auth-collage-img"
-            style={{ top: "7%", left: "28%", width: "60%", height: "50%", zIndex: 2, transform: "rotate(-1.5deg)" }}
+            style={{ top: "7%", left: "28%", width: "54%", height: "45%", zIndex: 2, transform: "rotate(-1.5deg)" }}
           />
           <img
             src={AUTH_PHOTO_ROOMMATES}
             alt="Roommates settling into their new place together"
             className="auth-collage-img"
-            style={{ top: "60%", left: "2%", width: "65%", height: "43%", zIndex: 3, transform: "rotate(-1.5deg)" }}
+            style={{ top: "49%", left: "2%", width: "59%", height: "39%", zIndex: 3, transform: "rotate(-1.5deg)" }}
           />
           <div className="auth-badge-chip" style={{ top: "-10px", right: "6%" }}>
             <HeroIcon.Clock />
