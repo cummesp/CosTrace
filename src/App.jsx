@@ -166,7 +166,7 @@ const COVERS = [
 const COVER_COMPONENTS = {};
 
 const css = `
-  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
   :root{
     --white:#ffffff;--bg:#f4f6f9;--bg2:#ebeef3;
@@ -181,7 +181,7 @@ const css = `
     --shadow:0 2px 12px rgba(0,0,0,0.06),0 1px 3px rgba(0,0,0,0.04);
     --shadow-lg:0 8px 32px rgba(0,0,0,0.10),0 2px 8px rgba(0,0,0,0.05);
     --radius:12px;--radius-sm:8px;--radius-lg:16px;
-    --font:'Plus Jakarta Sans',sans-serif;--mono:'Roboto Mono',monospace;
+    --font:'Plus Jakarta Sans',sans-serif;--mono:'Plus Jakarta Sans',sans-serif;
     --header:#1F2937;--header-border:#2d3748;
     --sidebar-bg:#151E2B;--sidebar-text:rgba(255,255,255,0.75);--sidebar-active:rgba(255,255,255,0.12);
   }
@@ -345,7 +345,7 @@ const css = `
   .ledger-meta{font-size:12px;color:var(--text3);margin-bottom:12px;}
   .ledger-balance{display:flex;justify-content:space-between;align-items:flex-end;padding-top:10px;border-top:1.5px solid var(--border);}
   .bal-label{font-size:11px;color:var(--text3);margin-bottom:2px;font-weight:500;}
-  .bal-val{font-size:15px;font-weight:800;font-family:var(--mono);}
+  .bal-val{font-size:15px;font-weight:800;font-family:var(--mono);font-variant-numeric:tabular-nums;}
   .bal-pos{color:var(--success);}.bal-neg{color:var(--danger);}.bal-zero{color:var(--text3);}
   .new-ledger-card{background:var(--bg);border:2px dashed var(--border2);border-radius:var(--radius-lg);cursor:pointer;transition:all 0.15s;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:200px;gap:10px;color:var(--text3);}
   .new-ledger-card:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light);}
@@ -411,7 +411,7 @@ const css = `
   .stmt-card{background:var(--white);border:2px solid var(--border);border-radius:var(--radius-lg);margin-bottom:14px;overflow:hidden;}
   .stmt-header{padding:13px 17px;background:linear-gradient(135deg,#f8f9ff,#f0f3ff);border-bottom:1.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
   .stmt-header h3{font-size:14px;font-weight:800;color:var(--text);}
-  .stmt-total-badge{background:var(--accent-light);color:var(--accent);font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;font-family:var(--mono);}
+  .stmt-total-badge{background:var(--accent-light);color:var(--accent);font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;font-family:var(--mono);font-variant-numeric:tabular-nums;}
   .stmt-body{padding:14px 17px;}
   .stmt-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1.5px solid var(--border);}
   .stmt-row:last-child{border-bottom:none;}
@@ -419,18 +419,18 @@ const css = `
   .stmt-av{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:white;flex-shrink:0;}
   .stmt-name{font-size:13px;font-weight:700;color:var(--text);}
   .stmt-sub{font-size:11px;color:var(--text3);margin-top:1px;}
-  .stmt-net{font-size:16px;font-weight:800;font-family:var(--mono);}
+  .stmt-net{font-size:16px;font-weight:800;font-family:var(--mono);font-variant-numeric:tabular-nums;}
   .net-pos{color:var(--success);}.net-neg{color:var(--danger);}.net-zero{color:var(--text3);}
   .settle-box{margin-top:12px;padding:12px 14px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
   .settle-box.owes{background:linear-gradient(135deg,#fef2f2,#fff5f5);border:1.5px solid #fecaca;}
   .settle-box.clear{background:linear-gradient(135deg,var(--success-light),#f0fdf8);border:1.5px solid #a7f3d0;}
   .settle-text{font-size:13px;color:var(--text2);font-weight:500;}
-  .settle-amt{font-weight:800;color:var(--danger);font-family:var(--mono);font-size:14px;}
+  .settle-amt{font-weight:800;color:var(--danger);font-family:var(--mono);font-size:14px;font-variant-numeric:tabular-nums;}
   .carry-note{font-size:11px;color:var(--text3);margin-top:10px;font-style:italic;padding-top:10px;border-top:1px solid var(--border);}
   .outstanding-desktop{display:block;}
   @media(max-width:768px){.outstanding-desktop{display:none;}}
   .carry-info{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;}
-  .carry-chip{font-size:11px;font-family:var(--mono);font-weight:600;padding:3px 8px;border-radius:20px;background:var(--bg2);}
+  .carry-chip{font-size:11px;font-family:var(--mono);font-weight:600;padding:3px 8px;border-radius:20px;background:var(--bg2);font-variant-numeric:tabular-nums;}
   /* EXPENSE ROWS */
   .exp-card{background:var(--white);border:2px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;}
   .exp-card-header{padding:10px 14px;border-bottom:1.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg);}
@@ -443,7 +443,7 @@ const css = `
   .exp-row.row-approved{border-left:3px solid transparent;}
   .exp-row.row-denied{background:#fef2f2;border-left:3px solid var(--danger);opacity:0.75;}
   .exp-row.row-settle{background:var(--settle-light);border-left:3px solid var(--settle);}
-  .exp-date{font-size:10px;color:var(--text3);font-family:var(--mono);white-space:nowrap;width:36px;font-weight:400;}
+  .exp-date{font-size:10px;color:var(--text3);font-family:var(--mono);white-space:nowrap;width:36px;font-weight:400;font-variant-numeric:tabular-nums;}
   .exp-info{flex:1;min-width:0;}
   .exp-desc{font-size:12px;font-weight:600;color:var(--text);line-height:1.2;}
   .exp-desc.denied-text{text-decoration:line-through;color:var(--text3);}
@@ -453,7 +453,7 @@ const css = `
   .tag-approved{background:var(--success-light);color:var(--success);border:1px solid #6ee7b7;}
   .tag-denied{background:var(--danger-light);color:var(--danger);border:1px solid #fca5a5;}
   .tag-settle{background:var(--settle-light);color:var(--settle);border:1px solid #6ee7b7;}
-  .exp-amt{font-size:12px;font-weight:700;font-family:var(--mono);color:var(--text);white-space:nowrap;}
+  .exp-amt{font-size:12px;font-weight:700;font-family:var(--mono);color:var(--text);white-space:nowrap;font-variant-numeric:tabular-nums;}
   .exp-amt.settle-color{color:var(--settle);}
   .exp-amt.denied-color{color:var(--text3);}
   /* LOCK */
@@ -7097,74 +7097,24 @@ function StatementCard({
           </div>
         )}
         {lifetimeBals && (
-          <>
-            {/* Mobile: compact chip row (same position/format as old carry-note) */}
-            <div className="carry-note" style={{ display: "block" }}>
-              <span style={{ fontStyle: "normal", fontWeight: 700, color: "var(--text2)" }}>
-                Total outstanding — locked months:
-              </span>
-              <div className="carry-info" style={{ marginTop: "6px" }}>
-                {lifetimeBals.map((b) => (
-                  <span
-                    key={b.id}
-                    className="carry-chip"
-                    style={{
-                      color: b.net > 0.01 ? "var(--success)" : b.net < -0.01 ? "var(--danger)" : "var(--text3)",
-                    }}
-                  >
-                    {b.display_name}: {b.net >= 0 ? "+" : ""}{fmtAmt(b.net)}
-                  </span>
-                ))}
-              </div>
-            </div>
-            {/* Desktop: expanded table — hidden on mobile via CSS */}
-            {lockedMks.length > 0 && (
-              <div
-                className="outstanding-desktop"
-                style={{
-                  marginTop: "14px",
-                  paddingTop: "12px",
-                  borderTop: "1.5px solid var(--border)",
-                }}
-              >
-                <div
+          <div className="carry-note" style={{ display: "block" }}>
+            <span style={{ fontStyle: "normal", fontWeight: 700, color: "var(--text2)" }}>
+              Total outstanding — locked months:
+            </span>
+            <div className="carry-info" style={{ marginTop: "6px" }}>
+              {lifetimeBals.map((b) => (
+                <span
+                  key={b.id}
+                  className="carry-chip"
                   style={{
-                    fontSize: "11px",
-                    fontWeight: "700",
-                    color: "var(--text2)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.4px",
-                    marginBottom: "10px",
+                    color: b.net > 0.01 ? "var(--success)" : b.net < -0.01 ? "var(--danger)" : "var(--text3)",
                   }}
                 >
-                  Total outstanding — all locked months
-                </div>
-                {lifetimeBals.map((b, i) => (
-                  <div
-                    key={b.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "7px 0",
-                      borderBottom: i < lifetimeBals.length - 1 ? "1px solid var(--border)" : "none",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <div className={`stmt-av av${i % 6}`}>{initials(b.display_name)}</div>
-                      <span style={{ fontSize: "13px", fontWeight: "600", color: "var(--text)" }}>
-                        {b.display_name}
-                        {b.user_id === currentUser.id || b.display_name === currentUser.full_name ? " (you)" : ""}
-                      </span>
-                    </div>
-                    <span className={`stmt-net ${b.net > 0.01 ? "net-pos" : b.net < -0.01 ? "net-neg" : "net-zero"}`}>
-                      {b.net > 0.01 ? "+" : ""}{fmtAmt(b.net)} {currency}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
+                  {b.display_name}: {b.net >= 0 ? "+" : ""}{fmtAmt(b.net)}
+                </span>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     </div>
