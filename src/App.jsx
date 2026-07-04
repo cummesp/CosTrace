@@ -3537,18 +3537,23 @@ function AddExpenseModal({
   onAdd,
   currency = "RSD",
   canPayout = false,
+  forceSettle = false,
+  isAdmin = false,
 }) {
   const [desc, setDesc] = useState("");
   const [amount, setAmount] = useState("");
   const [notMe, setNotMe] = useState(false);
   const [paidById, setPaidById] = useState("");
-  const [isSettle, setIsSettle] = useState(false);
+  const [isSettle, setIsSettle] = useState(forceSettle);
   const [isPayout, setIsPayout] = useState(false);
   const [showPayoutInfo, setShowPayoutInfo] = useState(false);
-  const [payoutOffset, setPayoutOffset] = useState(true); // default: reduces balances
-  const [payoutRecord, setPayoutRecord] = useState(false); // record only, no balance effect
+  const [payoutOffset, setPayoutOffset] = useState(true);
+  const [payoutRecord, setPayoutRecord] = useState(false);
   const [paidToId, setPaidToId] = useState("");
   const [overrideSplits, setOverrideSplits] = useState(false);
+  // Admin can set a custom date (for adding to past months)
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [customDate, setCustomDate] = useState(todayStr);
   // Unique descriptions from this ledger (most recent first, exclude settlements)
   const PAYOUT_SUGGESTIONS = [
     "Rental income",
@@ -3680,7 +3685,7 @@ function AddExpenseModal({
       // currentUser.id here was silently reattributing the payment to whoever
       // is logged in, instead of the member actually picked in "Someone else paid".
       paid_by_id: payer ? payer.user_id || null : currentUser.id,
-      expense_date: now(),
+      expense_date: isAdmin ? new Date(customDate).toISOString() : now(),
       approval_status:
         ledger.require_approval && !isSettle && !isPayout
           ? "pending"
@@ -3940,6 +3945,23 @@ function AddExpenseModal({
               </p>
             )}
           </div>
+          {isAdmin && (
+            <div className="form-group">
+              <label>
+                Date
+                <span style={{ fontSize: "10px", color: "var(--text3)", marginLeft: "6px", fontWeight: "400" }}>
+                  Admin — can add to past months
+                </span>
+              </label>
+              <input
+                type="date"
+                value={customDate}
+                max={todayStr}
+                onChange={(e) => setCustomDate(e.target.value)}
+                style={{ fontFamily: "var(--font)" }}
+              />
+            </div>
+          )}
           <label className="checkbox-wrap" style={{ marginBottom: "12px" }}>
             <input
               type="checkbox"
@@ -4546,6 +4568,9 @@ function LedgerSettingsModal({
   const [carryBalance, setCarryBalance] = useState(
     ledger.carry_balance || false
   );
+  const [gracePeriod, setGracePeriod] = useState(
+    ledger.grace_period ?? 3
+  );
   // Payout mode: "offset_ledger" | "offset_custom" | "record_no_split" | "record_ledger" | "record_custom"
   const [payoutMode, setPayoutMode] = useState(
     ledger.payout_mode || "offset_ledger"
@@ -4660,6 +4685,7 @@ function LedgerSettingsModal({
       notifications_enabled: notifEnabled,
       auto_lock: autoLock,
       carry_balance: carryBalance,
+      grace_period: gracePeriod,
       payout_mode: payoutMode,
       payout_custom_splits:
         payoutMode === "offset_custom" || payoutMode === "record_custom"
@@ -5108,25 +5134,35 @@ function LedgerSettingsModal({
               </div>
               <div className="settings-row">
                 <div>
-                  <div className="settings-label">Auto-lock months</div>
+                  <div className="settings-label">Grace period</div>
                   <div className="settings-sub">
-                    Past months lock automatically when the next month begins
+                    Days after month ends before it locks for expenses
+                    {!isAdmin && ` · ${ledger.grace_period ?? 3} days`}
                   </div>
                 </div>
-                <label className="toggle">
-                  <input
-                    type="checkbox"
-                    checked={autoLock}
-                    onChange={(e) => setAutoLock(e.target.checked)}
-                  />
-                  <span className="toggle-slider" />
-                </label>
+                {isAdmin ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <input
+                      type="range"
+                      min="1"
+                      max="6"
+                      value={gracePeriod}
+                      onChange={(e) => setGracePeriod(Number(e.target.value))}
+                      style={{ width: "80px", accentColor: "var(--accent)" }}
+                    />
+                    <span style={{ fontSize: "13px", fontWeight: "700", color: "var(--accent)", minWidth: "20px" }}>
+                      {gracePeriod}d
+                    </span>
+                  </div>
+                ) : (
+                  <span style={{ fontSize: "13px", color: "var(--text3)" }}>
+                    {ledger.grace_period ?? 3} days
+                  </span>
+                )}
               </div>
               <div className="settings-row">
                 <div>
-                  <div className="settings-label">
-                    Carry over balance to next month
-                  </div>
+                  <div className="settings-label">Carry over balance to next month</div>
                   <div className="settings-sub">
                     When a month is locked, each member's +/- is recorded as a
                     "Carry-over" entry at the start of the next month, instead
@@ -9093,8 +9129,10 @@ function LedgerDetail({
   // were only ever "treated as locked" in the UI — lockMonth() itself, and
   // therefore carry-over generation, never ran unless an admin clicked the
   // lock button by hand.
+  // Auto-lock: lock all past months automatically for all members.
+  // Admin can still add to past months via date picker in the UI.
   useEffect(() => {
-    if (ledger.auto_lock === false || isArchived || deleteLock) return;
+    if (isArchived || deleteLock) return;
     const nowMk = mk(new Date());
     const monthsPresent = [
       ...new Set(ledger.expenses.map((e) => mk(e.expense_date))),
@@ -9121,7 +9159,7 @@ function LedgerDetail({
       expenses: workingExpenses,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ledger.id, ledger.auto_lock, ledger.carry_balance, isArchived, deleteLock]);
+  }, [ledger.id, ledger.carry_balance, isArchived, deleteLock]);
   const allMks = getMonths(ledger);
   const curMk = mk(new Date());
   const prevMk = (() => {
@@ -9155,11 +9193,22 @@ function LedgerDetail({
 
   const canAccess = (monthKey) => visMonths.includes(monthKey);
 
+  const gracePeriodDays = ledger.grace_period ?? 3;
   const effectiveLocked = (monthKey) => {
     if (isArchived) return true;
     if (ledger.lockedMonths?.[monthKey]) return true;
-    if (ledger.auto_lock !== false && monthKey < curMk) return true;
-    return false;
+    if (monthKey >= curMk) return false;
+    const now = new Date();
+    const dayOfMonth = now.getDate();
+    const prevMonthMk = (() => {
+      const d = new Date();
+      d.setDate(1);
+      d.setMonth(d.getMonth() - 1);
+      return mk(d);
+    })();
+    const inGrace = dayOfMonth <= gracePeriodDays && monthKey === prevMonthMk;
+    if (inGrace) return false;
+    return true; // locked for everyone after grace period
   };
   const isLocked = effectiveLocked(activeMonth);
   const monthExpenses = ledger.expenses.filter(
@@ -10559,6 +10608,40 @@ function LedgerDetail({
         </div>
       )}
 
+      {(() => {
+        const now = new Date();
+        const dayOfMonth = now.getDate();
+        const prevMonthMk = (() => {
+          const d = new Date();
+          d.setDate(1);
+          d.setMonth(d.getMonth() - 1);
+          return mk(d);
+        })();
+        const inGrace = dayOfMonth <= gracePeriodDays &&
+          !ledger.lockedMonths?.[prevMonthMk] &&
+          !isArchived;
+        if (!inGrace) return null;
+        const daysLeft = gracePeriodDays - dayOfMonth + 1;
+        return (
+          <div style={{
+            background: "#fffbeb",
+            border: "2px solid #f59e0b",
+            borderRadius: "var(--radius)",
+            padding: "11px 15px",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            marginBottom: "14px",
+          }}>
+            <span style={{ fontSize: "18px" }}>⚠️</span>
+            <span style={{ fontSize: "13px", color: "#92400e", fontWeight: "500" }}>
+              <strong>{mlbl(prevMonthMk)} locks in {daysLeft} day{daysLeft !== 1 ? "s" : ""}</strong>
+              {" "}— check that all expenses are entered before {gracePeriodDays + 1}. {["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][now.getMonth()]}.
+            </span>
+          </div>
+        );
+      })()}
+
       <div
         style={
           isDesktop
@@ -10997,9 +11080,19 @@ function LedgerDetail({
           ledger={ledger}
           currentUser={currentUser}
           onClose={() => setShowExpense(false)}
-          onAdd={addExpense}
+          onAdd={(exp) => {
+            if (showExpense === "settle-past") {
+              const [y, m] = activeMonth.split("-").map(Number);
+              const lastDay = new Date(y, m, 0);
+              addExpense({ ...exp, expense_date: lastDay.toISOString() });
+            } else {
+              addExpense(exp);
+            }
+          }}
           currency={currency}
           canPayout={canPayout}
+          forceSettle={showExpense === "settle-past"}
+          isAdmin={isAdmin}
         />
       )}
       {showSettings && (
