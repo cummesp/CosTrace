@@ -13999,11 +13999,10 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
                 padding: "24px 26px",
                 boxShadow: "var(--shadow)",
                 overflowX: "hidden",
+                display: tab === "archived" ? "none" : undefined,
               }}
             >
-              {/* Stat tiles + charts + outstanding — only on Active tab */}
-              {tab === "active" && (
-              <>{/* Stat tiles */}
+              {/* Stat tiles */}
               <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "27fr 27fr 26fr 20fr" : "repeat(2,1fr)", gap: "12px", marginBottom: "22px" }}>
                 {[
                   { label: "Total spent", value: fmtAmt(grandTotal), accent: "#42C3E6" },
@@ -14191,10 +14190,8 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
                   </div>
                 )}
               </div>
-              </>)}
 
-              {/* Latest changes feed — active tab only */}
-              {tab === "active" && (
+              {/* Latest changes feed */}
               <div
                 style={{
                   background: "var(--bg)",
@@ -14266,7 +14263,6 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
                   </div>
                 )}
               </div>
-              )}
             </div>
           );
 }
