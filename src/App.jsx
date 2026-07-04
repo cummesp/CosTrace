@@ -3832,32 +3832,34 @@ function AddExpenseModal({
               >
                 Current balances
               </div>
-              {myDebts.map((d, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    fontSize: "12px",
-                    color: "var(--text2)",
-                    marginBottom: "3px",
-                  }}
-                >
-                  <span>
-                    You owe <strong>{d.toName}</strong>
-                  </span>
-                  <span
+              {allDebts.map((d, i) => {
+                const youAreDebtor = d.from === payer?.id;
+                const youAreCreditor = d.to === payer?.id;
+                if (!youAreDebtor && !youAreCreditor) return null;
+                return (
+                  <div
+                    key={i}
                     style={{
-                      fontFamily: "var(--mono)",
-                      fontWeight: "700",
-                      color: "var(--settle)",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      fontSize: "12px",
+                      color: "var(--text2)",
+                      marginBottom: "3px",
                     }}
                   >
-                    {fmtAmt(d.amount)} {currency}
-                  </span>
-                </div>
-              ))}
+                    <span>
+                      {youAreDebtor
+                        ? <><strong>{d.fromName}</strong> owes <strong>{d.toName}</strong></>
+                        : <><strong>{d.fromName}</strong> owes <strong>{d.toName}</strong></>
+                      }
+                    </span>
+                    <span style={{ fontFamily: "var(--mono)", fontWeight: "700", color: "var(--settle)" }}>
+                      {fmtAmt(d.amount)} {currency}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
           {isSettle && (
@@ -10945,19 +10947,17 @@ function LedgerDetail({
                                   owes {exp.paid_by_name}
                                 </span>
                               ) : (
-                                exp.paid_by_name +
-                                " paid" +
-                                (isSettle &&
-                                exp.splits?.length === 1 &&
-                                ledger.members.find(
-                                  (m) => m.id === exp.splits[0].member_id
-                                )
-                                  ? ` to ${
-                                      ledger.members.find(
-                                        (m) => m.id === exp.splits[0].member_id
-                                      ).display_name
-                                    }`
-                                  : "")
+                                (() => {
+                                  if (isSettle && exp.splits?.length === 1) {
+                                    const debtor = ledger.members.find(
+                                      (m) => m.id === exp.splits[0].member_id
+                                    );
+                                    const debtorName = debtor?.display_name || exp.splits[0].display_name || "?";
+                                    const creditorName = exp.paid_by_name || "?";
+                                    return `${debtorName} owes ${creditorName}`;
+                                  }
+                                  return exp.paid_by_name + " paid";
+                                })()
                               )}
                             </div>
                           </div>
