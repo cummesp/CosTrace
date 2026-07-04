@@ -14039,6 +14039,7 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
                 padding: "24px 26px",
                 boxShadow: "var(--shadow)",
                 overflowX: "hidden",
+                display: tab === "archived" ? "none" : undefined,
               }}
             >
               {/* Stat tiles */}
