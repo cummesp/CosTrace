@@ -4309,6 +4309,9 @@ function LedgerSettingsModal({
   onLeave,
 }) {
   const plan = userPlan || PLANS.free;
+  const isAdmin = ledger.members.some(
+    (m) => m.user_id === currentUser.id && m.is_admin
+  );
   // All unique people from other ledgers (network)
   const networkPeople = [];
   const seen = new Set(ledger.members.map((m) => m.display_name));
