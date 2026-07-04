@@ -3539,6 +3539,7 @@ function AddExpenseModal({
   canPayout = false,
   forceSettle = false,
   isAdmin = false,
+  defaultDate,
 }) {
   const [desc, setDesc] = useState("");
   const [amount, setAmount] = useState("");
@@ -3551,9 +3552,8 @@ function AddExpenseModal({
   const [payoutRecord, setPayoutRecord] = useState(false);
   const [paidToId, setPaidToId] = useState("");
   const [overrideSplits, setOverrideSplits] = useState(false);
-  // Admin can set a custom date (for adding to past months)
   const todayStr = new Date().toISOString().slice(0, 10);
-  const [customDate, setCustomDate] = useState(todayStr);
+  const [customDate, setCustomDate] = useState(defaultDate || todayStr);
   // Unique descriptions from this ledger (most recent first, exclude settlements)
   const PAYOUT_SUGGESTIONS = [
     "Rental income",
@@ -3945,13 +3945,11 @@ function AddExpenseModal({
               </p>
             )}
           </div>
-          {isAdmin && (
+          {(isAdmin || forceSettle) && (
             <div className="form-group">
               <label>
                 Date
-                <span style={{ fontSize: "10px", color: "var(--text3)", marginLeft: "6px", fontWeight: "400" }}>
-                  Admin — can add to past months
-                </span>
+                {isAdmin && <span style={{ fontSize: "10px", color: "var(--text3)", marginLeft: "6px", fontWeight: "400" }}>Admin — can set past date</span>}
               </label>
               <input
                 type="date"
@@ -10023,6 +10021,15 @@ function LedgerDetail({
                   <span style={{ textDecoration: "underline" }}>Upgrade</span>
                 </div>
               )}
+              {isLocked && isAdmin && activeMonth < curMk && !isArchived && !deleteLock && (
+                <button
+                  className="btn btn-settle"
+                  style={{ fontSize: "12px", padding: "8px 12px" }}
+                  onClick={() => setShowExpense("settle-locked")}
+                >
+                  + Settle {mlbl(activeMonth)}
+                </button>
+              )}
               {!isLocked && !isArchived && !deleteLock && (
                 <button
                   className="btn btn-primary"
@@ -11094,8 +11101,11 @@ function LedgerDetail({
           }}
           currency={currency}
           canPayout={canPayout}
-          forceSettle={showExpense === "settle-past"}
+          forceSettle={showExpense === "settle-past" || showExpense === "settle-locked"}
           isAdmin={isAdmin}
+          defaultDate={showExpense === "settle-locked"
+            ? new Date(activeMonth + "-15").toISOString().slice(0, 10)
+            : undefined}
         />
       )}
       {showSettings && (
