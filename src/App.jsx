@@ -809,29 +809,58 @@ const isCountingActive = (l) => !l.archived && !l.deleteScheduledAt;
 // of where in the render it's referenced (e.g. an effect that runs before other consts
 // are defined) without any Rules-of-Hooks ordering risk.
 async function persistArchivedLedgerCopy(sbClient, original, ownerUserId) {
-  const { data: lRow } = await sbClient
+  // ── Padobran: snimi ceo ledger u localStorage pre nego što dotaknemo bazu.
+  // Čak i ako Supabase insert pukne, korisnik može ručno da povrati podatke.
+  try {
+    const backupKey = `costrace_archive_backup_${original.id}_${Date.now()}`;
+    localStorage.setItem(backupKey, JSON.stringify({
+      ledger: original,
+      ownerUserId,
+      savedAt: new Date().toISOString(),
+    }));
+  } catch (_) {}
+
+  // ── Pokušaj INSERT u ledgers; ako pukne zbog nepostojeće kolone (owner_id,
+  // archived_from), pokušaj bez tih kolona kao fallback.
+  const basePayload = {
+    name: original.name,
+    cover: original.cover || "house",
+    require_approval: original.require_approval || false,
+    notifications_enabled: original.notifications_enabled !== false,
+    auto_lock: original.auto_lock !== false,
+    cover_color: original.coverColor || null,
+    label_color: original.labelColor || null,
+    custom_label: original.customLabel || null,
+    card_color: original.cardColor || null,
+    locked_months: original.lockedMonths || {},
+    archived: true,
+    archived_at: now(),
+    payout_mode: original.payout_mode || "offset_ledger",
+    payout_custom_splits: original.payout_custom_splits || null,
+  };
+
+  let { data: lRow, error: lErr } = await sbClient
     .from("ledgers")
-    .insert({
-      name: original.name,
-      cover: original.cover || "house",
-      require_approval: original.require_approval || false,
-      notifications_enabled: original.notifications_enabled !== false,
-      auto_lock: original.auto_lock !== false,
-      cover_color: original.coverColor || null,
-      label_color: original.labelColor || null,
-      custom_label: original.customLabel || null,
-      card_color: original.cardColor || null,
-      locked_months: original.lockedMonths || {},
-      archived: true,
-      archived_at: now(),
-      archived_from: original.id,
-      owner_id: ownerUserId,
-      payout_mode: original.payout_mode || "offset_ledger",
-      payout_custom_splits: original.payout_custom_splits || null,
-    })
+    .insert({ ...basePayload, archived_from: original.id, owner_id: ownerUserId })
     .select()
     .single();
-  if (!lRow) return null;
+
+  if (lErr) {
+    // Fallback — probaj bez novih kolona (schema nije migriran)
+    console.warn("Archive insert failed, retrying without new columns:", lErr.message);
+    ({ data: lRow, error: lErr } = await sbClient
+      .from("ledgers")
+      .insert(basePayload)
+      .select()
+      .single());
+  }
+
+  if (lErr || !lRow) {
+    console.error("persistArchivedLedgerCopy: ledger insert failed", lErr);
+    return { ok: false, error: lErr?.message || "Ledger insert failed" };
+  }
+
+  // ── Members
   const memberRows = await Promise.all(
     (original.members || []).map((om) =>
       sbClient
@@ -857,24 +886,34 @@ async function persistArchivedLedgerCopy(sbClient, original, ownerUserId) {
   memberRows.forEach(({ oldId, row }) => {
     if (row) memberIdMap[oldId] = row.id;
   });
+
+  // ── Expenses + splits
   await Promise.all(
     (original.expenses || []).map(async (exp) => {
-      const { data: newExp } = await sbClient
+      const expPayload = {
+        ledger_id: lRow.id,
+        description: exp.description,
+        amount: exp.amount,
+        paid_by_name: exp.paid_by_name,
+        paid_by_id: exp.paid_by_id || null,
+        expense_date: exp.expense_date,
+        approval_status: exp.approval_status,
+        is_settlement: exp.is_settlement || false,
+        is_payout: exp.is_payout || false,
+        payout_mode: exp.payout_mode || null,
+      };
+      let { data: newExp, error: expErr } = await sbClient
         .from("expenses")
-        .insert({
-          ledger_id: lRow.id,
-          description: exp.description,
-          amount: exp.amount,
-          paid_by_name: exp.paid_by_name,
-          paid_by_id: exp.paid_by_id || null,
-          expense_date: exp.expense_date,
-          approval_status: exp.approval_status,
-          is_settlement: exp.is_settlement || false,
-          is_payout: exp.is_payout || false,
-          payout_mode: exp.payout_mode || null,
-        })
+        .insert({ ...expPayload, is_carryover: exp.is_carryover || false })
         .select()
         .single();
+      if (expErr && expErr.message?.includes("is_carryover")) {
+        ({ data: newExp } = await sbClient
+          .from("expenses")
+          .insert(expPayload)
+          .select()
+          .single());
+      }
       if (newExp && exp.splits && exp.splits.length > 0) {
         await sbClient.from("expense_splits").insert(
           exp.splits.map((s) => ({
@@ -887,7 +926,8 @@ async function persistArchivedLedgerCopy(sbClient, original, ownerUserId) {
       }
     })
   );
-  return lRow.id;
+
+  return { ok: true, id: lRow.id };
 }
 async function deleteLedgerEverywhere(sbClient, ledgerId) {
   await sbClient.from("ledger_members").delete().eq("ledger_id", ledgerId);
@@ -17683,8 +17723,23 @@ export default function App() {
       target.name
     );
     if (ENV === "production") {
+      let anyFailed = false;
       for (const m of realMembers) {
-        await persistArchivedLedgerCopy(sb, target, m.user_id);
+        const result = await persistArchivedLedgerCopy(sb, target, m.user_id);
+        if (!result || result.ok === false) {
+          anyFailed = true;
+          console.error("Archive failed for member", m.user_id, result?.error);
+        }
+      }
+      if (anyFailed) {
+        notify(
+          "denied",
+          "Archive may be incomplete",
+          `"${target.name}" archive could not be fully saved. Check Supabase schema — run the missing ALTER TABLE commands. A local backup was saved in localStorage.`,
+          target.name
+        );
+        // Ne briši originalni ledger ako arhiviranje nije uspelo
+        return;
       }
       await deleteLedgerEverywhere(sb, id);
     }
