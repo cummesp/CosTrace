@@ -16768,7 +16768,7 @@ export default function App() {
     if (userIds.length > 0) {
       const { data: profs } = await sb
         .from("profiles")
-        .select("id,avatar,full_name")
+        .select("id,avatar,full_name,plan")
         .in("id", userIds);
       const profMap = Object.fromEntries((profs || []).map((p) => [p.id, p]));
       const withProfiles = assembled.map((l) => ({
@@ -16781,6 +16781,7 @@ export default function App() {
             ...m,
             avatar: prof.avatar || null,
             display_name: prof.full_name || m.display_name,
+            plan: prof.plan || m.plan || "free",
           };
         }),
       }));
@@ -16792,24 +16793,34 @@ export default function App() {
   };
 
   const saveExpense = async (ledgerId, exp) => {
-    const { data: eRow, error } = await sb
+    const basePayload = {
+      id: exp.id.startsWith("e") ? undefined : exp.id,
+      ledger_id: ledgerId,
+      description: exp.description,
+      amount: exp.amount,
+      paid_by_name: exp.paid_by_name,
+      paid_by_id: exp.paid_by_id || null,
+      expense_date: exp.expense_date,
+      approval_status: exp.approval_status,
+      is_settlement: exp.is_settlement || false,
+      is_payout: exp.is_payout || false,
+      payout_mode: exp.payout_mode || null,
+    };
+    // Try with is_carryover first; if column doesn't exist yet (schema not
+    // migrated), fall back to saving without it so regular expenses aren't lost.
+    let { data: eRow, error } = await sb
       .from("expenses")
-      .insert({
-        id: exp.id.startsWith("e") ? undefined : exp.id,
-        ledger_id: ledgerId,
-        description: exp.description,
-        amount: exp.amount,
-        paid_by_name: exp.paid_by_name,
-        paid_by_id: exp.paid_by_id || null,
-        expense_date: exp.expense_date,
-        approval_status: exp.approval_status,
-        is_settlement: exp.is_settlement || false,
-        is_carryover: exp.is_carryover || false,
-        is_payout: exp.is_payout || false,
-        payout_mode: exp.payout_mode || null,
-      })
+      .insert({ ...basePayload, is_carryover: exp.is_carryover || false })
       .select()
       .single();
+    if (error && error.message?.includes("is_carryover")) {
+      console.warn("is_carryover column missing — saving without it");
+      ({ data: eRow, error } = await sb
+        .from("expenses")
+        .insert(basePayload)
+        .select()
+        .single());
+    }
     if (error) {
       console.error("saveExpense error:", error);
       return;
@@ -16866,14 +16877,13 @@ export default function App() {
   };
 
   const saveLedger = async (l) => {
-    const { error } = await sb.from("ledgers").upsert({
+    const basePayload = {
       id: l.id,
       name: l.name,
       cover: l.cover || "house",
       require_approval: l.require_approval || false,
       notifications_enabled: l.notifications_enabled !== false,
       auto_lock: l.auto_lock !== false,
-      carry_balance: l.carry_balance || false,
       cover_color: l.coverColor || null,
       label_color: l.labelColor || null,
       custom_label: l.customLabel || null,
@@ -16882,7 +16892,15 @@ export default function App() {
       archived: l.archived || false,
       archived_at: l.archived_at || null,
       delete_request: l.deleteRequest || null,
+    };
+    let { error } = await sb.from("ledgers").upsert({
+      ...basePayload,
+      carry_balance: l.carry_balance || false,
     });
+    if (error && error.message?.includes("carry_balance")) {
+      console.warn("carry_balance column missing — saving without it");
+      ({ error } = await sb.from("ledgers").upsert(basePayload));
+    }
     if (error) console.error("saveLedger error:", error);
   };
 
@@ -17179,7 +17197,7 @@ export default function App() {
     ];
     if (userIds.length > 0) {
       sb.from("profiles")
-        .select("id,avatar,full_name")
+        .select("id,avatar,full_name,plan")
         .in("id", userIds)
         .then(({ data: profs }) => {
           if (!profs || !profs.length) return;
@@ -17198,6 +17216,7 @@ export default function App() {
                             ...m,
                             avatar: prof.avatar || null,
                             display_name: prof.full_name || m.display_name,
+                            plan: prof.plan || m.plan || "free",
                           }
                         : m;
                     }),
@@ -17215,10 +17234,18 @@ export default function App() {
   };
 
   const updateLedger = async (u) => {
-    setLedgers((p) => p.map((l) => (l.id === u.id ? u : l)));
+    // Use functional updater to always read current state — avoids the stale
+    // closure bug where `ledgers` captured at definition time could be missing
+    // expenses added after the function was created (e.g. while settings modal was open).
+    let prev = null;
+    setLedgers((current) => {
+      prev = current.find((l) => l.id === u.id) || null;
+      return current.map((l) => (l.id === u.id ? u : l));
+    });
     if (ENV === "production") {
       saveLedger(u);
-      const prev = ledgers.find((l) => l.id === u.id);
+      // Wait one tick so `prev` is set by the setLedgers callback above
+      await new Promise((r) => setTimeout(r, 0));
       if (prev) {
         // Save new expenses
         const newExps = u.expenses.filter(
