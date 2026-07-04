@@ -14348,6 +14348,7 @@ function Dashboard({
   const plan = userPlan || PLANS.free;
   const curMk = mk(new Date());
   const [tab, setTab] = useState("active");
+  const [statsHidden, setStatsHidden] = useState(false);
   const [filterCover, setFilterCover] = useState(null);
   const isDesktop = useIsDesktop();
   const activeLedgers = ledgers.filter((l) => !l.archived);
@@ -14796,14 +14797,34 @@ function Dashboard({
       )}
       <div
         style={
-          isDesktop
+          isDesktop && tab !== "archived" && !statsHidden
             ? { display: "grid", gridTemplateColumns: "1fr 560px", gap: "22px", alignItems: "start" }
             : undefined
         }
       >
       {isDesktop && tab !== "archived" && (
         <div>
-          <LedgerStatsOverview ledgers={ledgers} currentUser={currentUser} />
+          {!statsHidden && <LedgerStatsOverview ledgers={ledgers} currentUser={currentUser} />}
+          <button
+            onClick={() => setStatsHidden(h => !h)}
+            style={{
+              background: "none",
+              border: "1px solid var(--border)",
+              borderRadius: "8px",
+              padding: "5px 12px",
+              fontSize: "11px",
+              fontWeight: "600",
+              color: "var(--text3)",
+              cursor: "pointer",
+              fontFamily: "var(--font)",
+              marginBottom: "12px",
+              display: "flex",
+              alignItems: "center",
+              gap: "5px",
+            }}
+          >
+            {statsHidden ? "▶ Show statistics" : "▼ Hide statistics"}
+          </button>
         </div>
       )}
       <div>
