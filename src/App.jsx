@@ -15337,20 +15337,31 @@ function UpgradeModal({
   const [confirmDowngrade, setConfirmDowngrade] = useState(null);
   const plans = ["free", "light", "regular", "gold"];
   const planLevel = { free: 0, light: 1, regular: 2, gold: 3 };
+  const isEB = currentUser?.isEarlyBird || false;
+
+  // EarlyBird: -1€/month, -10% yearly
+  const ebPrice = (plan) => {
+    if (plan.monthly === 0) return { monthly: 0, yearly: 0 };
+    return {
+      monthly: Math.max(0, plan.monthly - 1),
+      yearly: +(plan.yearly * 0.9).toFixed(0),
+    };
+  };
   const features = {
     free: [
       "1 owned ledger",
       "Max 2 members",
-      "15 expenses/mo/ledger",
-      "1 month history",
+      "20 expenses/mo/ledger",
+      "3 months visible history",
       "Participant in 3 ledgers",
     ],
     light: [
       "5 owned ledgers",
       "Max 5 members",
-      "30 expenses/mo/ledger",
+      "45 expenses/mo/ledger",
       "12 months history",
       "Participant in 15 ledgers",
+      "Cancel & delete expenses",
       "No ads",
     ],
     regular: [
@@ -15359,6 +15370,7 @@ function UpgradeModal({
       "Unlimited expenses",
       "Unlimited history",
       "Unlimited participation",
+      "Cancel & delete expenses",
       "Custom header color & label",
       "No ads",
     ],
@@ -15366,6 +15378,7 @@ function UpgradeModal({
       "Unlimited ledgers",
       "Max 20 members",
       "Unlimited everything",
+      "Cancel & delete expenses",
       "Custom header & label colors",
       "Rename categories",
       "Personal avatar (coming soon)",
@@ -15427,6 +15440,24 @@ function UpgradeModal({
           </button>
         </div>
         <div className="modal-body">
+          {isEB && (
+            <div style={{
+              background: "linear-gradient(135deg,#fffbeb,#fef3c7)",
+              border: "1.5px solid #f59e0b",
+              borderRadius: "10px",
+              padding: "10px 14px",
+              marginBottom: "16px",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+            }}>
+              <span style={{ fontSize: "20px" }}>🐦</span>
+              <div>
+                <div style={{ fontSize: "13px", fontWeight: "800", color: "#92400e" }}>Early Bird pricing</div>
+                <div style={{ fontSize: "11px", color: "#b45309" }}>-1€/mo or -10% yearly — yours for life</div>
+              </div>
+            </div>
+          )}
           <div
             style={{
               display: "flex",
@@ -15550,6 +15581,9 @@ function UpgradeModal({
                         }}
                       >
                         {pl.name}
+                        {isEB && pl.monthly > 0 && (
+                          <span style={{ fontSize: "11px", marginLeft: "5px", color: "#f59e0b", fontWeight: "700" }}>🐦</span>
+                        )}
                       </span>
                       {pl.monthly === 0 ? (
                         <span
@@ -15578,28 +15612,17 @@ function UpgradeModal({
                                   color: isGold ? "#d97706" : pl.color,
                                 }}
                               >
-                                {(pl.yearly / 12).toFixed(2)}€
-                                <span
-                                  style={{
-                                    fontSize: "11px",
-                                    fontWeight: "600",
-                                    color: isGold ? "#d97706" : pl.color,
-                                  }}
-                                >
-                                  /mo
-                                </span>
+                                {isEB
+                                  ? <><span style={{ textDecoration: "line-through", color: "var(--text3)", fontSize: "12px", fontWeight: "400" }}>{(pl.yearly / 12).toFixed(2)}€</span>{" "}{(ebPrice(pl).yearly / 12).toFixed(2)}€</>
+                                  : <>{(pl.yearly / 12).toFixed(2)}€</>
+                                }
+                                <span style={{ fontSize: "11px", fontWeight: "600", color: isGold ? "#d97706" : pl.color }}>/mo</span>
                               </div>
-                              <div
-                                style={{
-                                  fontSize: "10px",
-                                  color: "var(--text3)",
-                                }}
-                              >
-                                {pl.yearly}€/yr · save{" "}
-                                {Math.round(
-                                  100 - (pl.yearly / (pl.monthly * 12)) * 100
-                                )}
-                                %
+                              <div style={{ fontSize: "10px", color: "var(--text3)" }}>
+                                {isEB
+                                  ? <><span style={{ textDecoration: "line-through" }}>{pl.yearly}€</span>{" "}<span style={{ color: "#16a34a", fontWeight: "700" }}>{ebPrice(pl).yearly}€/yr</span></>
+                                  : <>{pl.yearly}€/yr · save {Math.round(100 - (pl.yearly / (pl.monthly * 12)) * 100)}%</>
+                                }
                               </div>
                             </>
                           ) : (
@@ -15610,16 +15633,11 @@ function UpgradeModal({
                                 color: isGold ? "#d97706" : pl.color,
                               }}
                             >
-                              {pl.monthly}€
-                              <span
-                                style={{
-                                  fontSize: "11px",
-                                  fontWeight: "600",
-                                  color: isGold ? "#d97706" : pl.color,
-                                }}
-                              >
-                                /mo
-                              </span>
+                              {isEB
+                                ? <><span style={{ textDecoration: "line-through", color: "var(--text3)", fontSize: "12px", fontWeight: "400" }}>{pl.monthly}€</span>{" "}{ebPrice(pl).monthly}€</>
+                                : <>{pl.monthly}€</>
+                              }
+                              <span style={{ fontSize: "11px", fontWeight: "600", color: isGold ? "#d97706" : pl.color }}>/mo</span>
                             </div>
                           )}
                         </div>
@@ -17094,6 +17112,7 @@ export default function App() {
       payoutPass: profile?.payout_pass || false,
       date_of_birth: profile?.date_of_birth || null,
       deleteScheduled: profile?.delete_scheduled_at || null,
+      isEarlyBird: profile?.is_early_bird || false,
     };
     setUser(fullUser);
     await loadLedgers(u.id);
