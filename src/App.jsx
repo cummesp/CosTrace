@@ -442,20 +442,24 @@ const css = `
   .exp-row.row-pending{background:#fffbeb;border-left:3px solid var(--warning);}
   .exp-row.row-approved{border-left:3px solid transparent;}
   .exp-row.row-denied{background:#fef2f2;border-left:3px solid var(--danger);opacity:0.75;}
+  .exp-row.row-cancelled{background:#fff0f0;border-left:3px solid #dc2626;opacity:0.8;}
   .exp-row.row-settle{background:var(--settle-light);border-left:3px solid var(--settle);}
   .exp-date{font-size:10px;color:var(--text3);font-family:var(--mono);white-space:nowrap;width:36px;font-weight:400;font-variant-numeric:tabular-nums;}
   .exp-info{flex:1;min-width:0;}
   .exp-desc{font-size:12px;font-weight:600;color:var(--text);line-height:1.2;}
   .exp-desc.denied-text{text-decoration:line-through;color:var(--text3);}
+  .exp-desc.cancelled-text{text-decoration:line-through;color:#dc2626;}
   .exp-meta{font-size:10px;color:var(--text3);margin-top:0;font-weight:400;}
   .status-tag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;white-space:nowrap;}
   .tag-pending{background:var(--warning-light);color:var(--warning);border:1px solid #fcd34d;}
   .tag-approved{background:var(--success-light);color:var(--success);border:1px solid #6ee7b7;}
   .tag-denied{background:var(--danger-light);color:var(--danger);border:1px solid #fca5a5;}
+  .tag-cancelled{background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;}
   .tag-settle{background:var(--settle-light);color:var(--settle);border:1px solid #6ee7b7;}
   .exp-amt{font-size:12px;font-weight:700;font-family:var(--mono);color:var(--text);white-space:nowrap;font-variant-numeric:tabular-nums;}
   .exp-amt.settle-color{color:var(--settle);}
   .exp-amt.denied-color{color:var(--text3);}
+  .exp-amt.cancelled-color{color:#dc2626;text-decoration:line-through;}
   /* LOCK */
   .lock-section{margin-top:12px;display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap;}
   .lock-confirm{display:flex;gap:8px;align-items:center;background:var(--warning-light);padding:10px 14px;border-radius:var(--radius-sm);border:1.5px solid #fcd34d;flex-wrap:wrap;}
@@ -7130,14 +7134,28 @@ function ExpenseDetailModal({
   onClose,
   onApprove,
   onDeny,
+  onCancel,
+  plan,
   currency = "RSD",
 }) {
   const isPayout = !!exp.is_payout;
   const isPending = exp.approval_status === "pending";
   const isDenied = exp.approval_status === "denied";
+  const isCancelled = exp.approval_status === "cancelled";
   const isSettle = exp.is_settlement;
   const canApprove =
     isPending && !isLocked && exp.paid_by_id !== currentUser.id;
+  // Delete is available for paid plans, non-locked, non-cancelled, non-pending
+  const isPaidPlan = plan && plan.id !== "free";
+  const isAdmin = ledger.members.find(
+    (m) => m.user_id === currentUser.id
+  )?.is_admin;
+  const canDelete =
+    isPaidPlan &&
+    !isLocked &&
+    !isCancelled &&
+    !isPending &&
+    (isAdmin || exp.paid_by_id === currentUser.id);
 
   const hasCustomSplit =
     exp.splits &&
@@ -7689,11 +7707,36 @@ function ExpenseDetailModal({
         </div>
         <div
           className="modal-footer"
-          style={{ justifyContent: canApprove ? "space-between" : "flex-end" }}
+          style={{ justifyContent: "space-between" }}
         >
-          <button className="btn btn-secondary" onClick={onClose}>
-            Close
-          </button>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button className="btn btn-secondary" onClick={onClose}>
+              Close
+            </button>
+            {canDelete && (
+              <button
+                className="btn"
+                style={{
+                  background: "#fee2e2",
+                  color: "#b91c1c",
+                  border: "1.5px solid #fca5a5",
+                  fontSize: "13px",
+                }}
+                onClick={() => {
+                  if (ledger.require_approval) {
+                    // Notify others — mark as "delete_requested", they vote
+                    onCancel(exp.id, "request");
+                  } else {
+                    // No approval needed — cancel immediately
+                    onCancel(exp.id, "immediate");
+                  }
+                  onClose();
+                }}
+              >
+                {ledger.require_approval ? "Request deletion" : "Cancel expense"}
+              </button>
+            )}
+          </div>
           {canApprove && (
             <div style={{ display: "flex", gap: "8px" }}>
               <button
@@ -9205,6 +9248,46 @@ function LedgerDetail({
     }
   };
 
+  const cancelExpense = (expId, mode) => {
+    const exp = ledger.expenses.find((e) => e.id === expId);
+    if (!exp) return;
+    if (mode === "immediate") {
+      // No approval required — mark as cancelled. Expense stays visible
+      // (red + strikethrough) but is excluded from balance computation.
+      onUpdate({
+        ...ledger,
+        expenses: ledger.expenses.map((e) =>
+          e.id === expId ? { ...e, approval_status: "cancelled" } : e
+        ),
+      });
+      if (ledger.notifications_enabled !== false)
+        onNotify(
+          "denied",
+          "Expense cancelled",
+          `"${exp.description}" (${fmtAmt(exp.amount)}) was cancelled`,
+          ledger.name
+        );
+    } else {
+      // Approval required — set status to "delete_requested" and notify others.
+      // Other members see a pending alert in the expense detail to approve/deny.
+      onUpdate({
+        ...ledger,
+        expenses: ledger.expenses.map((e) =>
+          e.id === expId
+            ? { ...e, approval_status: "delete_requested", delete_requested_by: currentUser.id }
+            : e
+        ),
+      });
+      if (ledger.notifications_enabled !== false)
+        onNotify(
+          "pending",
+          "Deletion requested",
+          `"${exp.description}" — members are asked to confirm deletion`,
+          ledger.name
+        );
+    }
+  };
+
   return (
     <div
       style={isArchived ? { filter: "grayscale(1)", opacity: 0.92 } : undefined}
@@ -10566,6 +10649,8 @@ function LedgerDetail({
                       const isPayout = exp._type === "payout";
                       const isPending = exp.approval_status === "pending";
                       const isDenied = exp.approval_status === "denied";
+                      const isCancelled = exp.approval_status === "cancelled";
+                      const isDeleteRequested = exp.approval_status === "delete_requested";
                       const isSettle = exp.is_settlement;
                       const isCarryover = exp.is_carryover;
                       const rowClass = isPayout
@@ -10574,6 +10659,10 @@ function LedgerDetail({
                         ? "row-settle"
                         : isCarryover
                         ? "row-settle"
+                        : isCancelled
+                        ? "row-cancelled"
+                        : isDeleteRequested
+                        ? "row-pending"
                         : isPending
                         ? "row-pending"
                         : isDenied
@@ -10585,7 +10674,8 @@ function LedgerDetail({
                         !isCarryover &&
                         !isPayout &&
                         !isPending &&
-                        !isDenied;
+                        !isDenied &&
+                        !isCancelled;
                       // % badge for expenses with custom split vs ledger shares
                       const hasCustomSplit =
                         !isCarryover &&
@@ -10755,6 +10845,20 @@ function LedgerDetail({
                               >
                                 Denied
                               </span>
+                            ) : isCancelled ? (
+                              <span
+                                className="status-tag tag-cancelled"
+                                style={{ fontSize: "9px", padding: "1px 5px" }}
+                              >
+                                Cancelled
+                              </span>
+                            ) : isDeleteRequested ? (
+                              <span
+                                className="status-tag tag-pending"
+                                style={{ fontSize: "9px", padding: "1px 5px" }}
+                              >
+                                Del. requested
+                              </span>
                             ) : hasCustomSplit ? (
                               <span
                                 style={{
@@ -10776,6 +10880,8 @@ function LedgerDetail({
                                   ? " settle-color"
                                   : isSettle
                                   ? " settle-color"
+                                  : isCancelled
+                                  ? " cancelled-color"
                                   : isDenied
                                   ? " denied-color"
                                   : ""
@@ -10906,6 +11012,11 @@ function LedgerDetail({
             updateApproval(id, "denied");
             setApprovalExp(null);
           }}
+          onCancel={(id, mode) => {
+            cancelExpense(id, mode);
+            setApprovalExp(null);
+          }}
+          plan={plan}
           currency={currency}
         />
       )}
@@ -15073,8 +15184,8 @@ const PLANS = {
     yearly: 0,
     maxOwnLedgers: 1,
     maxMembers: 2,
-    maxExpensesPerLedger: 15,
-    historyMonths: 1,
+    maxExpensesPerLedger: 20,
+    historyMonths: 3,
     maxParticipant: 3,
     ads: true,
   },
@@ -15088,7 +15199,7 @@ const PLANS = {
     yearly: 25,
     maxOwnLedgers: 5,
     maxMembers: 5,
-    maxExpensesPerLedger: 30,
+    maxExpensesPerLedger: 45,
     historyMonths: 12,
     maxParticipant: 15,
     ads: false,
