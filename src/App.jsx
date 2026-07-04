@@ -2512,8 +2512,7 @@ function buildCarryoverExpenses(ledger, lockedMonth) {
 }
 
 function getMonths(l) {
-  if (!l || !Array.isArray(l.expenses)) return [];
-  return [...new Set(l.expenses.map((e) => e && mk(e.expense_date)).filter(Boolean))].sort();
+  return [...new Set(l.expenses.map((e) => mk(e.expense_date)))].sort();
 }
 
 // Sum each member's net across every locked month in this ledger.
@@ -2522,32 +2521,26 @@ function getMonths(l) {
 // optMonths — optional explicit list of month keys to sum; if omitted, all
 // locked months in the ledger are used.
 function computeLifetimeBalance(ledger, optMonths) {
-  if (!ledger || !Array.isArray(ledger.members) || !Array.isArray(ledger.expenses)) return [];
-  try {
-    const lockedMks =
-      optMonths ||
-      getMonths(ledger).filter((m) => ledger.lockedMonths?.[m]);
-    const totals = {};
-    ledger.members
-      .filter((m) => m && !m.is_spectator && m.id)
-      .forEach((m) => {
-        totals[m.id] = 0;
-      });
-    lockedMks.forEach((mkey) => {
-      const exps = ledger.expenses.filter(
-        (e) => e && mk(e.expense_date) === mkey
-      );
-      computeBalances(ledger, exps).forEach((b) => {
-        if (b && b.id in totals) totals[b.id] += b.net;
-      });
+  const lockedMks =
+    optMonths ||
+    getMonths(ledger).filter((m) => ledger.lockedMonths?.[m]);
+  const totals = {}; // { memberId: net }
+  ledger.members
+    .filter((m) => !m.is_spectator)
+    .forEach((m) => {
+      totals[m.id] = 0;
     });
-    return ledger.members
-      .filter((m) => m && !m.is_spectator)
-      .map((m) => ({ ...m, net: totals[m.id] || 0 }));
-  } catch (e) {
-    console.error("computeLifetimeBalance error:", e);
-    return [];
-  }
+  lockedMks.forEach((mkey) => {
+    const exps = ledger.expenses.filter(
+      (e) => mk(e.expense_date) === mkey
+    );
+    computeBalances(ledger, exps).forEach((b) => {
+      if (b.id in totals) totals[b.id] += b.net;
+    });
+  });
+  return ledger.members
+    .filter((m) => !m.is_spectator)
+    .map((m) => ({ ...m, net: totals[m.id] || 0 }));
 }
 
 // -- AUTH
@@ -13939,14 +13932,14 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
   const curMk = mk(new Date());
   const activeLedgers = ledgers.filter((l) => !l.archived);
           const rows = activeLedgers.map((l) => {
-            try {
-            const currExp = (l.expenses || []).filter((e) => e && mk(e.expense_date) === curMk);
+            const currExp = l.expenses.filter((e) => mk(e.expense_date) === curMk);
             const bals = computeBalances(l, currExp);
             const mine = bals.find((b) => b.user_id === currentUser.id);
             const net = mine?.net || 0;
             const approvedExp = currExp.filter((e) => !e.is_settlement && e.approval_status === "approved");
-            const total = approvedExp.reduce((s, e) => s + (e.amount || 0), 0);
+            const total = approvedExp.reduce((s, e) => s + e.amount, 0);
             const debt = Math.max(0, -net);
+            // Lifetime balance across all locked months for this ledger
             const lifetimeBals = computeLifetimeBalance(l);
             const lifetimeMine = lifetimeBals.find(
               (b) => b.user_id === currentUser.id || b.display_name === currentUser.full_name
@@ -13962,10 +13955,6 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
               color: ledgerSolidColor(l),
               approvedCount: approvedExp.length,
             };
-            } catch(err) {
-              console.error("dashboard row error for ledger", l?.id, err);
-              return { id: l.id, name: l.name, total: 0, net: 0, debt: 0, lifetimeNet: 0, color: "#6b7280", approvedCount: 0 };
-            }
           });
           const grandTotal = rows.reduce((s, r) => s + r.total, 0);
           const grandNet = rows.reduce((s, r) => s + r.net, 0);
@@ -14010,7 +13999,6 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
                 padding: "24px 26px",
                 boxShadow: "var(--shadow)",
                 overflowX: "hidden",
-                display: tab === "archived" ? "none" : undefined,
               }}
             >
               {/* Stat tiles */}
