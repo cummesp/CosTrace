@@ -16765,17 +16765,19 @@ export default function App() {
   };
 
   const loadLedgers = async (uid) => {
-    // 1. Get all ledger_ids where user is a member
-    const { data: memberRows } = await sb
-      .from("ledger_members")
-      .select("ledger_id")
-      .eq("user_id", uid);
-    if (!memberRows || memberRows.length === 0) {
+    // 1. Get all ledger_ids where user is a member OR is the owner (archived copies)
+    const [{ data: memberRows }, { data: ownedRows }] = await Promise.all([
+      sb.from("ledger_members").select("ledger_id").eq("user_id", uid),
+      sb.from("ledgers").select("id").eq("owner_id", uid).eq("archived", true),
+    ]);
+    const memberIds = (memberRows || []).map((r) => r.ledger_id);
+    const ownedIds = (ownedRows || []).map((r) => r.id);
+    const ids = [...new Set([...memberIds, ...ownedIds])];
+    if (ids.length === 0) {
       setLedgers([]);
       setLoadingData(false);
       return;
     }
-    const ids = memberRows.map((r) => r.ledger_id);
 
     // 2. Load ledgers
     const { data: lRows } = await sb.from("ledgers").select("*").in("id", ids);
