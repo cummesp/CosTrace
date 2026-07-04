@@ -591,49 +591,70 @@ function timeAgo(dateStr) {
 }
 
 // Y axis = total debt, X axis = months.
-function MonthlyDebtChart({ data }) {
-  const w = 460,
-    h = 170,
-    padL = 46,
-    padB = 22,
-    padT = 14,
-    padR = 8;
+function ExpensesOverTimeChart({ months, activeLedgers, currentUser }) {
+  const w = 460, h = 190, padL = 46, padB = 28, padT = 14, padR = 60;
   const plotW = w - padL - padR;
   const plotH = h - padT - padB;
-  const maxVal = Math.max(1, ...data.map((d) => d.debt));
-  const stepX = data.length > 1 ? plotW / (data.length - 1) : 0;
-  const points = data.map((d, i) => ({
-    x: padL + i * stepX,
-    y: padT + plotH - (d.debt / maxVal) * plotH,
-    ...d,
+
+  // Per-ledger monthly expenses (approved, non-settlement)
+  const ledgerLines = activeLedgers.map((l) => ({
+    name: l.name,
+    color: ledgerSolidColor(l),
+    data: months.map((mkey) => ({
+      key: mkey,
+      label: mlbl(mkey),
+      val: l.expenses
+        .filter((e) => mk(e.expense_date) === mkey && e.approval_status === "approved" && !e.is_settlement)
+        .reduce((s, e) => s + (e.amount || 0), 0),
+    })),
   }));
-  // Smooth the line with simple cubic bezier segments between points.
+
+  // User's debt per month (red dashed line)
+  const debtLine = months.map((mkey) => ({
+    key: mkey,
+    label: mlbl(mkey),
+    val: activeLedgers.reduce((sum, l) => {
+      const exp = l.expenses.filter((e) => mk(e.expense_date) === mkey);
+      const bals = computeBalances(l, exp);
+      const mine = bals.find((b) => b.user_id === currentUser.id);
+      return sum + Math.max(0, -(mine?.net || 0));
+    }, 0),
+  }));
+
+  const allVals = [
+    ...ledgerLines.flatMap((ll) => ll.data.map((d) => d.val)),
+    ...debtLine.map((d) => d.val),
+  ];
+  const maxVal = Math.max(1, ...allVals);
+  const stepX = months.length > 1 ? plotW / (months.length - 1) : 0;
+
+  const toPoints = (data) =>
+    data.map((d, i) => ({
+      x: padL + i * stepX,
+      y: padT + plotH - (d.val / maxVal) * plotH,
+      ...d,
+    }));
+
   const smoothPath = (pts) => {
     if (pts.length < 2) return pts.length ? `M ${pts[0].x} ${pts[0].y}` : "";
     let d = `M ${pts[0].x} ${pts[0].y}`;
     for (let i = 0; i < pts.length - 1; i++) {
-      const p0 = pts[i],
-        p1 = pts[i + 1];
+      const p0 = pts[i], p1 = pts[i + 1];
       const mx = (p0.x + p1.x) / 2;
       d += ` C ${mx} ${p0.y}, ${mx} ${p1.y}, ${p1.x} ${p1.y}`;
     }
     return d;
   };
-  const pathD = smoothPath(points);
-  const areaD =
-    points.length > 1
-      ? `${pathD} L ${points[points.length - 1].x} ${padT + plotH} L ${points[0].x} ${padT + plotH} Z`
-      : "";
-  const yTicks = [0, 0.5, 1].map((f) => ({ val: maxVal * f, y: padT + plotH - f * plotH }));
-  const gradId = "debtAreaGrad";
+
+  const yTicks = [0, 0.5, 1].map((f) => ({
+    val: maxVal * f,
+    y: padT + plotH - f * plotH,
+  }));
+
+  const debtPts = toPoints(debtLine);
+
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height: "170px", display: "block" }}>
-      <defs>
-        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#42C3E6" stopOpacity="0.45" />
-          <stop offset="100%" stopColor="#42C3E6" stopOpacity="0" />
-        </linearGradient>
-      </defs>
+    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height: "190px", display: "block" }}>
       {yTicks.map((t, i) => (
         <g key={i}>
           <line x1={padL} y1={t.y} x2={w - padR} y2={t.y} stroke="var(--border)" strokeWidth="1" />
@@ -642,16 +663,48 @@ function MonthlyDebtChart({ data }) {
           </text>
         </g>
       ))}
-      {points.length > 1 && <path d={areaD} fill={`url(#${gradId})`} />}
-      {points.length > 1 && <path d={pathD} fill="none" stroke="#42C3E6" strokeWidth="2.5" strokeLinecap="round" />}
-      {points.map((p, i) => (
-        <g key={i}>
-          <circle cx={p.x} cy={p.y} r="3.5" fill="var(--white)" stroke="#42C3E6" strokeWidth="2">
-            <title>{`${p.label}: ${fmtAmt(p.debt)}`}</title>
-          </circle>
-          <text x={p.x} y={h - 5} fontSize="9" fill="var(--text3)" textAnchor="middle">
-            {p.label.split(" ")[0]}
-          </text>
+
+      {/* Ledger expense lines */}
+      {ledgerLines.map((ll) => {
+        const pts = toPoints(ll.data);
+        const pd = smoothPath(pts);
+        return (
+          <g key={ll.name}>
+            {pd && <path d={pd} fill="none" stroke={ll.color} strokeWidth="2" strokeLinecap="round" opacity="0.85" />}
+            {pts.map((p, i) => (
+              <circle key={i} cx={p.x} cy={p.y} r="3" fill={ll.color} opacity="0.9">
+                <title>{`${ll.name} ${p.label}: ${fmtAmt(p.val)}`}</title>
+              </circle>
+            ))}
+          </g>
+        );
+      })}
+
+      {/* User debt line — red dashed */}
+      {smoothPath(debtPts) && (
+        <path d={smoothPath(debtPts)} fill="none" stroke="#DC2626" strokeWidth="2" strokeDasharray="5 3" strokeLinecap="round" />
+      )}
+      {debtPts.map((p, i) => (
+        <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="white" stroke="#DC2626" strokeWidth="2">
+          <title>{`Your debt ${p.label}: ${fmtAmt(p.val)}`}</title>
+        </circle>
+      ))}
+
+      {/* X labels */}
+      {toPoints(debtLine).map((p, i) => (
+        <text key={i} x={p.x} y={h - 6} fontSize="9" fill="var(--text3)" textAnchor="middle">
+          {p.label.split(" ")[0]}
+        </text>
+      ))}
+
+      {/* Legend — top right */}
+      {[...ledgerLines.map((ll) => ({ name: ll.name, color: ll.color, dash: false })),
+        { name: "My debt", color: "#DC2626", dash: true }
+      ].map((leg, i) => (
+        <g key={i} transform={`translate(${w - padR + 4}, ${padT + i * 16})`}>
+          <line x1="0" y1="5" x2="14" y2="5" stroke={leg.color} strokeWidth="2"
+            strokeDasharray={leg.dash ? "4 2" : "none"} />
+          <text x="17" y="9" fontSize="8" fill="var(--text2)">{leg.name}</text>
         </g>
       ))}
     </svg>
@@ -14212,9 +14265,9 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
                   }}
                 >
                   <div style={{ fontSize: "12px", fontWeight: "700", color: "var(--text)", marginBottom: "6px" }}>
-                    Debt over time
+                    Expenses over time
                   </div>
-                  <MonthlyDebtChart data={monthlyData} />
+                  <ExpensesOverTimeChart months={months} activeLedgers={activeLedgers} currentUser={currentUser} />
                 </div>
                 <div
                   style={{
