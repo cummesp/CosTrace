@@ -3738,7 +3738,7 @@ function AddExpenseModal({
       // currentUser.id here was silently reattributing the payment to whoever
       // is logged in, instead of the member actually picked in "Someone else paid".
       paid_by_id: payer ? payer.user_id || null : currentUser.id,
-      expense_date: isAdmin ? new Date(customDate).toISOString() : now(),
+      expense_date: forceSettle ? new Date(customDate).toISOString() : now(),
       approval_status:
         ledger.require_approval && !isSettle && !isPayout
           ? "pending"
@@ -4000,12 +4000,9 @@ function AddExpenseModal({
               </p>
             )}
           </div>
-          {(isAdmin || forceSettle) && (
+          {forceSettle && (
             <div className="form-group">
-              <label>
-                Date
-                {isAdmin && <span style={{ fontSize: "10px", color: "var(--text3)", marginLeft: "6px", fontWeight: "400" }}>Admin — can set past date</span>}
-              </label>
+              <label>Date</label>
               <input
                 type="date"
                 value={customDate}
