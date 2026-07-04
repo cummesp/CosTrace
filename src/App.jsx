@@ -14039,7 +14039,6 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
                 padding: "24px 26px",
                 boxShadow: "var(--shadow)",
                 overflowX: "hidden",
-                display: tab === "archived" ? "none" : undefined,
               }}
             >
               {/* Stat tiles */}
@@ -14802,7 +14801,7 @@ function Dashboard({
             : undefined
         }
       >
-      {isDesktop && (
+      {isDesktop && tab !== "archived" && (
         <div>
           <LedgerStatsOverview ledgers={ledgers} currentUser={currentUser} />
         </div>
