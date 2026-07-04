@@ -14194,7 +14194,8 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
               </>)}
 
               {/* Latest changes feed — active tab only */}
-              {tab === "active" && <div
+              {tab === "active" && (
+              <div
                 style={{
                   background: "var(--bg)",
                   border: "1px solid var(--border)",
@@ -14264,7 +14265,8 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
                     })}
                   </div>
                 )}
-              </div>}
+              </div>
+              )}
             </div>
           );
 }
