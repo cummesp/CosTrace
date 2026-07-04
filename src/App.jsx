@@ -3714,6 +3714,7 @@ function AddExpenseModal({
         </div>
         <div className="modal-body">
           <div style={{ display: "flex", gap: "6px", marginBottom: "18px" }}>
+            {!forceSettle && (
             <button
               className={`btn${
                 !isSettle && !isPayout ? " btn-primary" : " btn-secondary"
@@ -3726,6 +3727,7 @@ function AddExpenseModal({
             >
               Expense
             </button>
+            )}
             <button
               className={`btn${isSettle ? " btn-settle" : " btn-secondary"}`}
               style={{ flex: 1, fontSize: "12px" }}
@@ -3736,7 +3738,7 @@ function AddExpenseModal({
             >
               Settlement
             </button>
-            {canPayout && (
+            {canPayout && !forceSettle && (
               <button
                 className={`btn${isPayout ? " btn-primary" : " btn-secondary"}`}
                 style={{
