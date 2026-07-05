@@ -2817,7 +2817,7 @@ function AuthScreen({ onLogin }) {
       {/* Hero — fills all space above footer */}
       <div
         ref={heroRef}
-        style={{ flex: 1, position: "relative", overflow: "hidden" }}
+        style={{ flex: 1, position: "relative", overflow: "hidden", background: "#0A0A0D" }}
       >
         <img
           ref={imgRef}
