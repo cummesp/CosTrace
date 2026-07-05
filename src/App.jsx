@@ -2811,13 +2811,13 @@ function AuthScreen({ onLogin }) {
       display: "flex",
       flexDirection: "column",
       overflow: "hidden",
-      background: "#0A0A0D",
+      background: "#010715",
     }}>
 
       {/* Hero — fills all space above footer */}
       <div
         ref={heroRef}
-        style={{ flex: 1, position: "relative", overflow: "hidden", background: "#0A0A0D" }}
+        style={{ flex: 1, position: "relative", overflow: "hidden", background: "#010715" }}
       >
         <img
           ref={imgRef}
@@ -2898,7 +2898,7 @@ function AuthScreen({ onLogin }) {
       {/* Footer — compact fixed height */}
       <footer style={{
         flexShrink: 0,
-        background: "#0A0A0D",
+        background: "#010715",
         borderTop: "1px solid rgba(255,255,255,0.08)",
         padding: "0 clamp(16px,3vw,48px)",
         height: "44px",
