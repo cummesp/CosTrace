@@ -13710,7 +13710,6 @@ function ProfileModal({
                     style={{
                       fontSize: "12px",
                       color: "var(--text2)",
-                      marginBottom: "6px",
                       display: "flex",
                       alignItems: "flex-start",
                       gap: "8px",
