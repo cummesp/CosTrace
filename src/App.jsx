@@ -32,7 +32,17 @@ const RC_PRODUCT_ID = {
 const RC_PAYOUT_PASS_PRODUCT_ID = "costrace_payout_pass";
 const RC_REMOVE_ADS_PRODUCT_ID = "costrace_remove_ads";
 
-// Entitlement identifiers, checked highest tier first.
+// RevenueCat entitlement identifiers as actually created in the dashboard
+// (case-sensitive, don't match our internal plan.id lowercase scheme —
+// entitlement identifiers can't be renamed after creation in RevenueCat).
+const RC_ENTITLEMENT = {
+  gold: "Gold",
+  regular: "Regular",
+  light: "Light",
+  payoutPass: "PPass",
+  noAds: "NoAds",
+};
+// Checked highest tier first.
 const RC_PLAN_ENTITLEMENTS = ["gold", "regular", "light"];
 
 let rcConfiguredFor = null;
@@ -58,19 +68,7 @@ async function getRevenueCatOffering(isEarlyBird) {
 // e.g. "costrace_light_monthly") rather than webBillingProduct.identifier,
 // which is Paddle's internal price ID (pri_...) and not something we control.
 function findPackageByProductId(offering, productId) {
-  if (!offering) {
-    console.log("[RC DEBUG] findPackageByProductId: offering is null");
-    return null;
-  }
-  console.log("[RC DEBUG] looking for productId:", productId);
-  offering.availablePackages.forEach((p) =>
-    console.log(
-      "[RC DEBUG] available package displayName:",
-      p.webBillingProduct?.displayName,
-      "| identifier:",
-      p.identifier
-    )
-  );
+  if (!offering) return null;
   return (
     offering.availablePackages.find(
       (p) => p.webBillingProduct?.displayName === productId
@@ -80,18 +78,14 @@ function findPackageByProductId(offering, productId) {
 
 // Reads the plan implied by the customer's active entitlements after a purchase.
 function planFromCustomerInfo(customerInfo) {
-  console.log("[RC DEBUG] customerInfo:", customerInfo);
-  console.log(
-    "[RC DEBUG] entitlements.active:",
-    customerInfo?.entitlements?.active
-  );
   const active = customerInfo?.entitlements?.active || {};
-  const plan = RC_PLAN_ENTITLEMENTS.find((id) => active[id]) || "free";
+  const plan =
+    RC_PLAN_ENTITLEMENTS.find((id) => active[RC_ENTITLEMENT[id]]) || "free";
   return {
     plan,
-    payoutPass: !!active.payout_pass,
-    noAds: plan !== "free" || !!active.no_ads,
-    planExpiresAt: active[plan]?.expirationDate || null,
+    payoutPass: !!active[RC_ENTITLEMENT.payoutPass],
+    noAds: plan !== "free" || !!active[RC_ENTITLEMENT.noAds],
+    planExpiresAt: active[RC_ENTITLEMENT[plan]]?.expirationDate || null,
   };
 }
 
