@@ -79,8 +79,11 @@ function findPackageByProductId(offering, productId) {
 // Reads the plan implied by the customer's active entitlements after a purchase.
 function planFromCustomerInfo(customerInfo) {
   const active = customerInfo?.entitlements?.active || {};
+  console.log("[RC DEBUG] active keys:", Object.keys(active));
+  console.log("[RC DEBUG] RC_ENTITLEMENT map:", RC_ENTITLEMENT);
   const plan =
     RC_PLAN_ENTITLEMENTS.find((id) => active[RC_ENTITLEMENT[id]]) || "free";
+  console.log("[RC DEBUG] resolved plan:", plan);
   return {
     plan,
     payoutPass: !!active[RC_ENTITLEMENT.payoutPass],
