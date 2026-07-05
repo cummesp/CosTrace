@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
   "%cCOSTRACE BUILD 2026-06-18-d (delete_scheduled_at column)",
@@ -13,6 +14,84 @@ const SUPABASE_URL = "https://nevqeqsxxuwrhtbderwv.supabase.co";
 const SUPABASE_ANON =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ldnFlcXN4eHV3cmh0YmRlcnd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NjAxNTYsImV4cCI6MjA5NjMzNjE1Nn0.vEPHbVX9kSJ4PmKkrKMfXBcpCcnoHLOvXyWv3szDxUQ";
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
+
+// ── REVENUECAT ───────────────────────────────────────────────────────────────
+// Public Web Billing API key — safe to ship in client code (starts with "rcb_").
+// RevenueCat dashboard → Project settings → API keys → Web Billing app.
+const REVENUECAT_PUBLIC_API_KEY = "test_nrqIzRkJcoIDGhZIiTbXVQltVIS";
+
+// Must match the product identifiers created in the RevenueCat dashboard exactly.
+const RC_PRODUCT_ID = {
+  light: { monthly: "costrace_light_monthly", yearly: "costrace_light_yearly" },
+  regular: {
+    monthly: "costrace_regular_monthly",
+    yearly: "costrace_regular_yearly",
+  },
+  gold: { monthly: "costrace_gold_monthly", yearly: "costrace_gold_yearly" },
+};
+const RC_PAYOUT_PASS_PRODUCT_ID = "costrace_payout_pass";
+const RC_REMOVE_ADS_PRODUCT_ID = "costrace_remove_ads";
+
+// Entitlement identifiers, checked highest tier first.
+const RC_PLAN_ENTITLEMENTS = ["gold", "regular", "light"];
+
+let rcConfiguredFor = null;
+
+// Configures the RevenueCat Web Billing SDK for the logged-in user. Cheap to
+// call on every login — it's a no-op if already configured for this user.
+function configureRevenueCat(userId) {
+  if (!userId || rcConfiguredFor === userId) return;
+  Purchases.configure(REVENUECAT_PUBLIC_API_KEY, userId);
+  rcConfiguredFor = userId;
+}
+
+// Fetches the offering to show: the early_bird offering (if it exists and the
+// user qualifies), otherwise the dashboard's current/default offering.
+async function getRevenueCatOffering(isEarlyBird) {
+  const purchases = Purchases.getSharedInstance();
+  const offerings = await purchases.getOfferings();
+  if (isEarlyBird && offerings.all?.early_bird) return offerings.all.early_bird;
+  return offerings.current || null;
+}
+
+function findPackageByProductId(offering, productId) {
+  if (!offering) return null;
+  return (
+    offering.availablePackages.find(
+      (p) => p.webBillingProduct?.identifier === productId
+    ) || null
+  );
+}
+
+// Reads the plan implied by the customer's active entitlements after a purchase.
+function planFromCustomerInfo(customerInfo) {
+  const active = customerInfo?.entitlements?.active || {};
+  const plan = RC_PLAN_ENTITLEMENTS.find((id) => active[id]) || "free";
+  return {
+    plan,
+    payoutPass: !!active.payout_pass,
+    noAds: plan !== "free" || !!active.no_ads,
+    planExpiresAt: active[plan]?.expirationDate || null,
+  };
+}
+
+// Optimistic write to Supabase right after a successful purchase, so the UI
+// updates immediately. The RevenueCat webhook → Edge Function (coming next)
+// is the authoritative source of truth and will simply confirm these values —
+// this call just avoids making the user wait for the webhook round-trip.
+async function syncEntitlementsToSupabase(userId, customerInfo) {
+  const result = planFromCustomerInfo(customerInfo);
+  await sb
+    .from("profiles")
+    .update({
+      plan: result.plan,
+      plan_expires_at: result.planExpiresAt,
+      payout_pass: result.payoutPass,
+      no_ads: result.noAds,
+    })
+    .eq("id", userId);
+  return result;
+}
 
 // ── PUSH NOTIFICATIONS ───────────────────────────────────────────────────────
 // Public key only — safe to ship in client code. The matching private key lives
@@ -15295,6 +15374,7 @@ function UpgradeModal({
   onBuyPayoutPass,
   ledgers = [],
   currentUser,
+  busy = false,
 }) {
   const [billing, setBilling] = useState("monthly");
   const [confirmDowngrade, setConfirmDowngrade] = useState(null);
@@ -15643,8 +15723,9 @@ function UpgradeModal({
                           color: "white",
                         }}
                         onClick={() => onUpgrade(p, billing)}
+                        disabled={busy}
                       >
-                        Upgrade to {pl.name}
+                        {busy ? "Processing…" : `Upgrade to ${pl.name}`}
                       </button>
                     )}
                     {!isCurrent && isDowngrade && !showingConfirm && (
@@ -15756,6 +15837,7 @@ function UpgradeModal({
                               onUpgrade(p, billing);
                               setConfirmDowngrade(null);
                             }}
+                            disabled={busy}
                           >
                             Confirm downgrade
                           </button>
@@ -15835,8 +15917,9 @@ function UpgradeModal({
                       fontFamily: "inherit",
                     }}
                     onClick={onRemoveAds}
+                    disabled={busy}
                   >
-                    4.49€
+                    {busy ? "…" : "4.50€"}
                   </button>
                 </div>
               )}
@@ -15889,8 +15972,9 @@ function UpgradeModal({
                       fontFamily: "inherit",
                     }}
                     onClick={onBuyPayoutPass}
+                    disabled={busy}
                   >
-                    19.99€
+                    {busy ? "…" : "19.99€"}
                   </button>
                 </div>
               )}
@@ -16520,6 +16604,7 @@ export default function App() {
   const [prefillMember, setPrefillMember] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [upgradeBusy, setUpgradeBusy] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [page, setPage] = useState("home");
   const [seenMap, setSeenMap] = useState(() => loadSeenFromStorage());
@@ -16569,75 +16654,160 @@ export default function App() {
   const showExpiryWarning =
     daysLeft !== null && daysLeft <= 7 && daysLeft > 0 && user?.plan !== "free";
 
-  const handleUpgrade = (planId, billing) => {
-    const days = billing === "yearly" ? 365 : 30;
-    const expires = new Date();
-    expires.setDate(expires.getDate() + days);
-    // If downgrading, new plan starts after current period expires
+  // Downgrades (including to free) don't go through RevenueCat purchase flow —
+  // there's nothing to buy. We record the scheduled change locally; the actual
+  // plan change happens when the current paid period expires (handled by the
+  // RevenueCat webhook / Edge Function once it's live).
+  const scheduleDowngrade = (planId) => {
     const currentExpiry = user?.plan_expires_at
       ? new Date(user.plan_expires_at)
       : null;
-    const currentPlanLevel = { free: 0, light: 1, regular: 2, gold: 3 };
-    const isDowngrade =
-      (currentPlanLevel[planId] || 0) <
-      (currentPlanLevel[user?.plan || "free"] || 0);
-    const effectiveDate =
-      isDowngrade && currentExpiry && currentExpiry > new Date()
-        ? currentExpiry
-        : new Date();
-    const newExpiry = new Date(effectiveDate);
-    newExpiry.setDate(newExpiry.getDate() + days);
     setUser((u) => ({
       ...u,
-      plan: planId,
-      billing,
-      plan_expires_at: newExpiry.toISOString(),
-      downgrade_pending: isDowngrade
-        ? { plan: planId, from: u?.plan, at: newExpiry.toISOString() }
-        : null,
+      downgrade_pending: {
+        plan: planId,
+        from: u?.plan,
+        at: currentExpiry?.toISOString() || new Date().toISOString(),
+      },
     }));
-    // If upgrading, clear downgrade markers on all ledgers
-    if (!isDowngrade) {
-      setLedgers((p) => p.map((l) => ({ ...l, downgraded_from: null })));
-    }
-    setShowUpgrade(false);
-    if (isDowngrade)
-      notify(
-        "pending",
-        "Downgrade scheduled",
-        `Your current plan continues until ${currentExpiry?.toLocaleDateString()}. ${
-          PLANS[planId].name
-        } starts after.`,
-        ""
-      );
-    else
-      notify(
-        "new-expense",
-        "Plan upgraded",
-        `You're now on ${PLANS[planId].name}!`,
-        ""
-      );
-  };
-  const handleRemoveAds = () => {
-    setUser((u) => ({ ...u, noAds: true }));
     setShowUpgrade(false);
     notify(
-      "new-expense",
-      "Ads removed",
-      "You'll never see ads again. Thank you!",
+      "pending",
+      "Downgrade scheduled",
+      currentExpiry
+        ? `Your current plan continues until ${currentExpiry.toLocaleDateString()}. ${
+            PLANS[planId].name
+          } starts after.`
+        : `You'll move to ${PLANS[planId].name}.`,
       ""
     );
   };
 
-  const handleBuyPayoutPass = () => {
-    setUser((u) => ({ ...u, payoutPass: true }));
-    setShowUpgrade(false);
-    notify(
-      "new-expense",
-      "💸 Payout Pass activated",
-      "Payouts Module is now unlocked on all your ledgers.",
-      ""
-    );
+  const handleUpgrade = async (planId, billing) => {
+    const currentPlanLevel = { free: 0, light: 1, regular: 2, gold: 3 };
+    const isDowngrade =
+      (currentPlanLevel[planId] || 0) <
+      (currentPlanLevel[user?.plan || "free"] || 0);
+    if (isDowngrade || planId === "free") {
+      scheduleDowngrade(planId);
+      return;
+    }
+    const productId = RC_PRODUCT_ID[planId]?.[billing];
+    if (!productId) {
+      notify("error", "Something went wrong", "Unknown plan or billing period.", "");
+      return;
+    }
+    try {
+      setUpgradeBusy(true);
+      const offering = await getRevenueCatOffering(user?.isEarlyBird);
+      const rcPackage = findPackageByProductId(offering, productId);
+      if (!rcPackage) {
+        notify(
+          "error",
+          "Plan unavailable",
+          "This plan isn't set up for purchase yet. Try again shortly.",
+          ""
+        );
+        return;
+      }
+      const { customerInfo } = await Purchases.getSharedInstance().purchase({
+        rcPackage,
+        customerEmail: user?.email,
+      });
+      const result = await syncEntitlementsToSupabase(user.id, customerInfo);
+      setUser((u) => ({
+        ...u,
+        plan: result.plan,
+        plan_expires_at: result.planExpiresAt,
+        payoutPass: result.payoutPass,
+        noAds: result.noAds,
+        downgrade_pending: null,
+      }));
+      setLedgers((p) => p.map((l) => ({ ...l, downgraded_from: null })));
+      setShowUpgrade(false);
+      notify(
+        "new-expense",
+        "Plan upgraded",
+        `You're now on ${PLANS[result.plan].name}!`,
+        ""
+      );
+    } catch (e) {
+      if (e?.errorCode !== ErrorCode.UserCancelledError) {
+        console.error("handleUpgrade purchase failed", e);
+        notify(
+          "error",
+          "Purchase failed",
+          "Something went wrong processing your payment. Please try again.",
+          ""
+        );
+      }
+    } finally {
+      setUpgradeBusy(false);
+    }
+  };
+
+  const handleRemoveAds = async () => {
+    try {
+      setUpgradeBusy(true);
+      const offering = await getRevenueCatOffering(user?.isEarlyBird);
+      const rcPackage = findPackageByProductId(offering, RC_REMOVE_ADS_PRODUCT_ID);
+      if (!rcPackage) {
+        notify("error", "Unavailable", "Remove Ads isn't set up for purchase yet.", "");
+        return;
+      }
+      const { customerInfo } = await Purchases.getSharedInstance().purchase({
+        rcPackage,
+        customerEmail: user?.email,
+      });
+      await syncEntitlementsToSupabase(user.id, customerInfo);
+      setUser((u) => ({ ...u, noAds: true }));
+      setShowUpgrade(false);
+      notify(
+        "new-expense",
+        "Ads removed",
+        "You'll never see ads again. Thank you!",
+        ""
+      );
+    } catch (e) {
+      if (e?.errorCode !== ErrorCode.UserCancelledError) {
+        console.error("handleRemoveAds purchase failed", e);
+        notify("error", "Purchase failed", "Please try again.", "");
+      }
+    } finally {
+      setUpgradeBusy(false);
+    }
+  };
+
+  const handleBuyPayoutPass = async () => {
+    try {
+      setUpgradeBusy(true);
+      const offering = await getRevenueCatOffering(user?.isEarlyBird);
+      const rcPackage = findPackageByProductId(offering, RC_PAYOUT_PASS_PRODUCT_ID);
+      if (!rcPackage) {
+        notify("error", "Unavailable", "Payout Pass isn't set up for purchase yet.", "");
+        return;
+      }
+      const { customerInfo } = await Purchases.getSharedInstance().purchase({
+        rcPackage,
+        customerEmail: user?.email,
+      });
+      await syncEntitlementsToSupabase(user.id, customerInfo);
+      setUser((u) => ({ ...u, payoutPass: true }));
+      setShowUpgrade(false);
+      notify(
+        "new-expense",
+        "💸 Payout Pass activated",
+        "Payouts Module is now unlocked on all your ledgers.",
+        ""
+      );
+    } catch (e) {
+      if (e?.errorCode !== ErrorCode.UserCancelledError) {
+        console.error("handleBuyPayoutPass purchase failed", e);
+        notify("error", "Purchase failed", "Please try again.", "");
+      }
+    } finally {
+      setUpgradeBusy(false);
+    }
   };
 
   const CURRENCIES = [
@@ -17078,6 +17248,7 @@ export default function App() {
       isEarlyBird: profile?.is_early_bird || false,
     };
     setUser(fullUser);
+    configureRevenueCat(u.id);
     await loadLedgers(u.id);
     syncUserInLedgers({ ...fullUser });
     // Sync plan in ledger_members to match current profile plan
@@ -18225,6 +18396,7 @@ export default function App() {
           onBuyPayoutPass={handleBuyPayoutPass}
           ledgers={ledgers}
           currentUser={user}
+          busy={upgradeBusy}
         />
       )}
       {pendingJoin && user && (
