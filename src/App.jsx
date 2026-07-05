@@ -2746,24 +2746,40 @@ function AuthScreen({ onLogin }) {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0A0A0D", display: "flex", flexDirection: "column" }}>
+    <div style={{
+      height: "100vh",
+      display: "flex",
+      flexDirection: "column",
+      overflow: "hidden",
+      background: "#0A0A0D",
+    }}>
 
-      {/* Hero image — full width, responsive */}
-      <div style={{ position: "relative", width: "100%", lineHeight: 0 }}>
+      {/* Hero — fills remaining height, image as background so it scales perfectly */}
+      <div style={{
+        flex: 1,
+        position: "relative",
+        overflow: "hidden",
+      }}>
         <img
           src={HERO_IMG}
           alt="CosTrace Hero"
-          style={{ width: "100%", height: "auto", display: "block", maxHeight: "100vh", objectFit: "cover" }}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            objectPosition: "left center",
+            display: "block",
+          }}
         />
 
-        {/* Overlay: Sign up + Log in buttons — positioned over "Get started for free" area */}
+        {/* Buttons overlay — positioned proportionally over the button area in the image */}
+        {/* Original image 1600x900: button area ~left:3.5%, top:62% */}
         <div style={{
           position: "absolute",
           left: "3.5%",
-          top: "61%",
+          top: "62%",
           display: "flex",
-          gap: "clamp(8px, 1vw, 14px)",
-          flexWrap: "wrap",
+          gap: "clamp(6px, 0.8vw, 12px)",
         }}>
           <button
             type="button"
@@ -2772,13 +2788,14 @@ function AuthScreen({ onLogin }) {
               background: "#DC2626",
               color: "white",
               border: "none",
-              borderRadius: "clamp(8px, 0.8vw, 12px)",
-              padding: "clamp(10px, 1.2vw, 16px) clamp(18px, 2vw, 28px)",
-              fontSize: "clamp(12px, 1.1vw, 16px)",
+              borderRadius: "clamp(6px, 0.6vw, 10px)",
+              padding: "clamp(8px, 0.9vh, 14px) clamp(14px, 1.5vw, 24px)",
+              fontSize: "clamp(11px, 1vw, 15px)",
               fontWeight: "800",
               cursor: "pointer",
               fontFamily: "inherit",
               whiteSpace: "nowrap",
+              boxShadow: "0 4px 16px rgba(220,38,38,0.4)",
             }}
           >
             Sign up free →
@@ -2787,16 +2804,17 @@ function AuthScreen({ onLogin }) {
             type="button"
             onClick={() => { setMode("login"); setError(""); setShowAuthModal(true); }}
             style={{
-              background: "transparent",
+              background: "rgba(0,0,0,0.45)",
               color: "white",
-              border: "1.5px solid rgba(255,255,255,0.4)",
-              borderRadius: "clamp(8px, 0.8vw, 12px)",
-              padding: "clamp(10px, 1.2vw, 16px) clamp(18px, 2vw, 28px)",
-              fontSize: "clamp(12px, 1.1vw, 16px)",
+              border: "1.5px solid rgba(255,255,255,0.35)",
+              borderRadius: "clamp(6px, 0.6vw, 10px)",
+              padding: "clamp(8px, 0.9vh, 14px) clamp(14px, 1.5vw, 24px)",
+              fontSize: "clamp(11px, 1vw, 15px)",
               fontWeight: "700",
               cursor: "pointer",
               fontFamily: "inherit",
               whiteSpace: "nowrap",
+              backdropFilter: "blur(4px)",
             }}
           >
             Log in
@@ -2804,21 +2822,22 @@ function AuthScreen({ onLogin }) {
         </div>
       </div>
 
-      {/* Footer */}
+      {/* Footer — compact, always visible at bottom */}
       <footer style={{
+        flexShrink: 0,
         background: "#0A0A0D",
         borderTop: "1px solid rgba(255,255,255,0.08)",
-        padding: "clamp(14px, 2vw, 22px) clamp(16px, 4vw, 48px)",
+        padding: "0 clamp(16px, 3vw, 48px)",
+        height: "44px",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
-        flexWrap: "wrap",
         gap: "12px",
       }}>
-        <div style={{ fontSize: "clamp(11px, 0.9vw, 13px)", color: "rgba(255,255,255,0.35)" }}>
-          © 2026 CosTrace. All rights reserved.
+        <div style={{ fontSize: "clamp(10px, 0.8vw, 12px)", color: "rgba(255,255,255,0.3)", whiteSpace: "nowrap" }}>
+          © 2026 CosTrace
         </div>
-        <div style={{ display: "flex", gap: "clamp(14px, 2vw, 28px)", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "clamp(12px, 1.8vw, 28px)" }}>
           {[
             { label: "Privacy Policy", href: "/privacy" },
             { label: "Terms of Service", href: "/terms" },
@@ -2827,9 +2846,9 @@ function AuthScreen({ onLogin }) {
             { label: "FAQ", href: "/faq" },
           ].map((l) => (
             <a key={l.label} href={l.href}
-              style={{ fontSize: "clamp(10px, 0.85vw, 12px)", color: "rgba(255,255,255,0.45)", textDecoration: "none" }}
+              style={{ fontSize: "clamp(10px, 0.8vw, 12px)", color: "rgba(255,255,255,0.4)", textDecoration: "none" }}
               onMouseEnter={(e) => (e.target.style.color = "white")}
-              onMouseLeave={(e) => (e.target.style.color = "rgba(255,255,255,0.45)")}
+              onMouseLeave={(e) => (e.target.style.color = "rgba(255,255,255,0.4)")}
             >
               {l.label}
             </a>
@@ -2837,7 +2856,7 @@ function AuthScreen({ onLogin }) {
         </div>
       </footer>
 
-      {/* Login/Register modal */}
+      {/* Modal */}
       {showAuthModal && (
         <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowAuthModal(false)}>
           <div className="modal" style={{ maxWidth: "420px" }}>
@@ -2893,7 +2912,7 @@ function AuthScreen({ onLogin }) {
                   <div style={{ flex: 1, height: "1px", background: "#e5e7eb" }} />
                 </div>
                 <button onClick={async () => { await sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } }); }}
-                  style={{ width: "100%", padding: "14px", borderRadius: "14px", border: "1.5px solid #e5e7eb", background: "white", fontSize: "15px", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", marginBottom: "8px", fontFamily: "inherit", color: "#0f172a" }}>
+                  style={{ width: "100%", padding: "14px", borderRadius: "14px", border: "1.5px solid #e5e7eb", background: "white", fontSize: "15px", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", fontFamily: "inherit", color: "#0f172a" }}>
                   <svg width="20" height="20" viewBox="0 0 24 24">
                     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                     <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
