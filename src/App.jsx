@@ -58,7 +58,19 @@ async function getRevenueCatOffering(isEarlyBird) {
 // e.g. "costrace_light_monthly") rather than webBillingProduct.identifier,
 // which is Paddle's internal price ID (pri_...) and not something we control.
 function findPackageByProductId(offering, productId) {
-  if (!offering) return null;
+  if (!offering) {
+    console.log("[RC DEBUG] findPackageByProductId: offering is null");
+    return null;
+  }
+  console.log("[RC DEBUG] looking for productId:", productId);
+  offering.availablePackages.forEach((p) =>
+    console.log(
+      "[RC DEBUG] available package displayName:",
+      p.webBillingProduct?.displayName,
+      "| identifier:",
+      p.identifier
+    )
+  );
   return (
     offering.availablePackages.find(
       (p) => p.webBillingProduct?.displayName === productId
