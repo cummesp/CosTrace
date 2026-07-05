@@ -15386,8 +15386,8 @@ function UpgradeModal({
   const ebPrice = (plan) => {
     if (plan.monthly === 0) return { monthly: 0, yearly: 0 };
     return {
-      monthly: Math.max(0, plan.monthly - 1),
-      yearly: +(plan.yearly * 0.9).toFixed(0),
+      monthly: +Math.max(0, plan.monthly - 1).toFixed(2),
+      yearly: +(plan.yearly * 0.9).toFixed(2),
     };
   };
   const features = {
@@ -15663,8 +15663,8 @@ function UpgradeModal({
                               </div>
                               <div style={{ fontSize: "10px", color: "var(--text3)" }}>
                                 {isEB
-                                  ? <><span style={{ textDecoration: "line-through" }}>{pl.yearly}€</span>{" "}<span style={{ color: "#16a34a", fontWeight: "700" }}>{ebPrice(pl).yearly}€/yr</span></>
-                                  : <>{pl.yearly}€/yr · save {Math.round(100 - (pl.yearly / (pl.monthly * 12)) * 100)}%</>
+                                  ? <><span style={{ textDecoration: "line-through" }}>{pl.yearly.toFixed(2)}€</span>{" "}<span style={{ color: "#16a34a", fontWeight: "700" }}>{ebPrice(pl).yearly.toFixed(2)}€/yr</span></>
+                                  : <>{pl.yearly.toFixed(2)}€/yr · save {Math.round(100 - (pl.yearly / (pl.monthly * 12)) * 100)}%</>
                                 }
                               </div>
                             </>
@@ -15677,8 +15677,8 @@ function UpgradeModal({
                               }}
                             >
                               {isEB
-                                ? <><span style={{ textDecoration: "line-through", color: "var(--text3)", fontSize: "12px", fontWeight: "400" }}>{pl.monthly}€</span>{" "}{ebPrice(pl).monthly}€</>
-                                : <>{pl.monthly}€</>
+                                ? <><span style={{ textDecoration: "line-through", color: "var(--text3)", fontSize: "12px", fontWeight: "400" }}>{pl.monthly.toFixed(2)}€</span>{" "}{ebPrice(pl).monthly.toFixed(2)}€</>
+                                : <>{pl.monthly.toFixed(2)}€</>
                               }
                               <span style={{ fontSize: "11px", fontWeight: "600", color: isGold ? "#d97706" : pl.color }}>/mo</span>
                             </div>
