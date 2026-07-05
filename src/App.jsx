@@ -2644,9 +2644,69 @@ function AuthScreen({ onLogin }) {
   const [mode, setMode] = useState("login");
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "" });
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
+
+  // Dynamic button positioning — reads the actual rendered image rect and
+  // calculates where the painted button area lands on screen regardless of
+  // viewport size, DPI, or letterboxing from object-fit: contain.
+  const imgRef = useRef(null);
+  const heroRef = useRef(null);
+  const [btnPos, setBtnPos] = useState(null);
+  const btnReady = !!btnPos;
+
+  // Original image dimensions and painted button coordinates (px in 1600×900)
+  const IMG_W = 1600, IMG_H = 900;
+  // Red button: x=43-356, y=509-563 (measured from pixel scan)
+  const BTN_X1 = 43, BTN_Y1 = 509, BTN_X2 = 356, BTN_Y2 = 563;
+
+  const recalc = () => {
+    const img = imgRef.current;
+    const hero = heroRef.current;
+    if (!img || !hero) return;
+    const cW = hero.clientWidth;
+    const cH = hero.clientHeight;
+    // Scale to fit (object-fit: contain)
+    const scale = Math.min(cW / IMG_W, cH / IMG_H);
+    const rW = IMG_W * scale;   // rendered image width
+    const rH = IMG_H * scale;   // rendered image height
+    const offX = (cW - rW) / 2; // horizontal letterbox offset
+    const offY = (cH - rH) / 2; // vertical letterbox offset
+
+    // Convert original pixel coords to rendered container coords
+    const sx = (x) => offX + x * scale;
+    const sy = (y) => offY + y * scale;
+
+    const signupLeft = sx(BTN_X1);
+    const signupTop  = sy(BTN_Y1);
+    const btnH       = (BTN_Y2 - BTN_Y1) * scale;
+    const signupW    = (BTN_X2 - BTN_X1) * scale;
+
+    // Log in: same top/height, starts 10px after signup button ends
+    const loginLeft  = sx(BTN_X2) + 8 * scale;
+    const loginW     = signupW * 0.6; // a bit narrower
+
+    const fontSize = Math.max(11, Math.round(14 * scale));
+    const radius   = Math.max(6,  Math.round(10 * scale));
+
+    setBtnPos({
+      signupLeft: `${signupLeft}px`,
+      signupTop:  `${signupTop}px`,
+      signupW:    `${signupW}px`,
+      loginLeft:  `${loginLeft}px`,
+      loginW:     `${loginW}px`,
+      btnH:       `${btnH}px`,
+      fontSize,
+      radius,
+    });
+  };
+
+  useEffect(() => {
+    recalc();
+    window.addEventListener("resize", recalc);
+    return () => window.removeEventListener("resize", recalc);
+  }, []);
   const [category, setCategory] = useState(null);
 
   const submit = async () => {
@@ -2754,90 +2814,102 @@ function AuthScreen({ onLogin }) {
       background: "#0A0A0D",
     }}>
 
-      {/* Hero — fills remaining height, image as background so it scales perfectly */}
-      <div style={{
-        flex: 1,
-        position: "relative",
-        overflow: "hidden",
-      }}>
+      {/* Hero — fills all space above footer */}
+      <div
+        ref={heroRef}
+        style={{ flex: 1, position: "relative", overflow: "hidden" }}
+      >
         <img
+          ref={imgRef}
           src={HERO_IMG}
           alt="CosTrace Hero"
+          onLoad={recalc}
           style={{
             width: "100%",
             height: "100%",
-            objectFit: "cover",
-            objectPosition: "left center",
+            objectFit: "contain",
+            objectPosition: "center center",
             display: "block",
           }}
         />
 
-        {/* Buttons overlay — positioned proportionally over the button area in the image */}
-        {/* Original image 1600x900: button area ~left:3.5%, top:62% */}
-        <div style={{
-          position: "absolute",
-          left: "3.5%",
-          top: "62%",
-          display: "flex",
-          gap: "clamp(6px, 0.8vw, 12px)",
-        }}>
+        {/* Sign up button — precisely covers the painted red button */}
+        {btnReady && (
           <button
             type="button"
             onClick={() => { setMode("register"); setError(""); setShowAuthModal(true); }}
             style={{
+              position: "absolute",
+              left: btnPos.signupLeft,
+              top: btnPos.signupTop,
+              width: btnPos.signupW,
+              height: btnPos.btnH,
               background: "#DC2626",
               color: "white",
               border: "none",
-              borderRadius: "clamp(6px, 0.6vw, 10px)",
-              padding: "clamp(8px, 0.9vh, 14px) clamp(14px, 1.5vw, 24px)",
-              fontSize: "clamp(11px, 1vw, 15px)",
+              borderRadius: `${btnPos.radius}px`,
+              fontSize: `${btnPos.fontSize}px`,
               fontWeight: "800",
               cursor: "pointer",
               fontFamily: "inherit",
               whiteSpace: "nowrap",
-              boxShadow: "0 4px 16px rgba(220,38,38,0.4)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "6px",
+              boxShadow: "0 4px 20px rgba(220,38,38,0.5)",
             }}
           >
             Sign up free →
           </button>
+        )}
+
+        {/* Log in button — in the empty space to the right of the painted button */}
+        {btnReady && (
           <button
             type="button"
             onClick={() => { setMode("login"); setError(""); setShowAuthModal(true); }}
             style={{
-              background: "rgba(0,0,0,0.45)",
+              position: "absolute",
+              left: btnPos.loginLeft,
+              top: btnPos.signupTop,
+              width: btnPos.loginW,
+              height: btnPos.btnH,
+              background: "rgba(0,0,0,0.5)",
               color: "white",
-              border: "1.5px solid rgba(255,255,255,0.35)",
-              borderRadius: "clamp(6px, 0.6vw, 10px)",
-              padding: "clamp(8px, 0.9vh, 14px) clamp(14px, 1.5vw, 24px)",
-              fontSize: "clamp(11px, 1vw, 15px)",
+              border: "1.5px solid rgba(255,255,255,0.4)",
+              borderRadius: `${btnPos.radius}px`,
+              fontSize: `${btnPos.fontSize}px`,
               fontWeight: "700",
               cursor: "pointer",
               fontFamily: "inherit",
               whiteSpace: "nowrap",
-              backdropFilter: "blur(4px)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backdropFilter: "blur(6px)",
             }}
           >
             Log in
           </button>
-        </div>
+        )}
       </div>
 
-      {/* Footer — compact, always visible at bottom */}
+      {/* Footer — compact fixed height */}
       <footer style={{
         flexShrink: 0,
         background: "#0A0A0D",
         borderTop: "1px solid rgba(255,255,255,0.08)",
-        padding: "0 clamp(16px, 3vw, 48px)",
+        padding: "0 clamp(16px,3vw,48px)",
         height: "44px",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
-        gap: "12px",
       }}>
-        <div style={{ fontSize: "clamp(10px, 0.8vw, 12px)", color: "rgba(255,255,255,0.3)", whiteSpace: "nowrap" }}>
+        <div style={{ fontSize: "clamp(10px,0.8vw,12px)", color: "rgba(255,255,255,0.3)" }}>
           © 2026 CosTrace
         </div>
-        <div style={{ display: "flex", gap: "clamp(12px, 1.8vw, 28px)" }}>
+        <div style={{ display: "flex", gap: "clamp(12px,1.8vw,28px)" }}>
           {[
             { label: "Privacy Policy", href: "/privacy" },
             { label: "Terms of Service", href: "/terms" },
@@ -2846,7 +2918,7 @@ function AuthScreen({ onLogin }) {
             { label: "FAQ", href: "/faq" },
           ].map((l) => (
             <a key={l.label} href={l.href}
-              style={{ fontSize: "clamp(10px, 0.8vw, 12px)", color: "rgba(255,255,255,0.4)", textDecoration: "none" }}
+              style={{ fontSize: "clamp(10px,0.8vw,12px)", color: "rgba(255,255,255,0.4)", textDecoration: "none" }}
               onMouseEnter={(e) => (e.target.style.color = "white")}
               onMouseLeave={(e) => (e.target.style.color = "rgba(255,255,255,0.4)")}
             >
