@@ -18,7 +18,7 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 // ── REVENUECAT ───────────────────────────────────────────────────────────────
 // Public Web Billing API key — safe to ship in client code (starts with "rcb_").
 // RevenueCat dashboard → Project settings → API keys → Web Billing app.
-const REVENUECAT_PUBLIC_API_KEY = "rcb_YOUR_KEY_HERE";
+const REVENUECAT_PUBLIC_API_KEY = "test_nrqIzRkJcoIDGhZIiTbXVQltVIS";
 
 // Must match the product identifiers created in the RevenueCat dashboard exactly.
 const RC_PRODUCT_ID = {
