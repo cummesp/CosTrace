@@ -50,6 +50,17 @@ function configureRevenueCat(userId) {
 async function getRevenueCatOffering(isEarlyBird) {
   const purchases = Purchases.getSharedInstance();
   const offerings = await purchases.getOfferings();
+  console.log("[RC DEBUG] offerings:", offerings);
+  console.log("[RC DEBUG] offerings.current:", offerings.current);
+  if (offerings.current) {
+    console.log(
+      "[RC DEBUG] availablePackages:",
+      offerings.current.availablePackages
+    );
+    offerings.current.availablePackages.forEach((p) =>
+      console.log("[RC DEBUG] package:", p.identifier, p)
+    );
+  }
   if (isEarlyBird && offerings.all?.early_bird) return offerings.all.early_bird;
   return offerings.current || null;
 }
