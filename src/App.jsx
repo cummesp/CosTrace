@@ -18,7 +18,7 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 // ── REVENUECAT ───────────────────────────────────────────────────────────────
 // Public Web Billing API key — safe to ship in client code (starts with "rcb_").
 // RevenueCat dashboard → Project settings → API keys → Web Billing app.
-const REVENUECAT_PUBLIC_API_KEY = "test_nrqIzRkJcoIDGhZIiTbXVQltVIS";
+const REVENUECAT_PUBLIC_API_KEY = "rcb_YOUR_KEY_HERE";
 
 // Must match the product identifiers created in the RevenueCat dashboard exactly.
 const RC_PRODUCT_ID = {
@@ -4967,9 +4967,9 @@ function LedgerSettingsModal({
                     {themeLimit < 18 && (
                       <p className="tip" style={{ marginTop: "6px" }}>
                         {themeLimit === 6
-                          ? "Upgrade to Bronze for 12 themes, Silver for all 18."
+                          ? "Upgrade to Light for 12 themes, Regular for all 18."
                           : themeLimit === 12
-                          ? "Upgrade to Silver for all 18 themes."
+                          ? "Upgrade to Regular for all 18 themes."
                           : ""}{" "}
                         <span
                           style={{
@@ -13819,7 +13819,7 @@ const AD_POOL = [
     bg: "linear-gradient(90deg,#1d4ed8,#3b82f6)",
     emoji: "🥉",
     title: "Need more ledgers?",
-    sub: "Bronze — 5 ledgers, 5 members, 12mo history",
+    sub: "Light — 5 ledgers, 5 members, 12mo history",
     cta: "2.99€/mo",
     plan: "light",
   },
@@ -13828,7 +13828,7 @@ const AD_POOL = [
     bg: "linear-gradient(90deg,#1e40af,#2563eb)",
     emoji: "🥉",
     title: "30 expenses per ledger",
-    sub: "Bronze — No ads included from 2.08€/mo",
+    sub: "Light — No ads included from 2.08€/mo",
     cta: "Upgrade",
     plan: "light",
   },
@@ -13838,7 +13838,7 @@ const AD_POOL = [
     bg: "linear-gradient(90deg,#15803d,#22c55e)",
     emoji: "🥈",
     title: "Unlimited expenses",
-    sub: "Silver — 10 ledgers, 10 members, full history",
+    sub: "Regular — 10 ledgers, 10 members, full history",
     cta: "4.99€/mo",
     plan: "regular",
   },
@@ -13847,7 +13847,7 @@ const AD_POOL = [
     bg: "linear-gradient(90deg,#14532d,#16a34a)",
     emoji: "🥈",
     title: "Full history. Always.",
-    sub: "Silver — Unlimited history & expenses, no ads",
+    sub: "Regular — Unlimited history & expenses, no ads",
     cta: "From 3.33€/mo",
     plan: "regular",
   },
@@ -14907,8 +14907,8 @@ function Dashboard({
           };
           const planLabels = {
             free: "Free ledger",
-            light: "Bronze ledger",
-            regular: "Silver ledger",
+            light: "Light ledger",
+            regular: "Regular ledger",
             gold: "Gold ledger",
           };
           const newCount = getLedgerNewCount ? getLedgerNewCount(l) : 0;
@@ -15294,7 +15294,7 @@ const PLANS = {
   },
   light: {
     id: "light",
-    name: "Bronze",
+    name: "Light",
     color: "#3b82f6",
     bg: "#eff6ff",
     border: "2px solid #3b82f6",
@@ -15309,7 +15309,7 @@ const PLANS = {
   },
   regular: {
     id: "regular",
-    name: "Silver",
+    name: "Regular",
     color: "#16a34a",
     bg: "#f0fdf4",
     border: "2px solid #16a34a",
