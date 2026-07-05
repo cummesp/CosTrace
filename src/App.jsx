@@ -36,11 +36,11 @@ const RC_REMOVE_ADS_PRODUCT_ID = "costrace_remove_ads";
 // (case-sensitive, don't match our internal plan.id lowercase scheme —
 // entitlement identifiers can't be renamed after creation in RevenueCat).
 const RC_ENTITLEMENT = {
-  gold: "Gold",
-  regular: "Regular",
-  light: "Light",
-  payoutPass: "PPass",
-  noAds: "NoAds",
+  gold: "CosTrace Gold",
+  regular: "CosTrace Regular",
+  light: "CosTrace Light",
+  payoutPass: "PayoutPass",
+  noAds: "NO ADS",
 };
 // Checked highest tier first.
 const RC_PLAN_ENTITLEMENTS = ["gold", "regular", "light"];
