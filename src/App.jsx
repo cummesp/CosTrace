@@ -50,26 +50,18 @@ function configureRevenueCat(userId) {
 async function getRevenueCatOffering(isEarlyBird) {
   const purchases = Purchases.getSharedInstance();
   const offerings = await purchases.getOfferings();
-  console.log("[RC DEBUG] offerings:", offerings);
-  console.log("[RC DEBUG] offerings.current:", offerings.current);
-  if (offerings.current) {
-    console.log(
-      "[RC DEBUG] availablePackages:",
-      offerings.current.availablePackages
-    );
-    offerings.current.availablePackages.forEach((p) =>
-      console.log("[RC DEBUG] package:", p.identifier, p)
-    );
-  }
   if (isEarlyBird && offerings.all?.early_bird) return offerings.all.early_bird;
   return offerings.current || null;
 }
 
+// Matches on displayName (the human-readable "Price name" we set in Paddle,
+// e.g. "costrace_light_monthly") rather than webBillingProduct.identifier,
+// which is Paddle's internal price ID (pri_...) and not something we control.
 function findPackageByProductId(offering, productId) {
   if (!offering) return null;
   return (
     offering.availablePackages.find(
-      (p) => p.webBillingProduct?.identifier === productId
+      (p) => p.webBillingProduct?.displayName === productId
     ) || null
   );
 }
