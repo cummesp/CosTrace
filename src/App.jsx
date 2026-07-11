@@ -2824,6 +2824,13 @@ function AuthScreen({ onLogin }) {
           password: form.password,
         });
         if (res.error) throw res.error;
+        // First 1000 registered users get EarlyBird pricing automatically.
+        // `head: true` on the count query avoids pulling any actual rows —
+        // we only need the number.
+        const { count: existingUserCount } = await sb
+          .from("profiles")
+          .select("id", { count: "exact", head: true });
+        const isEarlyBird = (existingUserCount ?? 0) < 1000;
         // Create profile
         await sb
           .from("profiles")
@@ -2832,6 +2839,7 @@ function AuthScreen({ onLogin }) {
             email: form.email,
             full_name: form.name?.trim() || null,
             plan: "free",
+            is_early_bird: isEarlyBird,
           });
       } else {
         res = await sb.auth.signInWithPassword({
@@ -16702,11 +16710,16 @@ export default function App() {
       scheduleDowngrade(planId);
       return;
     }
-    const productId = RC_PRODUCT_ID[planId]?.[billing];
-    if (!productId) {
+    const baseProductId = RC_PRODUCT_ID[planId]?.[billing];
+    if (!baseProductId) {
       notify("error", "Something went wrong", "Unknown plan or billing period.", "");
       return;
     }
+    // EarlyBird users purchase the discounted product variant, which is a
+    // separate Paddle price/product (same entitlement, lower price) —
+    // suffixed "_eb" by our own naming convention, not something RevenueCat
+    // does automatically.
+    const productId = user?.isEarlyBird ? `${baseProductId}_eb` : baseProductId;
     try {
       setUpgradeBusy(true);
       const offering = await getRevenueCatOffering(user?.isEarlyBird);
