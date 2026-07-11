@@ -3026,7 +3026,7 @@ function AuthScreen({ onLogin }) {
 
       {/* Modal */}
       {showAuthModal && (
-        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowAuthModal(false)}>
+        <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: "420px" }}>
             <div className="modal-header">
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -3198,7 +3198,7 @@ function NewLedgerModal({
   return (
     <div
       className="modal-overlay"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      
     >
       <div className="modal">
         <div className="modal-header">
@@ -3655,7 +3655,7 @@ function AddExpenseModal({
   return (
     <div
       className="modal-overlay"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      
     >
       <div className="modal">
         <div className="modal-header">
@@ -4292,7 +4292,7 @@ function LedgerSettingsModal({
     return (
       <div
         className="modal-overlay"
-        onClick={(e) => e.target === e.currentTarget && onClose()}
+        
       >
         <div className="modal">
           <div className="modal-header">
@@ -4696,7 +4696,7 @@ function LedgerSettingsModal({
   return (
     <div
       className="modal-overlay"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      
     >
       <div className="modal">
         <div className="modal-header">
@@ -7230,7 +7230,7 @@ function ExpenseDetailModal({
     return (
       <div
         className="modal-overlay"
-        onClick={(e) => e.target === e.currentTarget && onClose()}
+        
       >
         <div className="modal" style={{ maxWidth: "420px" }}>
           <div className="modal-header">
@@ -7470,7 +7470,7 @@ function ExpenseDetailModal({
   return (
     <div
       className="modal-overlay"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      
     >
       <div className="modal" style={{ maxWidth: "420px" }}>
         <div className="modal-header">
@@ -7984,7 +7984,7 @@ function AddPayoutModal({
   return (
     <div
       className="modal-overlay"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      
     >
       <div className="modal">
         <div className="modal-header">
@@ -8269,7 +8269,7 @@ function PayoutDetailModal({ payout, ledger, onClose, currency = "RSD" }) {
   return (
     <div
       className="modal-overlay"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      
     >
       <div className="modal" style={{ maxWidth: "400px" }}>
         <div className="modal-header">
@@ -8520,9 +8520,6 @@ function PayoutsPanel({
         {buyConfirm && (
           <div
             className="modal-overlay"
-            onClick={(e) =>
-              e.target === e.currentTarget && setBuyConfirm(false)
-            }
           >
             <div className="modal" style={{ maxWidth: "380px" }}>
               <div className="modal-header">
@@ -13239,7 +13236,7 @@ function ProfileModal({
   return (
     <div
       className="modal-overlay"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      
     >
       <div className="modal" style={{ maxWidth: "420px" }}>
         <div className="modal-header">
@@ -13680,9 +13677,6 @@ function ProfileModal({
           {showDelete && (
             <div
               className="modal-overlay"
-              onClick={(e) =>
-                e.target === e.currentTarget && setShowDelete(false)
-              }
             >
               <div className="modal" style={{ maxWidth: "380px" }}>
                 <div className="modal-header">
@@ -15487,7 +15481,7 @@ function UpgradeModal({
   return (
     <div
       className="modal-overlay"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      
     >
       <div className="modal" style={{ maxWidth: "480px" }}>
         <div className="modal-header">
@@ -16445,7 +16439,7 @@ function FeedbackModal({ currentUser, onClose }) {
   return (
     <div
       className="modal-overlay"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      
     >
       <div className="modal" style={{ maxWidth: "600px", width: "95vw" }}>
         <div className="modal-header">
