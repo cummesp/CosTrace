@@ -3065,23 +3065,20 @@ function AuthScreen({ onLogin }) {
         )}
       </div>
 
-      {/* Footer — compact fixed height, centered content */}
+      {/* Footer — compact fixed height, aligned to same width as hero content */}
       <footer style={{
         flexShrink: 0,
         background: "#010715",
         borderTop: "1px solid rgba(255,255,255,0.08)",
-        padding: "0 clamp(16px,3vw,48px)",
         height: "44px",
         display: "flex",
-        justifyContent: "center",
         alignItems: "center",
       }}>
-        <div style={{
+        <div className="auth-container" style={{
+          width: "100%",
           display: "flex",
+          justifyContent: "space-between",
           alignItems: "center",
-          gap: "clamp(16px,2.5vw,36px)",
-          flexWrap: "wrap",
-          justifyContent: "center",
         }}>
           <div style={{ fontSize: "clamp(10px,0.8vw,12px)", color: "rgba(255,255,255,0.3)" }}>
             © 2026 CosTrace
