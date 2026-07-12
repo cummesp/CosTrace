@@ -3065,7 +3065,7 @@ function AuthScreen({ onLogin }) {
         )}
       </div>
 
-      {/* Footer — compact fixed height */}
+      {/* Footer — compact fixed height, centered content */}
       <footer style={{
         flexShrink: 0,
         background: "#010715",
@@ -3073,28 +3073,36 @@ function AuthScreen({ onLogin }) {
         padding: "0 clamp(16px,3vw,48px)",
         height: "44px",
         display: "flex",
-        justifyContent: "space-between",
+        justifyContent: "center",
         alignItems: "center",
       }}>
-        <div style={{ fontSize: "clamp(10px,0.8vw,12px)", color: "rgba(255,255,255,0.3)" }}>
-          © 2026 CosTrace
-        </div>
-        <div style={{ display: "flex", gap: "clamp(12px,1.8vw,28px)" }}>
-          {[
-            { label: "Privacy Policy", href: "/privacy" },
-            { label: "Terms of Service", href: "/terms" },
-            { label: "Contact", href: "mailto:support@costrace.app" },
-            { label: "About", href: "/about" },
-            { label: "FAQ", href: "/faq" },
-          ].map((l) => (
-            <a key={l.label} href={l.href}
-              style={{ fontSize: "clamp(10px,0.8vw,12px)", color: "rgba(255,255,255,0.4)", textDecoration: "none" }}
-              onMouseEnter={(e) => (e.target.style.color = "white")}
-              onMouseLeave={(e) => (e.target.style.color = "rgba(255,255,255,0.4)")}
-            >
-              {l.label}
-            </a>
-          ))}
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "clamp(16px,2.5vw,36px)",
+          flexWrap: "wrap",
+          justifyContent: "center",
+        }}>
+          <div style={{ fontSize: "clamp(10px,0.8vw,12px)", color: "rgba(255,255,255,0.3)" }}>
+            © 2026 CosTrace
+          </div>
+          <div style={{ display: "flex", gap: "clamp(12px,1.8vw,28px)" }}>
+            {[
+              { label: "Privacy Policy", href: "/privacy" },
+              { label: "Terms of Service", href: "/terms" },
+              { label: "Contact", href: "mailto:support@costrace.app" },
+              { label: "About", href: "/about" },
+              { label: "FAQ", href: "/faq" },
+            ].map((l) => (
+              <a key={l.label} href={l.href}
+                style={{ fontSize: "clamp(10px,0.8vw,12px)", color: "rgba(255,255,255,0.4)", textDecoration: "none" }}
+                onMouseEnter={(e) => (e.target.style.color = "white")}
+                onMouseLeave={(e) => (e.target.style.color = "rgba(255,255,255,0.4)")}
+              >
+                {l.label}
+              </a>
+            ))}
+          </div>
         </div>
       </footer>
 
