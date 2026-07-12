@@ -15459,6 +15459,7 @@ function UpgradeModal({
   ledgers = [],
   currentUser,
   busy = false,
+  standalone = false,
 }) {
   const [billing, setBilling] = useState("monthly");
   const [confirmDowngrade, setConfirmDowngrade] = useState(null);
@@ -15602,16 +15603,32 @@ function UpgradeModal({
     transition: "background 0.15s ease",
   });
 
+  const Wrapper = ({ children }) =>
+    standalone ? (
+      <div>{children}</div>
+    ) : (
+      <div className="modal-overlay">
+        <div
+          className="modal"
+          style={{
+            maxWidth: "416px",
+            background: "linear-gradient(180deg,#FFFFFF 0%,#F8FAFC 100%)",
+            fontFamily: FONT,
+          }}
+        >
+          {children}
+        </div>
+      </div>
+    );
+
   return (
-    <div className="modal-overlay">
-      <div
-        className="modal"
-        style={{
-          maxWidth: "416px",
-          background: "linear-gradient(180deg,#FFFFFF 0%,#F8FAFC 100%)",
-          fontFamily: FONT,
-        }}
-      >
+    <Wrapper>
+      {standalone ? (
+        <div className="page-header">
+          <h1>{currentPlan === "gold" ? "Plans & pricing" : "Upgrade plan"}</h1>
+          <p>Choose the plan that fits how you use CosTrace</p>
+        </div>
+      ) : (
         <div
           className="modal-header"
           style={{ border: "none", paddingBottom: "4px" }}
@@ -15630,7 +15647,15 @@ function UpgradeModal({
             <Icon.X />
           </button>
         </div>
-        <div className="modal-body" style={{ paddingTop: "8px" }}>
+      )}
+        <div
+          className={standalone ? "" : "modal-body"}
+          style={{
+            paddingTop: "8px",
+            fontFamily: FONT,
+            maxWidth: standalone ? "560px" : "none",
+          }}
+        >
           {isEB && (
             <div
               style={{
@@ -16067,8 +16092,7 @@ function UpgradeModal({
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </Wrapper>
   );
 }
 
@@ -16629,7 +16653,6 @@ export default function App() {
   const [showNew, setShowNew] = useState(false);
   const [prefillMember, setPrefillMember] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
-  const [showUpgrade, setShowUpgrade] = useState(false);
   const [upgradeBusy, setUpgradeBusy] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [page, setPage] = useState("home");
@@ -16696,7 +16719,7 @@ export default function App() {
         at: currentExpiry?.toISOString() || new Date().toISOString(),
       },
     }));
-    setShowUpgrade(false);
+    setPage("home");
     notify(
       "pending",
       "Downgrade scheduled",
@@ -16755,7 +16778,7 @@ export default function App() {
         downgrade_pending: null,
       }));
       setLedgers((p) => p.map((l) => ({ ...l, downgraded_from: null })));
-      setShowUpgrade(false);
+      setPage("home");
       notify(
         "new-expense",
         "Plan upgraded",
@@ -16792,7 +16815,7 @@ export default function App() {
       });
       await syncEntitlementsToSupabase(user.id, customerInfo);
       setUser((u) => ({ ...u, noAds: true }));
-      setShowUpgrade(false);
+      setPage("home");
       notify(
         "new-expense",
         "Ads removed",
@@ -16824,7 +16847,7 @@ export default function App() {
       });
       await syncEntitlementsToSupabase(user.id, customerInfo);
       setUser((u) => ({ ...u, payoutPass: true }));
-      setShowUpgrade(false);
+      setPage("home");
       notify(
         "new-expense",
         "💸 Payout Pass activated",
@@ -17428,7 +17451,7 @@ export default function App() {
         `Your ${userPlan.name} plan allows ${userPlan.maxOwnLedgers} active ledger(s). Upgrade to create more.`,
         ""
       );
-      setShowUpgrade(true);
+      setPage("plans");
       return;
     }
     const count = data.members.length + 1;
@@ -18056,6 +18079,15 @@ export default function App() {
               <Icon.Plus /> New ledger
             </button>
             <button
+              className={`nav-item${page === "plans" ? " active" : ""}`}
+              onClick={() => {
+                setActiveLedgerId(null);
+                setPage("plans");
+              }}
+            >
+              <Icon.CreditCard /> Plans & pricing
+            </button>
+            <button
               className={`nav-item${page === "connections" ? " active" : ""}`}
               onClick={() => {
                 setActiveLedgerId(null);
@@ -18128,12 +18160,26 @@ export default function App() {
               isSoloDeletable={isSoloDeletable}
               currency={currency}
               userPlan={userPlan}
-              onShowUpgrade={() => setShowUpgrade(true)}
+              onShowUpgrade={() => setPage("plans")}
               seenExpenses={seenMap[activeLedgerId] || new Set()}
               overLedgerLimit={overLedgerLimit}
               overParticipantLimit={overParticipantLimit}
               onLeave={leaveledger}
               allLedgers={ledgers}
+            />
+          ) : page === "plans" ? (
+            <UpgradeModal
+              standalone
+              currentPlan={userPlan.id}
+              onClose={() => setPage("home")}
+              onUpgrade={handleUpgrade}
+              noAds={noAds}
+              onRemoveAds={handleRemoveAds}
+              payoutPass={user?.payoutPass || userPlan.id === "gold"}
+              onBuyPayoutPass={handleBuyPayoutPass}
+              ledgers={ledgers}
+              currentUser={user}
+              busy={upgradeBusy}
             />
           ) : page === "connections" ? (
             <NetworkPage
@@ -18177,7 +18223,7 @@ export default function App() {
               }
               userPlan={userPlan}
               noAds={noAds}
-              onShowUpgrade={() => setShowUpgrade(true)}
+              onShowUpgrade={() => setPage("plans")}
               onUpdateLedger={updateLedger}
               getLedgerNewCount={getLedgerNewCount}
               onRemoveAds={handleRemoveAds}
@@ -18413,21 +18459,7 @@ export default function App() {
           onCurrencyChange={setCurrency}
           currencies={CURRENCIES}
           userPlan={userPlan}
-          onShowUpgrade={() => setShowUpgrade(true)}
-        />
-      )}
-      {showUpgrade && (
-        <UpgradeModal
-          currentPlan={userPlan.id}
-          onClose={() => setShowUpgrade(false)}
-          onUpgrade={handleUpgrade}
-          noAds={noAds}
-          onRemoveAds={handleRemoveAds}
-          payoutPass={user?.payoutPass || userPlan.id === "gold"}
-          onBuyPayoutPass={handleBuyPayoutPass}
-          ledgers={ledgers}
-          currentUser={user}
-          busy={upgradeBusy}
+          onShowUpgrade={() => setPage("plans")}
         />
       )}
       {pendingJoin && user && (
@@ -18476,7 +18508,7 @@ export default function App() {
           ⚠ Your {PLANS[user.plan]?.name} plan expires in {daysLeft} day
           {daysLeft !== 1 ? "s" : ""}
           <button
-            onClick={() => setShowUpgrade(true)}
+            onClick={() => setPage("plans")}
             style={{
               background: "#f59e0b",
               color: "white",
