@@ -9305,7 +9305,7 @@ function LedgerDetail({
   onStartFresh,
   onDeleteCopy,
   onRequestDelete,
-  onRespondDelete,
+  onRespondCopyChoice,
   onCancelDeleteRequest,
   onExecuteDelete,
   isSoloDeletable,
@@ -9937,55 +9937,29 @@ function LedgerDetail({
             }}
           >
             <div style={{ flex: 1, minWidth: "200px" }}>
-              {inCountdown ? (
-                <>
-                  <div
-                    style={{
-                      fontSize: "13px",
-                      fontWeight: "800",
-                      color: "#b91c1c",
-                    }}
-                  >
-                    This ledger will be deleted in{" "}
-                    {formatCountdown(countdownSecondsLeft)}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      color: "#dc2626",
-                      marginTop: "2px",
-                    }}
-                  >
-                    All members approved. The ledger is locked — no new
-                    expenses. Only the admin can cancel this now; you can still
-                    choose to keep a personal copy.
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div
-                    style={{
-                      fontSize: "13px",
-                      fontWeight: "800",
-                      color: "#92400e",
-                    }}
-                  >
-                    Deletion requested
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      color: "#b45309",
-                      marginTop: "2px",
-                    }}
-                  >
-                    The admin asked to delete this ledger. All members with the
-                    app must approve before the 3-day countdown begins.
-                  </div>
-                </>
-              )}
+              <div
+                style={{
+                  fontSize: "13px",
+                  fontWeight: "800",
+                  color: "#b91c1c",
+                }}
+              >
+                This ledger will be deleted in{" "}
+                {formatCountdown(countdownSecondsLeft)}
+              </div>
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "#dc2626",
+                  marginTop: "2px",
+                }}
+              >
+                {dr.system_initiated
+                  ? "The admin's account is being deleted. The ledger is locked — no new expenses. Only cancelling the account deletion (from the admin's profile) can stop this; you can still choose to keep a personal copy."
+                  : "The ledger is locked — no new expenses. Only the admin can cancel this now; you can still choose to keep a personal copy."}
+              </div>
             </div>
-            {isAdmin && (
+            {isAdmin && !dr.system_initiated && (
               <button
                 className="btn btn-secondary"
                 style={{
@@ -10012,18 +9986,12 @@ function LedgerDetail({
             }}
           >
             {deleteVoters.map((m) => {
-              const st = dr.consents?.[m.id] || "pending";
+              const choice = dr.copyChoices?.[m.id] || "archive";
               const isMe = m.user_id === currentUser.id;
               const c =
-                st === "approved"
-                  ? { bg: "#ecfdf5", fg: "#059669", t: "Approved" }
-                  : st === "rejected"
-                  ? { bg: "#fef2f2", fg: "#dc2626", t: "Rejected" }
-                  : {
-                      bg: "#f3f4f6",
-                      fg: "#6b7280",
-                      t: inCountdown ? "—" : "Waiting",
-                    };
+                choice === "none"
+                  ? { bg: "#f3f4f6", fg: "#6b7280", t: "Opted out" }
+                  : { bg: "#ecfdf5", fg: "#059669", t: "Keeping a copy" };
               return (
                 <div
                   key={m.id}
@@ -10062,23 +10030,30 @@ function LedgerDetail({
             })}
           </div>
 
-          {/* My consent controls — exactly 3 choices: Approve / Approve & keep my copy / Reject.
-              During the countdown, rejecting is no longer possible — only the admin can
-              cancel the whole deletion (Withdraw request, above). Members can still upgrade
-              from "no copy" to "keep my copy" while the countdown runs. */}
+          {/* My copy choice — deletion always proceeds. Default is now
+              "archive": if you never respond (e.g. don't log in during the
+              countdown), you still get a saved copy automatically. You can
+              explicitly opt out if you don't want one. */}
           {myMember &&
             (() => {
-              const myCopyChoice = dr.copyChoices?.[myMember.id] || "none";
-              if (inCountdown) {
-                return (
-                  <div
-                    style={{
-                      marginTop: "12px",
-                      paddingTop: "12px",
-                      borderTop: "1px solid #fecaca",
-                    }}
-                  >
-                    {myCopyChoice === "archive" ? (
+              const myCopyChoice = dr.copyChoices?.[myMember.id] || "archive";
+              return (
+                <div
+                  style={{
+                    marginTop: "12px",
+                    paddingTop: "12px",
+                    borderTop: "1px solid #fecaca",
+                  }}
+                >
+                  {myCopyChoice === "archive" ? (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        flexWrap: "wrap",
+                      }}
+                    >
                       <span
                         style={{
                           fontSize: "12px",
@@ -10086,98 +10061,47 @@ function LedgerDetail({
                           fontWeight: "700",
                         }}
                       >
-                        ✓ You're keeping a personal copy in your Archive.
+                        ✓ A copy will be saved to your Archive automatically.
                       </span>
-                    ) : (
-                      <div
+                      <button
+                        className="btn btn-secondary"
+                        style={{ fontSize: "12px", padding: "6px 12px" }}
+                        onClick={() =>
+                          onRespondCopyChoice(ledger.id, "none")
+                        }
+                      >
+                        Don't keep a copy
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <span
                         style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "8px",
-                          flexWrap: "wrap",
+                          fontSize: "12px",
+                          color: "#b91c1c",
+                          fontWeight: "700",
                         }}
                       >
-                        <span
-                          style={{
-                            fontSize: "12px",
-                            color: "#b91c1c",
-                            fontWeight: "700",
-                          }}
-                        >
-                          You approved without keeping a copy.
-                        </span>
-                        <button
-                          className="btn btn-secondary"
-                          style={{ fontSize: "12px", padding: "6px 12px" }}
-                          onClick={() =>
-                            onRespondDelete(ledger.id, "approved", "archive")
-                          }
-                        >
-                          Actually, keep my copy
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                );
-              }
-              return (
-                <div
-                  style={{
-                    marginTop: "12px",
-                    paddingTop: "12px",
-                    borderTop: "1px solid #fde68a",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      fontWeight: "700",
-                      marginBottom: "8px",
-                      color: myConsent === "approved" ? "#059669" : "#374151",
-                    }}
-                  >
-                    {myConsent === "approved"
-                      ? `You approved${
-                          myCopyChoice === "archive"
-                            ? " — keeping a copy in your Archive"
-                            : ""
-                        }.`
-                      : "The admin wants to delete this ledger. Do you approve? Rejecting cancels the request for everyone."}
-                  </div>
-                  <div
-                    style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}
-                  >
-                    <button
-                      className="btn btn-primary"
-                      style={{ fontSize: "12px", padding: "7px 14px" }}
-                      onClick={() =>
-                        onRespondDelete(ledger.id, "approved", "none")
-                      }
-                    >
-                      Approve
-                    </button>
-                    <button
-                      className="btn btn-secondary"
-                      style={{ fontSize: "12px", padding: "7px 14px" }}
-                      onClick={() =>
-                        onRespondDelete(ledger.id, "approved", "archive")
-                      }
-                    >
-                      Approve & keep my copy
-                    </button>
-                    <button
-                      className="btn btn-secondary"
-                      style={{
-                        fontSize: "12px",
-                        padding: "7px 14px",
-                        color: "var(--danger)",
-                        borderColor: "#fecaca",
-                      }}
-                      onClick={() => onRespondDelete(ledger.id, "rejected")}
-                    >
-                      Reject
-                    </button>
-                  </div>
+                        You opted out — no copy will be saved.
+                      </span>
+                      <button
+                        className="btn btn-secondary"
+                        style={{ fontSize: "12px", padding: "6px 12px" }}
+                        onClick={() =>
+                          onRespondCopyChoice(ledger.id, "archive")
+                        }
+                      >
+                        Actually, keep my copy
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })()}
@@ -13331,6 +13255,8 @@ function CurrencySearch({ currency, currencies, onSelect }) {
 
 function ProfileModal({
   user,
+  ledgers = [],
+  onLedgersRefresh,
   onClose,
   onUpdate,
   onLogout,
@@ -13445,7 +13371,7 @@ function ProfileModal({
     }, 2000);
   };
 
-  const scheduleDelete = () => {
+  const scheduleDelete = async () => {
     if (deleteWord !== "delete") return;
     const scheduledDate = new Date();
     scheduledDate.setDate(scheduledDate.getDate() + 30);
@@ -13454,12 +13380,78 @@ function ProfileModal({
     setDeleteScheduled(scheduledDate.toISOString());
     setShowDelete(false);
     setDeleteWord("");
+
+    // Ledgers this user owns that have other real members get locked for new
+    // entries IMMEDIATELY (reusing the existing delete-request/countdown
+    // mechanism — deleteScheduledAt alone is what triggers the lock via
+    // `deleteLock` in LedgerDetail). Members get a 6-day window to save an
+    // archived copy; no approval is required since this isn't optional —
+    // it's a consequence of the account deletion, only the admin cancelling
+    // the account deletion itself can undo it.
+    const archiveDeadline = new Date();
+    archiveDeadline.setDate(archiveDeadline.getDate() + 6);
+
+    const ownedWithOthers = ledgers.filter((l) => {
+      const isOwner = l.members[0]?.user_id === user.id;
+      const hasOtherRealMembers = l.members.some(
+        (m) => m.user_id && m.user_id !== user.id
+      );
+      return isOwner && hasOtherRealMembers && !l.archived && !l.deleteRequest;
+    });
+
+    for (const l of ownedWithOthers) {
+      const deleteRequest = {
+        initiated_at: now(),
+        initiated_by: user.id,
+        system_initiated: true, // triggered by account deletion, not a manual request
+        consents: {},
+        copyChoices: {},
+      };
+      const { error } = await sb
+        .from("ledgers")
+        .update({
+          delete_request: deleteRequest,
+          delete_scheduled_at: archiveDeadline.toISOString(),
+        })
+        .eq("id", l.id);
+      if (error) {
+        console.error("scheduleDelete: failed to lock ledger", l.id, error);
+        continue;
+      }
+      const otherIds = l.members
+        .filter((m) => m.user_id && m.user_id !== user.id)
+        .map((m) => m.user_id);
+      sendPushTo(
+        otherIds,
+        "Ledger locked — account being deleted",
+        `${user.full_name || "The admin"}'s account is being deleted. "${l.name}" is now locked — you have 6 days to save an archived copy.`,
+        l.name
+      );
+    }
+    if (ownedWithOthers.length > 0 && onLedgersRefresh) onLedgersRefresh();
   };
 
-  const cancelDelete = () => {
+  const cancelDelete = async () => {
     const updated = { ...user, deleteScheduled: null };
     onUpdate(updated);
     setDeleteScheduled(null);
+
+    // Unlock any ledgers this account-deletion had locked, as long as their
+    // own 6-day window hasn't already run out and executed.
+    const lockedBySelf = ledgers.filter(
+      (l) =>
+        l.deleteRequest?.system_initiated &&
+        l.deleteRequest?.initiated_by === user.id
+    );
+    for (const l of lockedBySelf) {
+      const { error } = await sb
+        .from("ledgers")
+        .update({ delete_request: null, delete_scheduled_at: null })
+        .eq("id", l.id);
+      if (error)
+        console.error("cancelDelete: failed to unlock ledger", l.id, error);
+    }
+    if (lockedBySelf.length > 0 && onLedgersRefresh) onLedgersRefresh();
   };
 
   const daysLeft = deleteScheduled
@@ -14008,9 +14000,32 @@ function ProfileModal({
                       -
                     </span>
                     <div>
-                      <strong>If you are admin of a ledger</strong> - the ledger
-                      is deleted. Members you shared it with will no longer see
+                      <strong>If you're the only real member</strong> - the
+                      ledger is permanently deleted along with everything in
                       it.
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--text2)",
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "8px",
+                      padding: "8px 10px",
+                      background: "var(--bg)",
+                      borderRadius: "var(--radius-sm)",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    <span style={{ marginRight: "6px", color: "var(--text3)" }}>
+                      -
+                    </span>
+                    <div>
+                      <strong>If you're admin and others are in it</strong> -
+                      they're notified now so they have the full 30 days to
+                      save an archived copy. The ledger isn't deleted — it
+                      continues for them, you just won't be part of it anymore.
                     </div>
                   </div>
                   <div
@@ -17572,8 +17587,12 @@ export default function App() {
         if (!deadline) return;
         if (secondsUntil(deadline) > 0) return;
         const choices = l.deleteRequest?.copyChoices || {};
+        // Default is now "archive" — anyone who never responded (didn't log
+        // in during the countdown) still gets a saved copy, rather than
+        // silently losing everything just for missing the window. Members
+        // can still explicitly opt out via "Don't keep a copy".
         const keepers = l.members.filter(
-          (m) => m.user_id && choices[m.id] === "archive"
+          (m) => m.user_id && choices[m.id] !== "none"
         );
         const keptCopies = keepers.map((m) => ({
           ...l,
@@ -17901,28 +17920,29 @@ export default function App() {
       return;
     }
     const others = votingMembers(target).filter((m) => m.user_id !== user.id);
-    const consents = {};
-    const adminM = target.members.find((m) => m.user_id === user.id);
-    if (adminM) consents[adminM.id] = "approved";
-    others.forEach((m) => {
-      consents[m.id] = "pending";
-    });
+    // No approval step anymore — deleting a ledger works the same way an
+    // account-deletion-triggered lock does: it's locked and counting down
+    // the moment the admin requests it. Members can't block it, only choose
+    // whether to save an archived copy within the 3-day window.
+    const scheduledAt = new Date(
+      Date.now() + DELETE_COUNTDOWN_SECONDS * 1000
+    ).toISOString();
     const newRequest = {
       initiated_at: now(),
       initiated_by: user.id,
-      consents,
+      consents: {},
       copyChoices: {},
     };
     setLedgers((p) =>
       p.map((l) =>
         l.id === id
-          ? { ...l, deleteRequest: newRequest, deleteScheduledAt: null }
+          ? { ...l, deleteRequest: newRequest, deleteScheduledAt: scheduledAt }
           : l
       )
     );
     const { data, error } = await sb
       .from("ledgers")
-      .update({ delete_request: newRequest, delete_scheduled_at: null })
+      .update({ delete_request: newRequest, delete_scheduled_at: scheduledAt })
       .eq("id", id)
       .select();
     if (error) console.error("requestDelete: update failed", error);
@@ -17934,27 +17954,29 @@ export default function App() {
     else console.log("requestDelete: saved OK", data[0]);
     notify(
       "pending",
-      "Deletion requested",
-      `You've requested to delete "${target.name}". Members must approve.`,
+      "Ledger locked",
+      `"${target.name}" will be deleted in 3 days. You can withdraw any time before then.`,
       target.name
     );
     sendPushTo(
       others.map((m) => m.user_id),
-      "Deletion requested",
-      `Someone requested to delete "${target.name}". Your approval is needed.`,
+      "Ledger being deleted",
+      `The admin is deleting "${target.name}" in 3 days. Save an archived copy now if you want to keep it.`,
       target.name
     );
   };
-  // member responds: status = 'approved' | 'rejected'; copyChoice = 'archive' | 'none'.
-  // A rejection isn't just "one no vote" — it cancels the whole request immediately,
-  // back to as if deletion was never requested. Admin has to start over if they want to retry.
-  // The deletion deadline itself lives in its own plain column (delete_scheduled_at) —
+  // member picks whether to keep a copy; there's no approve/reject anymore —
+  // deletion always proceeds once the admin requests it, this only records
+  // their archive preference for when the countdown executes.
+  // The deletion deadline lives in its own plain column (delete_scheduled_at) —
   // not nested in the delete_request JSON — so it's trivial to verify directly in the
   // Supabase table editor whether a write actually landed.
   // Everything is computed synchronously from `ledgers` (the current committed state) BEFORE
   // calling setLedgers/Supabase — not as a side effect inside the setLedgers updater, since
   // React doesn't guarantee that updater runs before the code right after it.
-  const respondDelete = async (id, status, copyChoice) => {
+  // Deletion always proceeds once requested — this only records a member's
+  // choice to keep an archived copy (or not) before the countdown executes.
+  const respondCopyChoice = async (id, copyChoice) => {
     const target = ledgers.find((l) => l.id === id);
     if (!target || !target.deleteRequest) return;
     if (target._syncing) {
@@ -17966,76 +17988,23 @@ export default function App() {
       );
       return;
     }
-    // Once the countdown has started, rejecting is no longer possible — only the
-    // admin can cancel (cancelDeleteRequest). Members can still upgrade to "keep my copy".
-    if (target.deleteScheduledAt && status === "rejected") return;
     const me = target.members.find((m) => m.user_id === user.id);
     if (!me) return;
 
-    if (status === "rejected") {
-      setLedgers((p) =>
-        p.map((l) =>
-          l.id === id
-            ? { ...l, deleteRequest: null, deleteScheduledAt: null }
-            : l
-        )
-      );
-      notify(
-        "denied",
-        "Deletion cancelled",
-        `A member rejected — "${target.name}" deletion request was cancelled.`,
-        target.name
-      );
-      const { data, error } = await sb
-        .from("ledgers")
-        .update({ delete_request: null, delete_scheduled_at: null })
-        .eq("id", id)
-        .select();
-      if (error) console.error("respondDelete (reject): update failed", error);
-      else if (!data || data.length === 0)
-        console.error(
-          "respondDelete (reject): update matched 0 rows — check RLS policy on ledgers UPDATE for id",
-          id
-        );
-      else console.log("respondDelete (reject): saved OK", data[0]);
-      return;
-    }
-
-    const consents = { ...target.deleteRequest.consents, [me.id]: status };
-    const copyChoices = { ...target.deleteRequest.copyChoices };
-    if (copyChoice) copyChoices[me.id] = copyChoice;
-    const allApproved = votingMembers(target).every(
-      (m) => consents[m.id] === "approved"
-    );
-    let newScheduledAt = target.deleteScheduledAt;
-    if (allApproved && !newScheduledAt)
-      newScheduledAt = new Date(
-        Date.now() + DELETE_COUNTDOWN_SECONDS * 1000
-      ).toISOString();
-    const newRequest = { ...target.deleteRequest, consents, copyChoices };
+    const copyChoices = { ...target.deleteRequest.copyChoices, [me.id]: copyChoice };
+    const newRequest = { ...target.deleteRequest, copyChoices };
 
     setLedgers((p) =>
-      p.map((l) =>
-        l.id === id
-          ? {
-              ...l,
-              deleteRequest: newRequest,
-              deleteScheduledAt: newScheduledAt,
-            }
-          : l
-      )
+      p.map((l) => (l.id === id ? { ...l, deleteRequest: newRequest } : l))
     );
 
     const { data, error } = await sb
       .from("ledgers")
-      .update({
-        delete_request: newRequest,
-        delete_scheduled_at: newScheduledAt || null,
-      })
+      .update({ delete_request: newRequest })
       .eq("id", id)
       .select();
     if (error) {
-      console.error("respondDelete: update failed", error);
+      console.error("respondCopyChoice: update failed", error);
       notify(
         "pending",
         "Couldn't save your response",
@@ -18044,7 +18013,7 @@ export default function App() {
       );
     } else if (!data || data.length === 0) {
       console.error(
-        "respondDelete: update matched 0 rows — check RLS policy on ledgers UPDATE for id",
+        "respondCopyChoice: update matched 0 rows — check RLS policy on ledgers UPDATE for id",
         id
       );
       notify(
@@ -18053,11 +18022,7 @@ export default function App() {
         "Your account may not have permission to update this ledger.",
         ""
       );
-    } else
-      console.log(
-        "respondDelete: saved OK — delete_scheduled_at in DB is now",
-        data[0]?.delete_scheduled_at
-      );
+    } else console.log("respondCopyChoice: saved OK", data[0]);
   };
 
   const cancelDeleteRequest = async (id) => {
@@ -18089,14 +18054,16 @@ export default function App() {
       );
     else console.log("cancelDeleteRequest: saved OK", data[0]);
   };
-  // perform the actual deletion: keep archive copies for members who chose 'archive'
+  // perform the actual deletion: keep archive copies for everyone who didn't
+  // explicitly opt out (default is now "archive", not "none" — someone who
+  // never logged in during the countdown still gets a saved copy).
   const executeDelete = async (id) => {
     const target = ledgers.find((l) => l.id === id);
     if (!target) return;
     const name = target.name || "Ledger";
     const choices = target.deleteRequest?.copyChoices || {};
     const keepers = target.members.filter(
-      (m) => m.user_id && choices[m.id] === "archive"
+      (m) => m.user_id && choices[m.id] !== "none"
     );
     const keptCopies = keepers.map((m) => ({
       ...target,
@@ -18378,7 +18345,7 @@ export default function App() {
               onStartFresh={startFreshLedger}
               onDeleteCopy={deleteMyArchiveCopy}
               onRequestDelete={requestDelete}
-              onRespondDelete={respondDelete}
+              onRespondCopyChoice={respondCopyChoice}
               onCancelDeleteRequest={cancelDeleteRequest}
               onExecuteDelete={executeDelete}
               isSoloDeletable={isSoloDeletable}
@@ -18614,6 +18581,8 @@ export default function App() {
       {showProfile && (
         <ProfileModal
           user={user}
+          ledgers={ledgers}
+          onLedgersRefresh={() => loadLedgers(user.id)}
           onClose={() => setShowProfile(false)}
           onUpdate={(u) => {
             setUser(u);
