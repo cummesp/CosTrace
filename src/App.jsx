@@ -2861,6 +2861,10 @@ function AuthScreen({ onLogin }) {
       btnH:       `${btnH}px`,
       fontSize,
       radius,
+      // Same left inset as the painted button (x=43 in the 1600px source) —
+      // reused so the footer content aligns to the same visual left/right
+      // edge as the hero image's content instead of the raw screen edge.
+      heroInset: `${offX + BTN_X1 * scale}px`,
     });
   };
 
@@ -3074,8 +3078,10 @@ function AuthScreen({ onLogin }) {
         display: "flex",
         alignItems: "center",
       }}>
-        <div className="auth-container" style={{
+        <div style={{
           width: "100%",
+          padding: `0 ${btnPos?.heroInset || "16px"}`,
+          boxSizing: "border-box",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
