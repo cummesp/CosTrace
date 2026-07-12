@@ -15627,6 +15627,282 @@ function visibleMonths(allMonths, plan) {
 }
 
 // ── UPGRADE MODAL ─────────────────────────────────────────────────────────────
+// Desktop plans view: one comparison table instead of separate cards.
+// Header row uses the same navy as the logo (#010A19) so there's a single
+// unified edge across all columns, instead of each plan having its own
+// tinted header butting up against its neighbor.
+function ComparisonTable({
+  plans,
+  PLANS,
+  ACCENT,
+  FONT,
+  currentPlan,
+  planLevel,
+  billing,
+  isEB,
+  ebPrice,
+  busy,
+  onUpgrade,
+  confirmDowngrade,
+  setConfirmDowngrade,
+  downgradeSummary,
+  ghostBtnStyle,
+}) {
+  const CheckIcon = () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="3">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+  const XIcon = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" strokeWidth="3">
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+
+  // value: false -> X, true -> checkmark, string -> shown as text
+  const rows = [
+    { label: "Owned ledgers", get: (pl) => pl.maxOwnLedgers ?? "Unlimited" },
+    { label: "Max members per ledger", get: (pl) => pl.maxMembers },
+    { label: "Expenses / month / ledger", get: (pl) => pl.maxExpensesPerLedger ?? "Unlimited" },
+    { label: "History", get: (pl) => (pl.historyMonths ? `${pl.historyMonths} months` : "Unlimited") },
+    { label: "Participate in other ledgers", get: (pl) => pl.maxParticipant ?? "Unlimited" },
+    { label: "Cancel & delete expenses", get: (pl) => pl.id !== "free" },
+    { label: "Custom header & label colors", get: (pl) => pl.id === "regular" || pl.id === "gold" },
+    { label: "Rename categories", get: (pl) => pl.id === "gold" },
+    { label: "No ads", get: (pl) => !pl.ads },
+    { label: "Payout Pass included (19.99€ value)", get: (pl) => (pl.id === "gold" ? true : false) },
+    { label: "Gold perks for all members", get: (pl) => pl.id === "gold" },
+  ];
+
+  return (
+    <div
+      style={{
+        background: "#FFFFFF",
+        borderRadius: "19px",
+        border: "1px solid #E5E7EB",
+        boxShadow: "0 6px 24px rgba(15,23,42,.06)",
+        overflow: "hidden",
+        marginBottom: "20px",
+      }}
+    >
+      <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT }}>
+        <thead>
+          <tr style={{ background: "#010A19" }}>
+            <th style={{ padding: "16px 20px", textAlign: "left", width: "260px" }} />
+            {plans.map((p) => {
+              const pl = PLANS[p];
+              const isCurrent = currentPlan === p;
+              return (
+                <th
+                  key={p}
+                  style={{
+                    padding: "16px 16px",
+                    textAlign: "center",
+                    borderLeft: "1px solid rgba(255,255,255,0.08)",
+                    minWidth: "150px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    <span style={{ fontSize: "16px", fontWeight: 700, color: "#F4F6F9" }}>
+                      {pl.name}
+                    </span>
+                    {isCurrent && (
+                      <span
+                        style={{
+                          fontSize: "9px",
+                          fontWeight: 700,
+                          letterSpacing: "0.5px",
+                          background: "#F4F6F9",
+                          color: "#010A19",
+                          padding: "3px 8px",
+                          borderRadius: "16px",
+                        }}
+                      >
+                        ACTIVE
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ marginTop: "6px" }}>
+                    {pl.monthly === 0 ? (
+                      <span style={{ fontSize: "18px", fontWeight: 800, color: "#F4F6F9" }}>
+                        Free
+                      </span>
+                    ) : billing === "yearly" ? (
+                      <>
+                        <span style={{ fontSize: "20px", fontWeight: 800, color: "#F4F6F9" }}>
+                          {(isEB ? ebPrice(pl).yearly / 12 : pl.yearly / 12).toFixed(2)}€
+                        </span>
+                        <span style={{ fontSize: "12px", fontWeight: 500, color: "rgba(244,246,249,0.6)" }}>
+                          /mo
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span style={{ fontSize: "20px", fontWeight: 800, color: "#F4F6F9" }}>
+                          {(isEB ? ebPrice(pl).monthly : pl.monthly).toFixed(2)}€
+                        </span>
+                        <span style={{ fontSize: "12px", fontWeight: 500, color: "rgba(244,246,249,0.6)" }}>
+                          /month
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, ri) => (
+            <tr key={row.label} style={{ background: ri % 2 === 0 ? "#FFFFFF" : "#F8FAFC" }}>
+              <td
+                style={{
+                  padding: "12px 20px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  color: "#374151",
+                  borderTop: "1px solid #E5E7EB",
+                }}
+              >
+                {row.label}
+              </td>
+              {plans.map((p) => {
+                const pl = PLANS[p];
+                const val = row.get(pl);
+                return (
+                  <td
+                    key={p}
+                    style={{
+                      padding: "12px 16px",
+                      textAlign: "center",
+                      borderTop: "1px solid #E5E7EB",
+                      borderLeft: "1px solid #E5E7EB",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      color: "#111827",
+                    }}
+                  >
+                    {val === false ? (
+                      <div style={{ display: "flex", justifyContent: "center" }}>
+                        <XIcon />
+                      </div>
+                    ) : val === true ? (
+                      <div style={{ display: "flex", justifyContent: "center" }}>
+                        <CheckIcon />
+                      </div>
+                    ) : (
+                      val
+                    )}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+          {/* Action row */}
+          <tr>
+            <td style={{ padding: "16px 20px", borderTop: "1px solid #E5E7EB" }} />
+            {plans.map((p) => {
+              const pl = PLANS[p];
+              const accent = ACCENT[p];
+              const isCurrent = currentPlan === p;
+              const isDowngrade = (planLevel[p] || 0) < (planLevel[currentPlan] || 0);
+              const isUpgrade = (planLevel[p] || 0) > (planLevel[currentPlan] || 0);
+              const showingConfirm = confirmDowngrade === p;
+              const summary = showingConfirm ? downgradeSummary(p) : [];
+              return (
+                <td
+                  key={p}
+                  style={{
+                    padding: "16px 16px",
+                    borderTop: "1px solid #E5E7EB",
+                    borderLeft: "1px solid #E5E7EB",
+                    verticalAlign: "top",
+                  }}
+                >
+                  {!isCurrent && isUpgrade && (
+                    <button
+                      style={ghostBtnStyle(accent, busy)}
+                      onClick={() => onUpgrade(p, billing)}
+                      disabled={busy}
+                    >
+                      {busy ? "Processing…" : `Upgrade`}
+                    </button>
+                  )}
+                  {!isCurrent && isDowngrade && !showingConfirm && (
+                    <button style={ghostBtnStyle(null, false)} onClick={() => setConfirmDowngrade(p)}>
+                      Downgrade
+                    </button>
+                  )}
+                  {isCurrent && (
+                    <div style={{ textAlign: "center", fontSize: "12px", color: "#6B7280", fontWeight: 700 }}>
+                      Current plan
+                    </div>
+                  )}
+                  {showingConfirm && (
+                    <div
+                      style={{
+                        background: "#F8FAFC",
+                        border: "1px solid #E5E7EB",
+                        borderLeft: "3px solid #DC2626",
+                        borderRadius: "13px",
+                        padding: "12px",
+                        textAlign: "left",
+                      }}
+                    >
+                      <div style={{ fontSize: "12px", fontWeight: 700, color: "#111827", marginBottom: "6px" }}>
+                        Downgrade to {pl.name}
+                      </div>
+                      {summary.length > 0 ? (
+                        <ul style={{ margin: "0 0 8px 14px", padding: 0 }}>
+                          {summary.map((s, i) => (
+                            <li key={i} style={{ fontSize: "11px", color: "#6B7280", marginBottom: "3px", lineHeight: 1.4 }}>
+                              {s}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <div style={{ fontSize: "11px", color: "#6B7280", marginBottom: "8px" }}>
+                          No immediate conflicts.
+                        </div>
+                      )}
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        <button
+                          style={{ ...ghostBtnStyle(null, false), height: "28px", fontSize: "11px" }}
+                          onClick={() => setConfirmDowngrade(null)}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          style={{ ...ghostBtnStyle("#DC2626", busy), height: "28px", fontSize: "11px" }}
+                          onClick={() => {
+                            onUpgrade(p, billing);
+                            setConfirmDowngrade(null);
+                          }}
+                          disabled={busy}
+                        >
+                          Confirm
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </td>
+              );
+            })}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function UpgradeModal({
   currentPlan,
   onClose,
@@ -15911,18 +16187,27 @@ function UpgradeModal({
             ))}
           </div>
 
+          {standalone ? (
+            <ComparisonTable
+              plans={plans}
+              PLANS={PLANS}
+              ACCENT={ACCENT}
+              FONT={FONT}
+              currentPlan={currentPlan}
+              planLevel={planLevel}
+              billing={billing}
+              isEB={isEB}
+              ebPrice={ebPrice}
+              busy={busy}
+              onUpgrade={onUpgrade}
+              confirmDowngrade={confirmDowngrade}
+              setConfirmDowngrade={setConfirmDowngrade}
+              downgradeSummary={downgradeSummary}
+              ghostBtnStyle={ghostBtnStyle}
+            />
+          ) : (
           <div
-            style={
-              standalone
-                ? {
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                    gap: "16px",
-                    marginBottom: "20px",
-                    alignItems: "start",
-                  }
-                : { display: "flex", flexDirection: "column", gap: "16px", marginBottom: "16px" }
-            }
+            style={{ display: "flex", flexDirection: "column", gap: "16px", marginBottom: "16px" }}
           >
             {plans.map((p) => {
               const pl = PLANS[p];
@@ -16151,6 +16436,7 @@ function UpgradeModal({
               );
             })}
           </div>
+          )}
 
           {(currentPlan === "free" || currentPlan === "light" || currentPlan === "regular") && (
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
