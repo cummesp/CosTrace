@@ -15476,7 +15476,7 @@ function UpgradeModal({
     document.head.appendChild(link);
   }, []);
 
-  const ACCENT = { free: "#6B7280", light: "#3B82F6", regular: "#22A55D", gold: "#D4A017" };
+  const ACCENT = { free: "#6B7280", light: "#317FFF", regular: "#14B25B", gold: "#E6A804" };
   const HEADER_BG = {
     free: "linear-gradient(180deg,#F8FAFC,#FFFFFF)",
     light: "linear-gradient(180deg,#EFF6FF,#FFFFFF)",
@@ -15588,11 +15588,11 @@ function UpgradeModal({
   };
 
   const ghostBtnStyle = (accent, disabled) => ({
-    height: "48px",
+    height: "38px",
     width: "100%",
     background: "#FFFFFF",
     border: `1px solid ${accent ? accent + "55" : "#E5E7EB"}`,
-    borderRadius: "16px",
+    borderRadius: "13px",
     fontFamily: FONT,
     fontSize: "14px",
     fontWeight: 700,
@@ -15607,7 +15607,7 @@ function UpgradeModal({
       <div
         className="modal"
         style={{
-          maxWidth: "520px",
+          maxWidth: "416px",
           background: "linear-gradient(180deg,#FFFFFF 0%,#F8FAFC 100%)",
           fontFamily: FONT,
         }}
@@ -15620,7 +15620,7 @@ function UpgradeModal({
             style={{
               fontFamily: FONT,
               fontWeight: 700,
-              fontSize: "20px",
+              fontSize: "16px",
               color: "#111827",
             }}
           >
@@ -15639,14 +15639,14 @@ function UpgradeModal({
                 gap: "10px",
                 background: "#FFFFFF",
                 border: "1px solid #E5E7EB",
-                borderRadius: "16px",
-                padding: "12px 16px",
-                marginBottom: "20px",
+                borderRadius: "13px",
+                padding: "10px 13px",
+                marginBottom: "16px",
                 boxShadow: "0 6px 24px rgba(15,23,42,.06)",
               }}
             >
               <span style={{ color: "#D4A017" }}>
-                <Icon.Sparkle size={18} />
+                <Icon.Sparkle size={14} />
               </span>
               <div>
                 <div
@@ -15671,7 +15671,7 @@ function UpgradeModal({
               gap: "6px",
               background: "#F8FAFC",
               border: "1px solid #E5E7EB",
-              borderRadius: "16px",
+              borderRadius: "13px",
               padding: "4px",
               marginBottom: "24px",
             }}
@@ -15707,7 +15707,7 @@ function UpgradeModal({
             ))}
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "20px", marginBottom: "20px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginBottom: "16px" }}>
             {plans.map((p) => {
               const pl = PLANS[p];
               const accent = ACCENT[p];
@@ -15723,7 +15723,7 @@ function UpgradeModal({
                   key={p}
                   style={{
                     background: "#FFFFFF",
-                    borderRadius: "24px",
+                    borderRadius: "19px",
                     border: "1px solid #E5E7EB",
                     boxShadow: isGold
                       ? "0 10px 32px rgba(180,131,23,.16)"
@@ -15735,7 +15735,7 @@ function UpgradeModal({
                   <div
                     style={{
                       background: HEADER_BG[p],
-                      padding: "24px 24px 16px",
+                      padding: "19px 19px 13px",
                       position: "relative",
                     }}
                   >
@@ -15751,7 +15751,7 @@ function UpgradeModal({
                           background: "#111827",
                           color: "#FFFFFF",
                           padding: "4px 10px",
-                          borderRadius: "20px",
+                          borderRadius: "16px",
                         }}
                       >
                         ACTIVE
@@ -15767,7 +15767,7 @@ function UpgradeModal({
                     >
                       <span
                         style={{
-                          fontSize: "28px",
+                          fontSize: "22px",
                           fontWeight: 700,
                           color: "#111827",
                           fontFamily: FONT,
@@ -15776,14 +15776,14 @@ function UpgradeModal({
                         {pl.name}
                       </span>
                       {pl.monthly === 0 ? (
-                        <span style={{ fontSize: "20px", fontWeight: 800, color: "#111827" }}>
+                        <span style={{ fontSize: "16px", fontWeight: 800, color: "#111827" }}>
                           Free
                         </span>
                       ) : (
                         <div style={{ textAlign: "right" }}>
                           {billing === "yearly" ? (
                             <>
-                              <span style={{ fontSize: "32px", fontWeight: 800, color: "#111827" }}>
+                              <span style={{ fontSize: "26px", fontWeight: 800, color: "#111827" }}>
                                 {isEB ? (ebPrice(pl).yearly / 12).toFixed(2) : (pl.yearly / 12).toFixed(2)}€
                               </span>
                               <span style={{ fontSize: "15px", fontWeight: 500, color: "#6B7280" }}>
@@ -15809,7 +15809,7 @@ function UpgradeModal({
                             </>
                           ) : (
                             <>
-                              <span style={{ fontSize: "32px", fontWeight: 800, color: "#111827" }}>
+                              <span style={{ fontSize: "26px", fontWeight: 800, color: "#111827" }}>
                                 {isEB ? ebPrice(pl).monthly.toFixed(2) : pl.monthly.toFixed(2)}€
                               </span>
                               <span style={{ fontSize: "15px", fontWeight: 500, color: "#6B7280" }}>
@@ -15829,8 +15829,8 @@ function UpgradeModal({
                     </div>
                   </div>
 
-                  <div style={{ padding: "16px 24px 24px" }}>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "20px" }}>
+                  <div style={{ padding: "13px 19px 19px" }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "16px" }}>
                       {features[p].map((f, i) => {
                         const FIcon = featureIcon(f);
                         return (
@@ -15840,9 +15840,9 @@ function UpgradeModal({
                               display: "inline-flex",
                               alignItems: "center",
                               gap: "6px",
-                              height: "32px",
-                              borderRadius: "16px",
-                              padding: "0 12px",
+                              height: "26px",
+                              borderRadius: "13px",
+                              padding: "0 10px",
                               background: "#F8FAFC",
                               border: "1px solid #E5E7EB",
                               fontSize: "13px",
@@ -15851,7 +15851,7 @@ function UpgradeModal({
                             }}
                           >
                             <span style={{ color: accent, display: "flex" }}>
-                              <FIcon size={13} />
+                              <FIcon size={11} />
                             </span>
                             {f}
                           </span>
@@ -15882,7 +15882,7 @@ function UpgradeModal({
                           background: "#F8FAFC",
                           border: "1px solid #E5E7EB",
                           borderLeft: "3px solid #DC2626",
-                          borderRadius: "16px",
+                          borderRadius: "13px",
                           padding: "16px",
                         }}
                       >
@@ -15912,13 +15912,13 @@ function UpgradeModal({
                         )}
                         <div style={{ display: "flex", gap: "8px" }}>
                           <button
-                            style={{ ...ghostBtnStyle(null, false), height: "40px" }}
+                            style={{ ...ghostBtnStyle(null, false), height: "32px" }}
                             onClick={() => setConfirmDowngrade(null)}
                           >
                             Cancel
                           </button>
                           <button
-                            style={{ ...ghostBtnStyle("#DC2626", busy), height: "40px" }}
+                            style={{ ...ghostBtnStyle("#DC2626", busy), height: "32px" }}
                             onClick={() => {
                               onUpgrade(p, billing);
                               setConfirmDowngrade(null);
@@ -15956,16 +15956,16 @@ function UpgradeModal({
                   style={{
                     background: "#FFFFFF",
                     border: "1px solid #E5E7EB",
-                    borderRadius: "20px",
+                    borderRadius: "16px",
                     boxShadow: "0 6px 24px rgba(15,23,42,.06)",
-                    padding: "16px 20px",
+                    padding: "13px 16px",
                     display: "flex",
                     alignItems: "center",
                     gap: "14px",
                   }}
                 >
                   <span style={{ color: "#111827" }}>
-                    <Icon.Ban size={18} />
+                    <Icon.Ban size={14} />
                   </span>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: "14px", fontWeight: 700, color: "#111827" }}>
@@ -15976,7 +15976,7 @@ function UpgradeModal({
                     </div>
                   </div>
                   <button
-                    style={{ ...ghostBtnStyle(null, busy), width: "auto", padding: "0 18px" }}
+                    style={{ ...ghostBtnStyle(null, busy), width: "auto", padding: "0 14px" }}
                     onClick={onRemoveAds}
                     disabled={busy}
                   >
@@ -15990,16 +15990,16 @@ function UpgradeModal({
                   style={{
                     background: "#FFFFFF",
                     border: "1px solid #E5E7EB",
-                    borderRadius: "20px",
+                    borderRadius: "16px",
                     boxShadow: "0 6px 24px rgba(15,23,42,.06)",
-                    padding: "16px 20px",
+                    padding: "13px 16px",
                     display: "flex",
                     alignItems: "center",
                     gap: "14px",
                   }}
                 >
                   <span style={{ color: "#D4A017" }}>
-                    <Icon.CreditCard size={18} />
+                    <Icon.CreditCard size={14} />
                   </span>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: "14px", fontWeight: 700, color: "#111827" }}>
@@ -16010,7 +16010,7 @@ function UpgradeModal({
                     </div>
                   </div>
                   <button
-                    style={{ ...ghostBtnStyle(null, busy), width: "auto", padding: "0 18px" }}
+                    style={{ ...ghostBtnStyle(null, busy), width: "auto", padding: "0 14px" }}
                     onClick={onBuyPayoutPass}
                     disabled={busy}
                   >
@@ -16023,15 +16023,15 @@ function UpgradeModal({
                   style={{
                     background: "#FFFFFF",
                     border: "1px solid #E5E7EB",
-                    borderRadius: "20px",
-                    padding: "14px 20px",
+                    borderRadius: "16px",
+                    padding: "11px 16px",
                     display: "flex",
                     alignItems: "center",
                     gap: "12px",
                   }}
                 >
                   <span style={{ color: "#22A55D" }}>
-                    <Icon.Check size={18} />
+                    <Icon.Check size={14} />
                   </span>
                   <div style={{ fontSize: "14px", fontWeight: 700, color: "#111827" }}>
                     Payout Pass active · all ledgers unlocked
@@ -16046,15 +16046,15 @@ function UpgradeModal({
               style={{
                 background: "#FFFFFF",
                 border: "1px solid #E5E7EB",
-                borderRadius: "20px",
-                padding: "14px 20px",
+                borderRadius: "16px",
+                padding: "11px 16px",
                 display: "flex",
                 alignItems: "center",
                 gap: "12px",
               }}
             >
               <span style={{ color: "#D4A017" }}>
-                <Icon.CreditCard size={18} />
+                <Icon.CreditCard size={14} />
               </span>
               <div>
                 <div style={{ fontSize: "14px", fontWeight: 700, color: "#111827" }}>
