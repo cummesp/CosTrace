@@ -15653,7 +15653,7 @@ function UpgradeModal({
           style={{
             paddingTop: "8px",
             fontFamily: FONT,
-            maxWidth: standalone ? "560px" : "none",
+            maxWidth: standalone ? "1100px" : "none",
           }}
         >
           {isEB && (
@@ -15732,7 +15732,19 @@ function UpgradeModal({
             ))}
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginBottom: "16px" }}>
+          <div
+            style={
+              standalone
+                ? {
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                    gap: "16px",
+                    marginBottom: "20px",
+                    alignItems: "start",
+                  }
+                : { display: "flex", flexDirection: "column", gap: "16px", marginBottom: "16px" }
+            }
+          >
             {plans.map((p) => {
               const pl = PLANS[p];
               const accent = ACCENT[p];
@@ -16654,6 +16666,22 @@ export default function App() {
   const [prefillMember, setPrefillMember] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
   const [upgradeBusy, setUpgradeBusy] = useState(false);
+  // Full-page Plans is desktop-only — mobile keeps the popup behavior it
+  // always had. 768px matches the breakpoint used elsewhere in the CSS
+  // (.sidebar hides / .mobile-nav shows at max-width:768px).
+  const [isDesktop, setIsDesktop] = useState(
+    typeof window !== "undefined" ? window.innerWidth > 768 : true
+  );
+  useEffect(() => {
+    const onResize = () => setIsDesktop(window.innerWidth > 768);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const openUpgrade = () => {
+    if (isDesktop) setPage("plans");
+    else setShowUpgrade(true);
+  };
   const [showFeedback, setShowFeedback] = useState(false);
   const [page, setPage] = useState("home");
   const [seenMap, setSeenMap] = useState(() => loadSeenFromStorage());
@@ -16719,6 +16747,7 @@ export default function App() {
         at: currentExpiry?.toISOString() || new Date().toISOString(),
       },
     }));
+    setShowUpgrade(false);
     setPage("home");
     notify(
       "pending",
@@ -16778,6 +16807,7 @@ export default function App() {
         downgrade_pending: null,
       }));
       setLedgers((p) => p.map((l) => ({ ...l, downgraded_from: null })));
+      setShowUpgrade(false);
       setPage("home");
       notify(
         "new-expense",
@@ -16815,6 +16845,7 @@ export default function App() {
       });
       await syncEntitlementsToSupabase(user.id, customerInfo);
       setUser((u) => ({ ...u, noAds: true }));
+      setShowUpgrade(false);
       setPage("home");
       notify(
         "new-expense",
@@ -16847,6 +16878,7 @@ export default function App() {
       });
       await syncEntitlementsToSupabase(user.id, customerInfo);
       setUser((u) => ({ ...u, payoutPass: true }));
+      setShowUpgrade(false);
       setPage("home");
       notify(
         "new-expense",
@@ -17451,7 +17483,7 @@ export default function App() {
         `Your ${userPlan.name} plan allows ${userPlan.maxOwnLedgers} active ledger(s). Upgrade to create more.`,
         ""
       );
-      setPage("plans");
+      openUpgrade();
       return;
     }
     const count = data.members.length + 1;
@@ -18160,14 +18192,14 @@ export default function App() {
               isSoloDeletable={isSoloDeletable}
               currency={currency}
               userPlan={userPlan}
-              onShowUpgrade={() => setPage("plans")}
+              onShowUpgrade={openUpgrade}
               seenExpenses={seenMap[activeLedgerId] || new Set()}
               overLedgerLimit={overLedgerLimit}
               overParticipantLimit={overParticipantLimit}
               onLeave={leaveledger}
               allLedgers={ledgers}
             />
-          ) : page === "plans" ? (
+          ) : page === "plans" && isDesktop ? (
             <UpgradeModal
               standalone
               currentPlan={userPlan.id}
@@ -18223,7 +18255,7 @@ export default function App() {
               }
               userPlan={userPlan}
               noAds={noAds}
-              onShowUpgrade={() => setPage("plans")}
+              onShowUpgrade={openUpgrade}
               onUpdateLedger={updateLedger}
               getLedgerNewCount={getLedgerNewCount}
               onRemoveAds={handleRemoveAds}
@@ -18459,7 +18491,21 @@ export default function App() {
           onCurrencyChange={setCurrency}
           currencies={CURRENCIES}
           userPlan={userPlan}
-          onShowUpgrade={() => setPage("plans")}
+          onShowUpgrade={openUpgrade}
+        />
+      )}
+      {showUpgrade && !isDesktop && (
+        <UpgradeModal
+          currentPlan={userPlan.id}
+          onClose={() => setShowUpgrade(false)}
+          onUpgrade={handleUpgrade}
+          noAds={noAds}
+          onRemoveAds={handleRemoveAds}
+          payoutPass={user?.payoutPass || userPlan.id === "gold"}
+          onBuyPayoutPass={handleBuyPayoutPass}
+          ledgers={ledgers}
+          currentUser={user}
+          busy={upgradeBusy}
         />
       )}
       {pendingJoin && user && (
@@ -18508,7 +18554,7 @@ export default function App() {
           ⚠ Your {PLANS[user.plan]?.name} plan expires in {daysLeft} day
           {daysLeft !== 1 ? "s" : ""}
           <button
-            onClick={() => setPage("plans")}
+            onClick={openUpgrade}
             style={{
               background: "#f59e0b",
               color: "white",
