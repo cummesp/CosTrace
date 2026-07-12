@@ -422,7 +422,8 @@ const css = `
   @media(max-width:768px){.main-content{margin-top:56px!important;}}
   .mobile-topbar{display:none;}
   @media(max-width:768px){
-    .mobile-topbar{display:flex;position:fixed;top:0;left:0;right:0;height:56px;background:var(--sidebar-bg);border-bottom:1px solid var(--header-border);align-items:center;justify-content:center;z-index:99;}
+    .mobile-topbar{display:flex;position:fixed;top:0;left:0;right:0;height:56px;background:#010A19;border-bottom:1px solid var(--header-border);align-items:center;justify-content:space-between;padding:0;z-index:99;}
+    .dashboard-title{display:none!important;}
   }
   .mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--header);border-top:1px solid var(--header-border);padding:8px 0 18px;gap:0;z-index:100;box-shadow:0 -4px 24px rgba(0,0,0,0.2);overflow:hidden;}
   .mobile-nav-item{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3px;padding:6px 2px 0;border-radius:0;font-size:9px;font-weight:600;color:rgba(255,255,255,0.45);cursor:pointer;border:none;background:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -14891,7 +14892,7 @@ function Dashboard({
             minWidth: 0,
           }}
         >
-          <h1 style={{ whiteSpace: "nowrap" }}>My Ledgers</h1>
+          <h1 className="dashboard-title" style={{ whiteSpace: "nowrap" }}>My Ledgers</h1>
           {archivedLedgers.length > 0 && (
             <div
               style={{
@@ -14946,42 +14947,6 @@ function Dashboard({
             </div>
           )}
         </div>
-        <button
-          onClick={onOpenProfile}
-          style={{
-            width: "40px",
-            height: "40px",
-            borderRadius: "50%",
-            overflow: "hidden",
-            border: "2px solid var(--border)",
-            cursor: "pointer",
-            flexShrink: 0,
-            padding: 0,
-            background: "linear-gradient(135deg,var(--accent),#7c3aed)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "14px",
-            fontWeight: "800",
-            color: "white",
-          }}
-        >
-          {currentUser.avatar &&
-          AVATARS.find((a) => a.id === currentUser.avatar) ? (
-            <img
-              src={AVATARS.find((a) => a.id === currentUser.avatar).src}
-              alt=""
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "contain",
-                background: "white",
-              }}
-            />
-          ) : (
-            initials(currentUser.full_name)
-          )}
-        </button>
       </div>
       {shown.length === 0 && tab === "archived" && (
         <div
@@ -18329,6 +18294,9 @@ export default function App() {
             </button>
           </nav>
           <div className="sidebar-bottom">
+            <button className="nav-item" onClick={() => setShowFeedback(true)}>
+              <Icon.MessageSquare /> Feedback
+            </button>
             <div
               className="sidebar-user"
               style={{ cursor: "pointer" }}
@@ -18357,24 +18325,46 @@ export default function App() {
                 <div className="user-email">{user.email}</div>
               </div>
             </div>
-            <button className="nav-item" onClick={() => setShowFeedback(true)}>
-              <Icon.MessageSquare /> Feedback
-            </button>
-            <button
-              className="nav-item"
-              onClick={async () => {
-                await sb.auth.signOut();
-                setUser(null);
-                setLedgers([]);
-              }}
-              style={{ color: "rgba(255,120,100,0.8)" }}
-            >
-              <Icon.LogOut /> Sign out
-            </button>
           </div>
         </aside>
         <div className="mobile-topbar">
-          <img src={NEW_LOGO} alt="CosTrace" style={{ height: "32px", objectFit: "contain" }} />
+          <div style={{ display: "flex", alignItems: "center", height: "100%", gap: "10px", minWidth: 0 }}>
+            <img src={NEW_LOGO} alt="CosTrace" style={{ height: "100%", objectFit: "contain", flexShrink: 0 }} />
+            <span style={{ color: "#f4f6f9", fontWeight: 700, fontSize: "15px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              My Ledgers
+            </span>
+          </div>
+          <button
+            onClick={() => setShowProfile(true)}
+            style={{
+              width: "34px",
+              height: "34px",
+              borderRadius: "50%",
+              overflow: "hidden",
+              border: "none",
+              cursor: "pointer",
+              flexShrink: 0,
+              padding: 0,
+              marginRight: "14px",
+              background: "linear-gradient(135deg,var(--accent),#7c3aed)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "12px",
+              fontWeight: "800",
+              color: "white",
+            }}
+          >
+            {user.avatar && AVATARS.find((a) => a.id === user.avatar) ? (
+              <img
+                src={AVATARS.find((a) => a.id === user.avatar).src}
+                alt=""
+                style={{ width: "100%", height: "100%", objectFit: "contain", background: "white" }}
+              />
+            ) : (
+              initials(user.full_name)
+            )}
+          </button>
         </div>
         <main className="main-content">
           {activeLedger ? (
@@ -18590,46 +18580,6 @@ export default function App() {
             </svg>
           </div>
           <span>Feedback</span>
-        </button>
-        <button
-          className="mobile-nav-item"
-          onClick={() => setShowProfile(true)}
-        >
-          <div className="nav-icon">
-            {withPlanDot(
-              user.avatar && AVATARS.find((a) => a.id === user.avatar) ? (
-                <img
-                  src={AVATARS.find((a) => a.id === user.avatar).src}
-                  alt=""
-                  style={{
-                    width: "24px",
-                    height: "24px",
-                    borderRadius: "50%",
-                    objectFit: "cover",
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: "24px",
-                    height: "24px",
-                    borderRadius: "50%",
-                    background: "linear-gradient(135deg,#465A78,#5B6C8F)",
-                    color: "white",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "9px",
-                    fontWeight: "800",
-                  }}
-                >
-                  {initials(user.full_name)}
-                </div>
-              ),
-              user.plan
-            )}
-          </div>
-          <span>Me</span>
         </button>
       </nav>
       {showNew && (
