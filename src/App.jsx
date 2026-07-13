@@ -8081,6 +8081,9 @@ function hasPayoutsAccess(userPlan, ledger, currentUser) {
   if (!userPlan) return false;
   if (userPlan.id === "gold") return true;
   if (currentUser?.payoutPass) return true;
+  // If the ledger's admin (owner) is on Gold, the whole ledger inherits
+  // Payouts access — every member gets it here, regardless of their own plan.
+  if (ledger?.members?.[0]?.plan === "gold") return true;
   return !!(ledger && ledger.payouts_addon);
 }
 
@@ -15672,7 +15675,7 @@ function ComparisonTable({
     { label: "Rename categories", get: (pl) => pl.id === "gold" },
     { label: "No ads", get: (pl) => !pl.ads },
     { label: "Payout Pass included (19.99€ value)", get: (pl) => (pl.id === "gold" ? true : false) },
-    { label: "Gold perks for all members", get: (pl) => pl.id === "gold" },
+    { label: "Members get Payouts in your ledgers", get: (pl) => pl.id === "gold" },
   ];
 
   return (
@@ -15986,7 +15989,7 @@ function UpgradeModal({
       "Rename categories",
       "No ads",
       "Payout Pass included (19.99€ value)",
-      "Gold perks for all members",
+      "Members get Payouts in your ledgers",
     ],
   };
 
@@ -16188,9 +16191,29 @@ function UpgradeModal({
           </div>
 
           {standalone ? (
-            <ComparisonTable
-              plans={plans}
-              PLANS={PLANS}
+            <>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  fontSize: "12px",
+                  color: "#6B7280",
+                  marginBottom: "12px",
+                  padding: "10px 14px",
+                  background: "#F8FAFC",
+                  border: "1px solid #E5E7EB",
+                  borderRadius: "13px",
+                }}
+              >
+                <Icon.Sparkle size={14} />
+                All your ledgers carry your plan's benefits for every
+                participant in them — e.g. everyone in a ledger you own gets
+                Payouts if you're on Gold.
+              </div>
+              <ComparisonTable
+                plans={plans}
+                PLANS={PLANS}
               ACCENT={ACCENT}
               FONT={FONT}
               currentPlan={currentPlan}
@@ -16204,7 +16227,8 @@ function UpgradeModal({
               setConfirmDowngrade={setConfirmDowngrade}
               downgradeSummary={downgradeSummary}
               ghostBtnStyle={ghostBtnStyle}
-            />
+              />
+            </>
           ) : (
           <div
             style={{ display: "flex", flexDirection: "column", gap: "16px", marginBottom: "16px" }}
@@ -18482,6 +18506,7 @@ export default function App() {
               display: "flex",
               flexDirection: "column",
               gap: "4px",
+              background: "#010A19",
             }}
           >
             <img
