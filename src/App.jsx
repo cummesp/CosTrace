@@ -15725,11 +15725,10 @@ function ComparisonTable({
                     padding: "16px 16px",
                     textAlign: "center",
                     minWidth: "150px",
-                    backgroundColor: "#FFFFFF",
-                    backgroundImage: `linear-gradient(to bottom, ${edgeColor}, transparent), linear-gradient(to bottom, ${edgeColor}, transparent)`,
-                    backgroundRepeat: "no-repeat",
-                    backgroundSize: `${edgeWidth} 100%, ${edgeWidth} 100%`,
-                    backgroundPosition: "left top, right top",
+                    background: "#FFFFFF",
+                    borderTop: `${edgeWidth} solid ${edgeColor}`,
+                    borderLeft: `${edgeWidth} solid ${edgeColor}`,
+                    borderRight: `${edgeWidth} solid ${edgeColor}`,
                     borderTopLeftRadius: "18px",
                     borderTopRightRadius: "18px",
                   }}
@@ -15775,11 +15774,14 @@ function ComparisonTable({
                     ) : billing === "yearly" ? (
                       <>
                         <span style={{ fontSize: "20px", fontWeight: 800, color: "#111827" }}>
-                          {(isEB ? ebPrice(pl).yearly / 12 : pl.yearly / 12).toFixed(2)}€
+                          {(isEB ? ebPrice(pl).yearly : pl.yearly).toFixed(2)}€
                         </span>
                         <span style={{ fontSize: "12px", fontWeight: 500, color: "#6B7280" }}>
-                          /mo
+                          /year
                         </span>
+                        <div style={{ fontSize: "11px", color: "#9CA3AF", marginTop: "2px" }}>
+                          ≈ {(isEB ? ebPrice(pl).yearly / 12 : pl.yearly / 12).toFixed(2)}€/mo
+                        </div>
                       </>
                     ) : (
                       <>
