@@ -15136,7 +15136,19 @@ function Dashboard({
         </div>
       )}
       <div>
-        <div className="ledger-grid" style={isDesktop ? { gridTemplateColumns: "repeat(2, 1fr)" } : undefined}>
+        <div
+          className="ledger-grid"
+          style={
+            isDesktop
+              ? statsHidden
+                ? {
+                    gridTemplateColumns: "repeat(auto-fill, 300px)",
+                    justifyContent: "start",
+                  }
+                : { gridTemplateColumns: "repeat(2, 1fr)" }
+              : undefined
+          }
+        >
         {shown.map((l) => {
           const cover =
             COVERS.find((c) => c.id === (l.cover || "house")) || COVERS[0];
@@ -15691,19 +15703,29 @@ function ComparisonTable({
     >
       <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT }}>
         <thead>
-          <tr style={{ background: "#010A19" }}>
+          <tr style={{ background: "#FFFFFF" }}>
             <th style={{ padding: "16px 20px", textAlign: "left", width: "260px" }} />
             {plans.map((p) => {
               const pl = PLANS[p];
               const isCurrent = currentPlan === p;
+              const accent = ACCENT[p];
+              // "Fading edge" — the column's accent color bleeds in from the
+              // left/right border and fades to transparent top-to-bottom.
+              // Current plan gets the full-strength color; others get a
+              // softer, lower-opacity version of the same gradient.
+              const edgeColor = isCurrent ? accent : `${accent}66`; // ~40% alpha hex suffix
+              const fadeImage = `linear-gradient(to bottom, ${edgeColor}, transparent)`;
+              const badgeTextColor = p === "gold" ? "#111827" : "#FFFFFF";
               return (
                 <th
                   key={p}
                   style={{
                     padding: "16px 16px",
                     textAlign: "center",
-                    borderLeft: "1px solid rgba(255,255,255,0.08)",
                     minWidth: "150px",
+                    borderLeft: `${isCurrent ? 3 : 2}px solid`,
+                    borderRight: `${isCurrent ? 3 : 2}px solid`,
+                    borderImage: `${fadeImage} 1`,
                   }}
                 >
                   <div
@@ -15714,7 +15736,13 @@ function ComparisonTable({
                       gap: "8px",
                     }}
                   >
-                    <span style={{ fontSize: "16px", fontWeight: 700, color: "#F4F6F9" }}>
+                    <span
+                      style={{
+                        fontSize: "16px",
+                        fontWeight: 700,
+                        color: isCurrent ? accent : "#111827",
+                      }}
+                    >
                       {pl.name}
                     </span>
                     {isCurrent && (
@@ -15723,8 +15751,8 @@ function ComparisonTable({
                           fontSize: "9px",
                           fontWeight: 700,
                           letterSpacing: "0.5px",
-                          background: "#F4F6F9",
-                          color: "#010A19",
+                          background: accent,
+                          color: badgeTextColor,
                           padding: "3px 8px",
                           borderRadius: "16px",
                         }}
@@ -15735,24 +15763,24 @@ function ComparisonTable({
                   </div>
                   <div style={{ marginTop: "6px" }}>
                     {pl.monthly === 0 ? (
-                      <span style={{ fontSize: "18px", fontWeight: 800, color: "#F4F6F9" }}>
+                      <span style={{ fontSize: "18px", fontWeight: 800, color: "#111827" }}>
                         Free
                       </span>
                     ) : billing === "yearly" ? (
                       <>
-                        <span style={{ fontSize: "20px", fontWeight: 800, color: "#F4F6F9" }}>
+                        <span style={{ fontSize: "20px", fontWeight: 800, color: "#111827" }}>
                           {(isEB ? ebPrice(pl).yearly / 12 : pl.yearly / 12).toFixed(2)}€
                         </span>
-                        <span style={{ fontSize: "12px", fontWeight: 500, color: "rgba(244,246,249,0.6)" }}>
+                        <span style={{ fontSize: "12px", fontWeight: 500, color: "#6B7280" }}>
                           /mo
                         </span>
                       </>
                     ) : (
                       <>
-                        <span style={{ fontSize: "20px", fontWeight: 800, color: "#F4F6F9" }}>
+                        <span style={{ fontSize: "20px", fontWeight: 800, color: "#111827" }}>
                           {(isEB ? ebPrice(pl).monthly : pl.monthly).toFixed(2)}€
                         </span>
-                        <span style={{ fontSize: "12px", fontWeight: 500, color: "rgba(244,246,249,0.6)" }}>
+                        <span style={{ fontSize: "12px", fontWeight: 500, color: "#6B7280" }}>
                           /month
                         </span>
                       </>
@@ -18076,12 +18104,17 @@ export default function App() {
     }
   };
 
-  // New entries tracking per ledger
+  // New entries tracking per ledger — only counts expenses added by OTHER
+  // people. If you're the one who created it, you already know it's there,
+  // so it shouldn't show up as "new" to you.
   const getLedgerNewCount = (l) => {
     const seen = seenMap[l.id] || new Set();
     return l.expenses.filter(
       (e) =>
-        !e.is_settlement && e.approval_status === "approved" && !seen.has(e.id)
+        !e.is_settlement &&
+        e.approval_status === "approved" &&
+        !seen.has(e.id) &&
+        e.paid_by_id !== user.id
     ).length;
   };
 
