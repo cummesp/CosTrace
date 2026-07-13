@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terms of Service — CosTrace</title>
+<style>
+  body {
+    background: #010715;
+    color: rgba(255,255,255,0.88);
+    font-family: 'Plus Jakarta Sans','Manrope',-apple-system,sans-serif;
+    margin: 0;
+    padding: 0;
+    line-height: 1.7;
+  }
+  .wrap {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 48px 24px 100px;
+  }
+  .logo {
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 32px;
+  }
+  .logo a { text-decoration: none; }
+  .logo span:first-child { color: white; }
+  .logo span:last-child { color: #DC2626; }
+  h1 { font-size: 30px; font-weight: 800; color: white; margin-bottom: 4px; }
+  h2 { font-size: 18px; font-weight: 700; color: white; margin-top: 36px; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; }
+  p, li { font-size: 14.5px; color: rgba(255,255,255,0.75); }
+  strong { color: rgba(255,255,255,0.95); }
+  a { color: #ff6b6b; }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+  th, td { border: 1px solid rgba(255,255,255,0.15); padding: 8px 12px; text-align: left; font-size: 13.5px; }
+  th { background: rgba(255,255,255,0.05); }
+  .updated { color: rgba(255,255,255,0.45); font-size: 13px; margin-bottom: 32px; }
+  .back { display: inline-block; margin-top: 40px; color: rgba(255,255,255,0.5); font-size: 13px; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo"><a href="/"><span>Cos</span><span>Trace</span></a></div>
+  <h1>Terms of Service</h1>
+<p class="updated"><strong>Last updated: July 13, 2026</strong></p>
+<h2>1. Acceptance of these terms</h2>
+<p>By creating an account or using CosTrace ("the Service"), you agree to these Terms of Service ("Terms"). If you don't agree, please don't use the Service. These Terms are between you and <strong>Viktor Kuzmanović</strong> (registered address: Slobodana Perovića 4, Belgrade, Serbia), operating CosTrace as an individual based in Serbia.</p>
+<h2>2. What CosTrace is</h2>
+<p>CosTrace is a shared expense tracking application that lets you and other people ("members") record, split, and settle shared expenses within "ledgers." CosTrace is a record-keeping and calculation tool. <strong>We do not hold, transmit, or move money between users</strong> — all actual payment/settlement between members happens outside the app (e.g., bank transfer, cash), except for paid subscription fees, which are billed by our payment processor as described below.</p>
+<h2>3. Eligibility</h2>
+<p>You must be at least <strong>16 years old</strong> to create an account (or the digital consent age in your country if different, and never younger than 13). By using CosTrace you confirm you meet this requirement. See our Privacy Policy for more on our approach to minors.</p>
+<h2>4. Your account</h2>
+<ul>
+<li>You're responsible for keeping your login credentials secure and for all activity under your account.</li>
+<li>You must provide accurate information when registering.</li>
+<li>One person, one account — don't create multiple accounts to evade plan limits.</li>
+<li>You can delete your account at any time from your Profile. See Section 9 below and our Privacy Policy for exactly what happens when you do.</li>
+</ul>
+<h2>5. Plans, billing, and subscriptions</h2>
+<ul>
+<li>CosTrace offers a <strong>Free</strong> plan and paid plans (<strong>Light, Regular, Gold</strong>), billed monthly or yearly, plus one-time add-ons (<strong>Remove Ads</strong>, <strong>Payout Pass</strong>).</li>
+<li>Payments are processed by <strong>Paddle.com Market Limited</strong>, our Merchant of Record. Paddle handles billing, card data, applicable sales tax/VAT, and appears as the merchant on your card/bank statement — not CosTrace directly.</li>
+<li>Subscriptions <strong>automatically renew</strong> at the end of each billing period unless you cancel before the renewal date.</li>
+<li><strong>You can cancel anytime</strong> from your Profile; your plan remains active until the end of the period you already paid for, then reverts to Free (or the next plan down, if a scheduled downgrade is in effect).</li>
+<li><strong>EU/EEA and UK customers:</strong> under the Consumer Rights Directive, you generally have a 14-day right to withdraw from a digital purchase without giving a reason. <strong>By purchasing a plan or add-on, you acknowledge that you want the service to begin immediately, and that you may lose this 14-day withdrawal right once the service has been fully performed</strong> (e.g., a one-time add-on activated immediately). For subscriptions, you may still cancel future renewals at any time as described above.</li>
+<li>Refunds, where applicable, are handled per Paddle's buyer terms and applicable consumer law in your jurisdiction. Contact <strong>support@costrace.app</strong> if you believe you're entitled to a refund and we'll do our best to help, including relaying the request to Paddle where appropriate.</li>
+<li><strong>EarlyBird pricing</strong> is offered to the first 1,000 registered accounts, at our discretion, and locked in for as long as that account remains active and in good standing; we may end or modify the EarlyBird program for new signups at any time.</li>
+</ul>
+<h2>6. Shared ledgers — how disputes and accuracy work</h2>
+<ul>
+<li>Any member of a ledger can enter an expense. <strong>CosTrace does not verify the accuracy of amounts, descriptions, or who actually paid</strong> — the app records what members enter, and disputes about accuracy or fairness between members are between those members, not something we adjudicate.</li>
+<li>Ledger admins (the member who created the ledger) have additional controls, including inviting/removing members, and initiating ledger deletion.</li>
+<li><strong>If a ledger admin deletes a ledger</strong>, it is locked for new entries immediately, and other members have <strong>3 days</strong> to save an archived copy for their own records before the original is permanently removed. This happens automatically; admin approval from other members is not required.</li>
+<li><strong>If a ledger admin's account is deleted</strong> (see Section 9 and our Privacy Policy), the same protection applies: other real members get advance notice and a window to archive a copy; the ledger continues to exist for them with the departed admin's entries preserved under their name only (no live account attached).</li>
+</ul>
+<h2>7. Acceptable use</h2>
+<p>You agree not to:
+- Use CosTrace for any unlawful purpose, or to record/facilitate fraudulent transactions
+- Attempt to breach, reverse-engineer, or disrupt the Service's security or infrastructure
+- Impersonate another person or misrepresent your affiliation with anyone
+- Abuse the referral, EarlyBird, or free-tier systems in bad faith (e.g., creating multiple accounts to repeatedly claim EarlyBird pricing)
+- Upload content that is unlawful, harassing, or infringes on others' rights</p>
+<p>We may suspend or terminate accounts that violate these rules.</p>
+<h2>8. Intellectual property</h2>
+<p>CosTrace's branding, design, and underlying software are owned by us (or our licensors) and are not transferred to you by using the Service. You retain ownership of the expense data you enter; by using shared ledgers, you grant other members of that ledger the ability to view and interact with entries you've added, as necessary for the shared-ledger feature to function.</p>
+<h2>9. Account deletion</h2>
+<ul>
+<li>You can request account deletion at any time from your Profile.</li>
+<li>Your account is scheduled for <strong>permanent deletion 30 days later</strong>; you may cancel this at any point within that window.</li>
+<li>After 30 days, deletion is automatic and permanent: your login, profile, and any ledgers you solely own (with no other real participant) are erased, including their expense history.</li>
+<li>Ledgers you share with real co-members are <strong>not</strong> deleted — see Section 6.</li>
+<li>We reserve the right to suspend or delete accounts that violate these Terms, with or without the 30-day grace period, at our discretion, particularly in cases of fraud, abuse, or legal compliance requirements.</li>
+</ul>
+<h2>10. Disclaimers</h2>
+<p>CosTrace is provided "as is" and "as available." We do not guarantee the Service will be uninterrupted, error-free, or available at all times. <strong>CosTrace is not a financial, tax, or legal advisory service</strong> — it's a record-keeping tool, and any decisions you make based on the data in it are your own responsibility.</p>
+<h2>11. Limitation of liability</h2>
+<p>To the maximum extent permitted by applicable law, we are not liable for indirect, incidental, or consequential damages arising from your use of the Service, including disputes between ledger members over money, or data loss beyond what our stated retention/backup practices cover. <strong>Nothing in these Terms limits liability that cannot be limited under applicable law</strong> (for example, certain consumer protections in the EU/UK that cannot be waived).</p>
+<h2>12. Changes to the Service or these Terms</h2>
+<p>We may modify, suspend, or discontinue features of CosTrace, and may update these Terms as the product evolves. We'll update the date above and, for material changes, make a reasonable effort to notify active users in-app.</p>
+<h2>13. Governing law</h2>
+<p>These Terms are governed by the laws of Serbia, without prejudice to any mandatory consumer-protection rights you have under the law of your own country of residence, which continue to apply where applicable.</p>
+<h2>14. Contact</h2>
+<p>Questions about these Terms: <strong>support@costrace.app</strong></p>
+  <a class="back" href="/">&larr; Back to CosTrace</a>
+</div>
+</body>
+</html>
