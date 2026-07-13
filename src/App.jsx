@@ -279,7 +279,7 @@ const css = `
     --radius:12px;--radius-sm:8px;--radius-lg:16px;
     --font:'Plus Jakarta Sans',sans-serif;--mono:'Plus Jakarta Sans',sans-serif;
     --header:#1F2937;--header-border:#2d3748;
-    --sidebar-bg:#151E2B;--sidebar-text:rgba(255,255,255,0.75);--sidebar-active:rgba(255,255,255,0.12);
+    --sidebar-bg:#010A19;--sidebar-text:rgba(255,255,255,0.75);--sidebar-active:rgba(255,255,255,0.12);
   }
   body{font-family:var(--font);background:#F2F4F7;color:var(--text);-webkit-font-smoothing:antialiased;overflow-x:hidden;}
   .app{min-height:100vh;}
@@ -15701,7 +15701,7 @@ function ComparisonTable({
         marginBottom: "20px",
       }}
     >
-      <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT }}>
+      <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontFamily: FONT }}>
         <thead>
           <tr style={{ background: "#FFFFFF" }}>
             <th style={{ padding: "16px 20px", textAlign: "left", width: "260px" }} />
@@ -15730,6 +15730,8 @@ function ComparisonTable({
                     backgroundRepeat: "no-repeat",
                     backgroundSize: `${edgeWidth} 100%, ${edgeWidth} 100%`,
                     backgroundPosition: "left top, right top",
+                    borderTopLeftRadius: "18px",
+                    borderTopRightRadius: "18px",
                   }}
                 >
                   <div
@@ -15812,6 +15814,10 @@ function ComparisonTable({
               {plans.map((p) => {
                 const pl = PLANS[p];
                 const val = row.get(pl);
+                const isCurrent = currentPlan === p;
+                const accent = ACCENT[p];
+                const edgeColor = isCurrent ? accent : `${accent}66`;
+                const edgeWidth = isCurrent ? "4px" : "3px";
                 return (
                   <td
                     key={p}
@@ -15819,7 +15825,8 @@ function ComparisonTable({
                       padding: "12px 16px",
                       textAlign: "center",
                       borderTop: "1px solid #E5E7EB",
-                      borderLeft: "1px solid #E5E7EB",
+                      borderLeft: `${edgeWidth} solid ${edgeColor}`,
+                      borderRight: `${edgeWidth} solid ${edgeColor}`,
                       fontSize: "13px",
                       fontWeight: 600,
                       color: "#111827",
@@ -15852,13 +15859,19 @@ function ComparisonTable({
               const isUpgrade = (planLevel[p] || 0) > (planLevel[currentPlan] || 0);
               const showingConfirm = confirmDowngrade === p;
               const summary = showingConfirm ? downgradeSummary(p) : [];
+              const edgeColor = isCurrent ? accent : `${accent}66`;
+              const edgeWidth = isCurrent ? "4px" : "3px";
               return (
                 <td
                   key={p}
                   style={{
                     padding: "16px 16px",
                     borderTop: "1px solid #E5E7EB",
-                    borderLeft: "1px solid #E5E7EB",
+                    borderLeft: `${edgeWidth} solid ${edgeColor}`,
+                    borderRight: `${edgeWidth} solid ${edgeColor}`,
+                    borderBottom: `${edgeWidth} solid ${edgeColor}`,
+                    borderBottomLeftRadius: "18px",
+                    borderBottomRightRadius: "18px",
                     verticalAlign: "top",
                   }}
                 >
@@ -15877,7 +15890,21 @@ function ComparisonTable({
                     </button>
                   )}
                   {isCurrent && (
-                    <div style={{ textAlign: "center", fontSize: "12px", color: "#6B7280", fontWeight: 700 }}>
+                    <div
+                      style={{
+                        height: "38px",
+                        width: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        borderRadius: "13px",
+                        border: `1px solid ${accent}55`,
+                        textAlign: "center",
+                        fontSize: "13px",
+                        color: accent,
+                        fontWeight: 700,
+                      }}
+                    >
                       Current plan
                     </div>
                   )}
