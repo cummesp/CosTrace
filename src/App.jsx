@@ -15710,11 +15710,13 @@ function ComparisonTable({
               const isCurrent = currentPlan === p;
               const accent = ACCENT[p];
               // "Fading edge" — the column's accent color bleeds in from the
-              // left/right border and fades to transparent top-to-bottom.
-              // Current plan gets the full-strength color; others get a
-              // softer, lower-opacity version of the same gradient.
+              // left/right edge and fades to transparent toward the bottom.
+              // Implemented as background gradients (not border-image) since
+              // border-image doesn't render reliably on collapsed table
+              // borders. Current plan gets the full-strength color and a
+              // wider band; others get a softer, lower-opacity, thinner one.
               const edgeColor = isCurrent ? accent : `${accent}66`; // ~40% alpha hex suffix
-              const fadeImage = `linear-gradient(to bottom, ${edgeColor}, transparent)`;
+              const edgeWidth = isCurrent ? "4px" : "3px";
               const badgeTextColor = p === "gold" ? "#111827" : "#FFFFFF";
               return (
                 <th
@@ -15723,9 +15725,11 @@ function ComparisonTable({
                     padding: "16px 16px",
                     textAlign: "center",
                     minWidth: "150px",
-                    borderLeft: `${isCurrent ? 3 : 2}px solid`,
-                    borderRight: `${isCurrent ? 3 : 2}px solid`,
-                    borderImage: `${fadeImage} 1`,
+                    backgroundColor: "#FFFFFF",
+                    backgroundImage: `linear-gradient(to bottom, ${edgeColor}, transparent), linear-gradient(to bottom, ${edgeColor}, transparent)`,
+                    backgroundRepeat: "no-repeat",
+                    backgroundSize: `${edgeWidth} 100%, ${edgeWidth} 100%`,
+                    backgroundPosition: "left top, right top",
                   }}
                 >
                   <div
