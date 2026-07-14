@@ -16217,8 +16217,6 @@ function UpgradeModal({
                 </div>
               </div>
             )}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <div
               style={{
                 display: "flex",
@@ -16227,6 +16225,7 @@ function UpgradeModal({
                 border: "1px solid #E5E7EB",
                 borderRadius: "13px",
                 padding: "4px",
+                minWidth: "280px",
               }}
             >
               {["monthly", "yearly"].map((b) => (
@@ -16235,22 +16234,30 @@ function UpgradeModal({
                   onClick={() => setBilling(b)}
                   style={{
                     flex: 1,
-                    padding: "8px 14px",
+                    padding: "10px 20px",
                     borderRadius: "10px",
-                    border: "none",
+                    border: billing === b ? "1px solid #E5E7EB" : "1px solid transparent",
                     fontFamily: FONT,
-                    fontSize: "12px",
-                    fontWeight: 700,
+                    fontSize: "13px",
+                    fontWeight: billing === b ? 800 : 500,
                     cursor: "pointer",
                     whiteSpace: "nowrap",
                     background: billing === b ? "#FFFFFF" : "transparent",
-                    color: billing === b ? "#111827" : "#6B7280",
-                    boxShadow: billing === b ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
+                    color: billing === b ? "#111827" : "#9CA3AF",
+                    boxShadow: billing === b ? "0 2px 8px rgba(0,0,0,0.12)" : "none",
+                    transition: "all 0.15s ease",
                   }}
                 >
                   {b === "monthly" ? "Monthly" : "Yearly"}
                   {b === "yearly" && (
-                    <span style={{ fontSize: "10px", color: "#22A55D", marginLeft: "4px" }}>
+                    <span
+                      style={{
+                        fontSize: "10px",
+                        color: billing === "yearly" ? "#22A55D" : "#9CA3AF",
+                        marginLeft: "4px",
+                        fontWeight: 700,
+                      }}
+                    >
                       Save ~30%
                     </span>
                   )}
