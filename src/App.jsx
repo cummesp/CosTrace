@@ -10193,6 +10193,101 @@ function LedgerDetail({
           )}
         </div>
       )}
+      {ledger.ledger_type === "fund" &&
+        (() => {
+          const isSplit = ledger.fund_type === "purpose" && ledger.fund_mode === "split";
+          const isPartner = ledger.fund_type === "partner";
+          const countingExpenses = ledger.expenses.filter(
+            (e) => e.approval_status === "approved" && !e.is_settlement && !e.is_payout
+          );
+          const spentByMember = {};
+          countingExpenses.forEach((e) => {
+            const key = e.paid_by_id || `name:${e.paid_by_name}`;
+            spentByMember[key] = (spentByMember[key] || 0) + e.amount;
+          });
+          const totalSpent = countingExpenses.reduce((s, e) => s + e.amount, 0);
+          const initial = ledger.fund_initial_amount || 0;
+          const totalRemaining = initial - totalSpent;
+          const totalContribution = ledger.members.reduce(
+            (s, m) => s + (m.fund_contribution || 0),
+            0
+          );
+          return (
+            <div
+              style={{
+                background: "#fffbeb",
+                border: "2px solid #fde68a",
+                borderRadius: "var(--radius)",
+                padding: "14px 16px",
+                marginBottom: "16px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "10px",
+                }}
+              >
+                <div style={{ fontSize: "13px", fontWeight: 800, color: "#92400e" }}>
+                  {isPartner ? "Partner Fund" : "Purpose Fund"} ·{" "}
+                  {isPartner ? "by contribution" : isSplit ? "split by %" : "just recording"}
+                </div>
+                <div style={{ fontSize: "13px", fontWeight: 800, color: "#92400e" }}>
+                  {fmtAmt(totalRemaining)} {currency} left of {fmtAmt(initial)}
+                </div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {ledger.members
+                  .filter((m) => !m.is_spectator)
+                  .map((m) => {
+                    const key = m.user_id || `name:${m.display_name}`;
+                    const spent = spentByMember[key] || 0;
+                    const contribution = m.fund_contribution || 0;
+                    const ownershipPct =
+                      isPartner && totalContribution > 0
+                        ? (contribution / totalContribution) * 100
+                        : null;
+                    const remaining =
+                      isSplit ? contribution - spent : null;
+                    return (
+                      <div
+                        key={m.id}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          fontSize: "12px",
+                          color: "#78350f",
+                          background: "rgba(255,255,255,0.5)",
+                          borderRadius: "8px",
+                          padding: "6px 10px",
+                        }}
+                      >
+                        <span style={{ fontWeight: 700 }}>
+                          {m.display_name}
+                          {ownershipPct !== null && (
+                            <span style={{ fontWeight: 500, marginLeft: "6px" }}>
+                              ({ownershipPct.toFixed(1)}% owned)
+                            </span>
+                          )}
+                        </span>
+                        <span>
+                          spent {fmtAmt(spent)} {currency}
+                          {remaining !== null && (
+                            <strong style={{ marginLeft: "8px", color: remaining < 0 ? "#dc2626" : "#78350f" }}>
+                              · {remaining < 0 ? "owes" : "left"} {fmtAmt(Math.abs(remaining))} {currency}
+                            </strong>
+                          )}
+                        </span>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          );
+        })()}
       {hasConflict && (
         <div
           style={{
