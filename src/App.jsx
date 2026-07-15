@@ -3384,6 +3384,263 @@ function AuthScreen({ onLogin }) {
 }
 
 // -- NEW LEDGER MODAL ----------------------------------------------------------
+// FOND (Phase 1) — creation flow for the new Fund ledger type.
+// Regular plan: Purpose Fund only (no type choice shown).
+// Gold plan: choice between Purpose Fund and Partner Fund.
+// (Light/Free never reach this modal — the nav button redirects to upgrade.)
+function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople = [] }) {
+  const canPartner = userPlan.id === "gold";
+  const [fundType, setFundType] = useState("purpose"); // "purpose" | "partner"
+  const [fundMode, setFundMode] = useState("split"); // "split" | "record" (purpose only)
+  const [name, setName] = useState("");
+  const [amount, setAmount] = useState("");
+  const [members, setMembers] = useState([{ name: "", email: "", percent: "" }]);
+  const [selfPct, setSelfPct] = useState("");
+
+  const totalOthers = members.reduce((s, m) => s + (parseFloat(m.percent) || 0), 0);
+  const totalAll = totalOthers + (parseFloat(selfPct) || 0);
+  const pctEntered = members.some((m) => m.percent) || selfPct;
+  const pctOk = !pctEntered || Math.abs(totalAll - 100) < 0.01;
+  const amt = parseFloat(amount) || 0;
+
+  const upd = (i, f, v) => {
+    const n = [...members];
+    n[i] = { ...n[i], [f]: v };
+    setMembers(n);
+  };
+
+  const create = () => {
+    if (!name.trim() || !amt || !pctOk) return;
+    const valid = members.filter((m) => m.name.trim());
+    const count = valid.length + 1;
+    const eq = parseFloat((100 / count).toFixed(2));
+    const built = valid.map((m, i) => {
+      const netMatch = networkPeople?.find((p) => p.name === m.name);
+      return {
+        id: `nm${i}_${Date.now()}`,
+        display_name: m.name,
+        share_percent: parseFloat(m.percent) || eq,
+        user_id: netMatch?.user_id || null,
+        is_admin: false,
+        avatar: netMatch?.avatar || null,
+        invited_email: m.email || netMatch?.email || null,
+        joined_date: now(),
+      };
+    });
+    const selfShare = parseFloat(selfPct) || eq;
+    onCreate({
+      name,
+      cover: "house",
+      require_approval: false,
+      members: built,
+      selfShare,
+      networkPeople,
+      ledgerType: "fund",
+      fundType,
+      fundMode: fundType === "purpose" ? fundMode : null,
+      fundInitialAmount: amt,
+    });
+    onClose();
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal">
+        <div className="modal-header">
+          <h2>New Fund</h2>
+          <button className="btn-icon" onClick={onClose}>
+            <Icon.X />
+          </button>
+        </div>
+        <div className="modal-body">
+          {canPartner && (
+            <div className="form-group">
+              <label>Fund type</label>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {[
+                  {
+                    id: "purpose",
+                    label: "Purpose Fund",
+                    desc: "A pool split by fixed percentages — each member spends against their own share.",
+                  },
+                  {
+                    id: "partner",
+                    label: "Partner Fund",
+                    desc: "Ownership shifts automatically based on how much each partner has put in. Payout later, split by ownership or a fixed ratio.",
+                  },
+                ].map((t) => (
+                  <label
+                    key={t.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "10px",
+                      padding: "10px 12px",
+                      borderRadius: "10px",
+                      border: `1.5px solid ${fundType === t.id ? "#d97706" : "var(--border)"}`,
+                      background: fundType === t.id ? "#fffbeb" : "white",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="fund_type"
+                      checked={fundType === t.id}
+                      onChange={() => setFundType(t.id)}
+                      style={{ marginTop: "2px", accentColor: "#d97706" }}
+                    />
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: "13px" }}>{t.label}</div>
+                      <div style={{ fontSize: "12px", color: "var(--text2)" }}>{t.desc}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+          {!canPartner && (
+            <div
+              style={{
+                fontSize: "12px",
+                color: "var(--text2)",
+                background: "var(--bg)",
+                borderRadius: "var(--radius-sm)",
+                padding: "10px 12px",
+                marginBottom: "16px",
+              }}
+            >
+              Your Regular plan includes <strong>Purpose Fund</strong>. Partner
+              Fund (dynamic ownership by contribution) is a Gold feature.
+            </div>
+          )}
+
+          {fundType === "purpose" && (
+            <div className="form-group">
+              <label>How should it track spending?</label>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {[
+                  {
+                    id: "split",
+                    label: "Split by percentage",
+                    desc: "Each member gets their own share of the pool. Their spending comes out of their own balance.",
+                  },
+                  {
+                    id: "record",
+                    label: "Just record",
+                    desc: "No individual budgets — just track who spent what and the total remaining.",
+                  },
+                ].map((t) => (
+                  <label
+                    key={t.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "10px",
+                      padding: "10px 12px",
+                      borderRadius: "10px",
+                      border: `1.5px solid ${fundMode === t.id ? "#d97706" : "var(--border)"}`,
+                      background: fundMode === t.id ? "#fffbeb" : "white",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="fund_mode"
+                      checked={fundMode === t.id}
+                      onChange={() => setFundMode(t.id)}
+                      style={{ marginTop: "2px", accentColor: "#d97706" }}
+                    />
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: "13px" }}>{t.label}</div>
+                      <div style={{ fontSize: "12px", color: "var(--text2)" }}>{t.desc}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="form-group">
+            <label>Fund name</label>
+            <input
+              placeholder="e.g. Renovation fund, Trip budget..."
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Initial amount</label>
+            <input
+              type="number"
+              placeholder="e.g. 100000"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </div>
+
+          <div className="form-group">
+            <label>
+              {fundType === "partner" ? "Initial ownership %" : "Your share %"}
+            </label>
+            <input
+              type="number"
+              placeholder="e.g. 50"
+              value={selfPct}
+              onChange={(e) => setSelfPct(e.target.value)}
+            />
+          </div>
+
+          {members.map((m, i) => (
+            <div key={i} className="form-group" style={{ display: "flex", gap: "8px" }}>
+              <input
+                placeholder="Member name"
+                value={m.name}
+                onChange={(e) => upd(i, "name", e.target.value)}
+                style={{ flex: 2 }}
+              />
+              <input
+                type="number"
+                placeholder="%"
+                value={m.percent}
+                onChange={(e) => upd(i, "percent", e.target.value)}
+                style={{ flex: 1 }}
+              />
+            </div>
+          ))}
+          <button
+            className="btn btn-secondary"
+            style={{ fontSize: "12px" }}
+            onClick={() => setMembers([...members, { name: "", email: "", percent: "" }])}
+          >
+            <Icon.Plus /> Add member
+          </button>
+
+          {!pctOk && (
+            <div style={{ fontSize: "12px", color: "var(--danger)", marginTop: "8px" }}>
+              Percentages must add up to 100%.
+            </div>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            className="btn"
+            style={{ background: "#d97706", color: "white", border: "none", fontWeight: 800 }}
+            disabled={!name.trim() || !amt || !pctOk}
+            onClick={create}
+          >
+            Create Fund
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function NewLedgerModal({
   onClose,
   onCreate,
@@ -17334,6 +17591,7 @@ export default function App() {
   });
   const [activeLedgerId, setActiveLedgerId] = useState(null);
   const [showNew, setShowNew] = useState(false);
+  const [showNewFund, setShowNewFund] = useState(false);
   const [prefillMember, setPrefillMember] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
   const [upgradeBusy, setUpgradeBusy] = useState(false);
@@ -18199,42 +18457,120 @@ export default function App() {
       expenses: [],
       lockedMonths: {},
       auto_lock: true,
+      // FOND (Phase 1): ledger_type distinguishes a Fund from a standard
+      // ledger. fund_type is "purpose" or "partner". fund_mode only applies
+      // to purpose funds ("split" = each member gets their own depleting
+      // budget; "record" = just track total spent/remaining, no per-member
+      // limit). fund_initial_amount is the starting pool size. Each member
+      // additionally carries fund_contribution (what they put in) and, for
+      // "split" mode, fund_balance (what's left of their personal share —
+      // allowed to go negative, i.e. into debt, per Viktor's spec).
+      ledger_type: data.ledgerType || "standard",
+      fund_type: data.ledgerType === "fund" ? data.fundType : null,
+      fund_mode:
+        data.ledgerType === "fund" && data.fundType === "purpose"
+          ? data.fundMode
+          : null,
+      fund_initial_amount: data.ledgerType === "fund" ? data.fundInitialAmount || 0 : null,
       _syncing: ENV === "production",
     };
+    if (data.ledgerType === "fund") {
+      newLedger.members = newLedger.members.map((m) => {
+        const contribution =
+          ((m.share_percent || 0) / 100) * (data.fundInitialAmount || 0);
+        return {
+          ...m,
+          fund_contribution: contribution,
+          fund_balance:
+            data.fundType === "purpose" && data.fundMode === "split"
+              ? contribution
+              : null,
+        };
+      });
+    }
     setLedgers((p) => [...p, newLedger]);
     // Persist to Supabase
     if (ENV === "production") {
-      const { data: lRow } = await sb
+      const ledgerPayload = {
+        name: data.name,
+        cover: data.cover || "house",
+        require_approval: data.require_approval,
+        notifications_enabled: true,
+        auto_lock: true,
+        locked_months: {},
+      };
+      if (data.ledgerType === "fund") {
+        ledgerPayload.ledger_type = "fund";
+        ledgerPayload.fund_type = data.fundType;
+        ledgerPayload.fund_mode = data.fundType === "purpose" ? data.fundMode : null;
+        ledgerPayload.fund_initial_amount = data.fundInitialAmount || 0;
+      }
+      let { data: lRow, error: lErr } = await sb
         .from("ledgers")
-        .insert({
-          name: data.name,
-          cover: data.cover || "house",
-          require_approval: data.require_approval,
-          notifications_enabled: true,
-          auto_lock: true,
-          locked_months: {},
-        })
+        .insert(ledgerPayload)
         .select()
         .single();
+      if (lErr && data.ledgerType === "fund") {
+        // fund_* columns may not exist yet on older schemas — retry without
+        // them so ledger creation still succeeds (run the migration to get
+        // fund tracking to actually persist).
+        console.warn("Fund columns missing on ledgers table, retrying without them:", lErr.message);
+        ({ data: lRow, error: lErr } = await sb
+          .from("ledgers")
+          .insert({
+            name: data.name,
+            cover: data.cover || "house",
+            require_approval: data.require_approval,
+            notifications_enabled: true,
+            auto_lock: true,
+            locked_months: {},
+          })
+          .select()
+          .single());
+      }
       if (lRow) {
         // Insert members, capturing each real Supabase id so we can reconcile local temp ids
         const idMap = {};
         for (const m of final) {
-          const { data: mRow } = await sb
+          const memberPayload = {
+            ledger_id: lRow.id,
+            user_id: m.user_id || null,
+            display_name: m.display_name,
+            share_percent: m.share_percent,
+            is_spectator: false,
+            is_admin: m.is_admin === true,
+            invited_email: m.invited_email || null,
+            avatar: m.avatar || null,
+            plan: m.user_id === user.id ? user.plan || "free" : "free",
+          };
+          if (data.ledgerType === "fund") {
+            const built = newLedger.members.find((nm) => nm.id === m.id);
+            memberPayload.fund_contribution = built?.fund_contribution || 0;
+            memberPayload.fund_balance = built?.fund_balance ?? null;
+          }
+          let { data: mRow, error: mErr } = await sb
             .from("ledger_members")
-            .insert({
-              ledger_id: lRow.id,
-              user_id: m.user_id || null,
-              display_name: m.display_name,
-              share_percent: m.share_percent,
-              is_spectator: false,
-              is_admin: m.is_admin === true,
-              invited_email: m.invited_email || null,
-              avatar: m.avatar || null,
-              plan: m.user_id === user.id ? user.plan || "free" : "free",
-            })
+            .insert(memberPayload)
             .select()
             .single();
+          if (mErr && data.ledgerType === "fund") {
+            console.warn("Fund columns missing on ledger_members table, retrying without them:", mErr.message);
+            ({ data: mRow } = await sb
+              .from("ledger_members")
+              .insert({
+                ledger_id: lRow.id,
+                user_id: m.user_id || null,
+                display_name: m.display_name,
+                share_percent: m.share_percent,
+                is_spectator: false,
+                is_admin: m.is_admin === true,
+                invited_email: m.invited_email || null,
+                avatar: m.avatar || null,
+                plan: m.user_id === user.id ? user.plan || "free" : "free",
+              })
+              .select()
+              .single());
+          }
           if (mRow) idMap[m.id] = mRow.id;
         }
         // Update local state with real Supabase ids (ledger + every member) and clear the sync flag —
@@ -18740,6 +19076,18 @@ export default function App() {
               <Icon.Plus /> New ledger
             </button>
             <button
+              className="nav-item"
+              onClick={() => {
+                if (userPlan.id === "free" || userPlan.id === "light") {
+                  openUpgrade();
+                } else {
+                  setShowNewFund(true);
+                }
+              }}
+            >
+              <Icon.CreditCard /> Fund
+            </button>
+            <button
               className={`nav-item${page === "plans" ? " active" : ""}`}
               onClick={() => {
                 setActiveLedgerId(null);
@@ -19056,6 +19404,32 @@ export default function App() {
           onCreate={createLedger}
           currentUser={user}
           prefillMember={prefillMember}
+          networkPeople={(() => {
+            const p = {};
+            ledgers.forEach((l) =>
+              l.members
+                .filter((m) => m.user_id !== user.id)
+                .forEach((m) => {
+                  if (!p[m.display_name])
+                    p[m.display_name] = {
+                      name: m.display_name,
+                      email: m.invited_email || null,
+                      avatar: m.avatar || null,
+                      user_id: m.user_id || null,
+                      plan: m.plan || "free",
+                    };
+                })
+            );
+            return Object.values(p);
+          })()}
+        />
+      )}
+      {showNewFund && (
+        <NewFundModal
+          onClose={() => setShowNewFund(false)}
+          onCreate={createLedger}
+          currentUser={user}
+          userPlan={userPlan}
           networkPeople={(() => {
             const p = {};
             ledgers.forEach((l) =>
