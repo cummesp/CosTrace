@@ -3746,6 +3746,65 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
   );
 }
 
+// Small chooser shown when clicking the single "+ New" button — pick
+// between a standard Ledger and a Fund. Fund still gates by plan (Free/
+// Light get sent to Upgrade instead), and Gold users get the Purpose/
+// Partner choice one step later, inside NewFundModal itself.
+function NewEntryChooserModal({ onClose, onPickLedger, onPickFund }) {
+  return (
+    <div className="modal-overlay">
+      <div className="modal" style={{ maxWidth: "380px" }}>
+        <div className="modal-header">
+          <h2>New</h2>
+          <button className="btn-icon" onClick={onClose}>
+            <Icon.X />
+          </button>
+        </div>
+        <div className="modal-body">
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            <button
+              className="btn btn-secondary"
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                flexDirection: "column",
+                gap: "2px",
+                padding: "14px 16px",
+                textAlign: "left",
+                height: "auto",
+              }}
+              onClick={onPickLedger}
+            >
+              <div style={{ fontWeight: 800, fontSize: "14px" }}>Ledger</div>
+              <div style={{ fontSize: "12px", color: "var(--text2)", fontWeight: 400 }}>
+                Track shared expenses between members.
+              </div>
+            </button>
+            <button
+              className="btn btn-secondary"
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                flexDirection: "column",
+                gap: "2px",
+                padding: "14px 16px",
+                textAlign: "left",
+                height: "auto",
+              }}
+              onClick={onPickFund}
+            >
+              <div style={{ fontWeight: 800, fontSize: "14px" }}>Fund</div>
+              <div style={{ fontSize: "12px", color: "var(--text2)", fontWeight: 400 }}>
+                Start with a pool of money and track spending against it.
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function NewLedgerModal({
   onClose,
   onCreate,
