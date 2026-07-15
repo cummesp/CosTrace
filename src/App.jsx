@@ -3594,12 +3594,96 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
 
           {members.map((m, i) => (
             <div key={i} className="form-group" style={{ display: "flex", gap: "8px" }}>
-              <input
-                placeholder="Member name"
-                value={m.name}
-                onChange={(e) => upd(i, "name", e.target.value)}
-                style={{ flex: 2 }}
-              />
+              <div style={{ flex: 2, position: "relative" }}>
+                <input
+                  placeholder="Member name"
+                  value={m.name}
+                  onChange={(e) => upd(i, "name", e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "10px",
+                    border: "1.5px solid var(--border)",
+                    borderRadius: "var(--radius-sm)",
+                    fontFamily: "inherit",
+                    fontSize: "13px",
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                />
+                {/* Network autocomplete — without this, typing a name that
+                    doesn't EXACTLY match a contact's stored name creates a
+                    brand-new "ghost" member instead of linking the real
+                    account (e.g. typing "Vesna" when the contact is stored
+                    as "Vesna Petrović" would otherwise silently fail to
+                    match). */}
+                {m.name.trim().length >= 1 &&
+                  (() => {
+                    const q = m.name.toLowerCase();
+                    const hits = networkPeople.filter(
+                      (p) =>
+                        p.name.toLowerCase().includes(q) &&
+                        p.name.toLowerCase() !== q
+                    );
+                    if (!hits.length) return null;
+                    return (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "calc(100% + 2px)",
+                          left: 0,
+                          right: 0,
+                          zIndex: 200,
+                          background: "white",
+                          border: "1.5px solid var(--accent)",
+                          borderRadius: "10px",
+                          boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                          overflow: "hidden",
+                        }}
+                      >
+                        {hits.slice(0, 5).map((p, pi) => (
+                          <div
+                            key={pi}
+                            onClick={() => upd(i, "name", p.name)}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
+                              padding: "9px 12px",
+                              cursor: "pointer",
+                              borderBottom:
+                                pi < hits.length - 1
+                                  ? "1px solid var(--border)"
+                                  : "none",
+                              background: "white",
+                              fontSize: "13px",
+                              fontWeight: "600",
+                            }}
+                            onMouseEnter={(e) =>
+                              (e.currentTarget.style.background = "var(--accent-light)")
+                            }
+                            onMouseLeave={(e) =>
+                              (e.currentTarget.style.background = "white")
+                            }
+                          >
+                            <div
+                              className="stmt-av av0"
+                              style={{
+                                width: "22px",
+                                height: "22px",
+                                borderRadius: "50%",
+                                fontSize: "9px",
+                                flexShrink: 0,
+                              }}
+                            >
+                              {initials(p.name)}
+                            </div>
+                            {p.name}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+              </div>
               <input
                 type="number"
                 placeholder="%"
@@ -3635,6 +3719,65 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
           >
             Create Fund
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Small chooser shown when clicking the single "+ New" button — pick
+// between a standard Ledger and a Fund. Fund still gates by plan (Free/
+// Light get sent to Upgrade instead), and Gold users get the Purpose/
+// Partner choice one step later, inside NewFundModal itself.
+function NewEntryChooserModal({ onClose, onPickLedger, onPickFund }) {
+  return (
+    <div className="modal-overlay">
+      <div className="modal" style={{ maxWidth: "380px" }}>
+        <div className="modal-header">
+          <h2>New</h2>
+          <button className="btn-icon" onClick={onClose}>
+            <Icon.X />
+          </button>
+        </div>
+        <div className="modal-body">
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            <button
+              className="btn btn-secondary"
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                flexDirection: "column",
+                gap: "2px",
+                padding: "14px 16px",
+                textAlign: "left",
+                height: "auto",
+              }}
+              onClick={onPickLedger}
+            >
+              <div style={{ fontWeight: 800, fontSize: "14px" }}>Ledger</div>
+              <div style={{ fontSize: "12px", color: "var(--text2)", fontWeight: 400 }}>
+                Track shared expenses between members.
+              </div>
+            </button>
+            <button
+              className="btn btn-secondary"
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                flexDirection: "column",
+                gap: "2px",
+                padding: "14px 16px",
+                textAlign: "left",
+                height: "auto",
+              }}
+              onClick={onPickFund}
+            >
+              <div style={{ fontWeight: 800, fontSize: "14px" }}>Fund</div>
+              <div style={{ fontSize: "12px", color: "var(--text2)", fontWeight: 400 }}>
+                Start with a pool of money and track spending against it.
+              </div>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -17592,6 +17735,7 @@ export default function App() {
   const [activeLedgerId, setActiveLedgerId] = useState(null);
   const [showNew, setShowNew] = useState(false);
   const [showNewFund, setShowNewFund] = useState(false);
+  const [showNewChooser, setShowNewChooser] = useState(false);
   const [prefillMember, setPrefillMember] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
   const [upgradeBusy, setUpgradeBusy] = useState(false);
@@ -18472,6 +18616,12 @@ export default function App() {
           ? data.fundMode
           : null,
       fund_initial_amount: data.ledgerType === "fund" ? data.fundInitialAmount || 0 : null,
+      // Partner Fund payout mode, used in Phase 3 when settling the fund:
+      // "by_contribution" splits by each partner's ownership % (default,
+      // per Viktor's spec); "fixed_ratio" pays debts first then splits the
+      // remainder by a fixed ratio instead. Not user-selectable yet — this
+      // just seeds the field with the right default ahead of that build.
+      fund_payout_mode: data.ledgerType === "fund" && data.fundType === "partner" ? "by_contribution" : null,
       _syncing: ENV === "production",
     };
     if (data.ledgerType === "fund") {
@@ -18504,6 +18654,7 @@ export default function App() {
         ledgerPayload.fund_type = data.fundType;
         ledgerPayload.fund_mode = data.fundType === "purpose" ? data.fundMode : null;
         ledgerPayload.fund_initial_amount = data.fundInitialAmount || 0;
+        ledgerPayload.fund_payout_mode = data.fundType === "partner" ? "by_contribution" : null;
       }
       let { data: lRow, error: lErr } = await sb
         .from("ledgers")
@@ -19070,22 +19221,10 @@ export default function App() {
             </button>
             <button
               className="nav-item"
-              onClick={() => setShowNew(true)}
+              onClick={() => setShowNewChooser(true)}
               style={{ marginTop: "2px" }}
             >
-              <Icon.Plus /> New ledger
-            </button>
-            <button
-              className="nav-item"
-              onClick={() => {
-                if (userPlan.id === "free" || userPlan.id === "light") {
-                  openUpgrade();
-                } else {
-                  setShowNewFund(true);
-                }
-              }}
-            >
-              <Icon.CreditCard /> Fund
+              <Icon.Plus /> New
             </button>
             <button
               className={`nav-item${page === "plans" ? " active" : ""}`}
@@ -19395,6 +19534,23 @@ export default function App() {
           <span>Feedback</span>
         </button>
       </nav>
+      {showNewChooser && (
+        <NewEntryChooserModal
+          onClose={() => setShowNewChooser(false)}
+          onPickLedger={() => {
+            setShowNewChooser(false);
+            setShowNew(true);
+          }}
+          onPickFund={() => {
+            setShowNewChooser(false);
+            if (userPlan.id === "free" || userPlan.id === "light") {
+              openUpgrade();
+            } else {
+              setShowNewFund(true);
+            }
+          }}
+        />
+      )}
       {showNew && (
         <NewLedgerModal
           onClose={() => {
