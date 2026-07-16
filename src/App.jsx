@@ -9749,6 +9749,7 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
   const [showSettings, setShowSettings] = useState(false);
   const [showSettleConfirm, setShowSettleConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [activeMonth, setActiveMonth] = useState(mk(new Date()));
   const [amount, setAmount] = useState("");
   const [desc, setDesc] = useState("");
   const [note, setNote] = useState("");
@@ -9768,7 +9769,10 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
 
   const allDeposits = fund.transactions.filter((t) => t.type === "deposit");
   const allExpenses = fund.transactions.filter((t) => t.type === "expense");
-  const totalDeposited = allDeposits.reduce((s, t) => s + t.amount, 0) + (fund.initial_amount || 0);
+  // initial_amount is no longer added separately here — it's recorded as the
+  // very first "Investment" transaction at creation time, so summing
+  // allDeposits already includes it. Adding it again would double-count it.
+  const totalDeposited = allDeposits.reduce((s, t) => s + t.amount, 0);
   const totalSpentEver = allExpenses.reduce((s, t) => s + t.amount, 0);
   const totalBalance = totalDeposited - totalSpentEver;
 
@@ -10047,156 +10051,146 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
         </div>
       )}
 
-      {isAdmin && !isLocked && (
-        <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
-          <button
-            className="btn btn-secondary"
-            style={{ fontSize: "12px", padding: "7px 14px" }}
-            onClick={() => onArchive(fund.id)}
-          >
-            Archive
-          </button>
-          <button
-            className="btn btn-secondary"
-            style={{ fontSize: "12px", padding: "7px 14px", color: "var(--danger)", borderColor: "#fecaca" }}
-            onClick={() => setShowDeleteConfirm(true)}
-          >
-            Delete Fund
-          </button>
-        </div>
-      )}
-
-      {/* Transaction history — grouped by month so past periods stay
-          clearly separated, especially useful once you've settled a few
-          times. */}
+      {/* Transaction history — one month at a time, same navigation pattern
+          as ledgers (prev/next), but with no locking — there's nothing to
+          finalize here, it's purely for readability. */}
       <div className="card">
-        <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", fontWeight: 800, fontSize: "13px" }}>
-          History
+        <div
+          style={{
+            padding: "14px 16px",
+            borderBottom: "1px solid var(--border)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <button
+            className="btn-icon"
+            onClick={() => {
+              const [y, m] = activeMonth.split("-").map(Number);
+              const d = new Date(y, m - 2, 1);
+              setActiveMonth(mk(d));
+            }}
+          >
+            <Icon.ChevL />
+          </button>
+          <div style={{ fontWeight: 800, fontSize: "13px" }}>{mlbl(activeMonth)}</div>
+          <button
+            className="btn-icon"
+            onClick={() => {
+              const [y, m] = activeMonth.split("-").map(Number);
+              const d = new Date(y, m, 1);
+              setActiveMonth(mk(d));
+            }}
+            disabled={activeMonth >= mk(new Date())}
+            style={{ opacity: activeMonth >= mk(new Date()) ? 0.3 : 1 }}
+          >
+            <Icon.ChevL style={{ transform: "rotate(180deg)" }} />
+          </button>
         </div>
         {(() => {
-          const sorted = [...fund.transactions].sort(
-            (a, b) => new Date(b.created_at) - new Date(a.created_at)
-          );
-          const groups = {};
-          sorted.forEach((t) => {
-            const key = mk(t.created_at);
-            (groups[key] = groups[key] || []).push(t);
-          });
-          const monthLabel = (key) => {
-            const [y, m] = key.split("-");
-            return new Date(y, m - 1, 1).toLocaleDateString(undefined, {
-              month: "long",
-              year: "numeric",
+          const monthTx = fund.transactions
+            .filter((t) => mk(t.created_at) === activeMonth)
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+          const monthSpent = monthTx
+            .filter((t) => t.type === "expense")
+            .reduce((s, t) => s + t.amount, 0);
+          const monthDeposited = monthTx
+            .filter((t) => t.type === "deposit")
+            .reduce((s, t) => s + t.amount, 0);
+          const monthSpentByMember = {};
+          monthTx
+            .filter((t) => t.type === "expense")
+            .forEach((t) => {
+              monthSpentByMember[t.member_id] = (monthSpentByMember[t.member_id] || 0) + t.amount;
             });
-          };
-          return Object.keys(groups)
-            .sort()
-            .reverse()
-            .map((key) => {
-              const monthTx = groups[key];
-              const monthSpent = monthTx
-                .filter((t) => t.type === "expense")
-                .reduce((s, t) => s + t.amount, 0);
-              const monthDeposited = monthTx
-                .filter((t) => t.type === "deposit")
-                .reduce((s, t) => s + t.amount, 0);
-              const monthSpentByMember = {};
-              monthTx
-                .filter((t) => t.type === "expense")
-                .forEach((t) => {
-                  monthSpentByMember[t.member_id] = (monthSpentByMember[t.member_id] || 0) + t.amount;
-                });
-              return (
-                <div key={key}>
+          return (
+            <>
+              {monthTx.length > 0 && (
+                <div style={{ padding: "10px 16px", background: "var(--bg)" }}>
                   <div
                     style={{
-                      padding: "10px 16px",
-                      background: "var(--bg)",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      fontSize: "11px",
+                      fontWeight: 800,
+                      color: "var(--text2)",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.4px",
                     }}
                   >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        fontSize: "11px",
-                        fontWeight: 800,
-                        color: "var(--text2)",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.4px",
-                      }}
-                    >
-                      <span>{monthLabel(key)}</span>
-                      <span>
-                        +{fmtAmt(monthDeposited)} / −{fmtAmt(monthSpent)} {currency}
-                      </span>
+                    <span>Summary</span>
+                    <span>
+                      +{fmtAmt(monthDeposited)} / −{fmtAmt(monthSpent)} {currency}
+                    </span>
+                  </div>
+                  {Object.keys(monthSpentByMember).length > 0 && (
+                    <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "5px" }}>
+                      {Object.entries(monthSpentByMember).map(([mid, amt]) => {
+                        const m = fund.members.find((mm) => mm.id === mid);
+                        return (
+                          <span key={mid} style={{ fontSize: "11px", color: "var(--text3)" }}>
+                            {m?.display_name || "—"}: {fmtAmt(amt)} {currency}
+                          </span>
+                        );
+                      })}
                     </div>
-                    {Object.keys(monthSpentByMember).length > 0 && (
-                      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "5px" }}>
-                        {Object.entries(monthSpentByMember).map(([mid, amt]) => {
-                          const m = fund.members.find((mm) => mm.id === mid);
-                          return (
-                            <span key={mid} style={{ fontSize: "11px", color: "var(--text3)" }}>
-                              {m?.display_name || "—"}: {fmtAmt(amt)} {currency}
-                            </span>
-                          );
-                        })}
+                  )}
+                </div>
+              )}
+              {monthTx.map((t) => {
+                const member = fund.members.find((m) => m.id === t.member_id);
+                return (
+                  <div
+                    key={t.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "12px 16px",
+                      borderBottom: "1px solid var(--border)",
+                      background: t.type === "settlement" ? "#fffbeb" : undefined,
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: "13px", fontWeight: 700 }}>
+                        {t.type === "deposit"
+                          ? "💰 Investment"
+                          : t.type === "settlement"
+                          ? "⚖️ Settlement"
+                          : t.description}
+                      </div>
+                      <div style={{ fontSize: "12px", color: "var(--text3)" }}>
+                        {t.type === "deposit"
+                          ? t.note || "No note"
+                          : t.type === "settlement"
+                          ? "Balances reconciled"
+                          : member?.display_name || "—"}
+                      </div>
+                    </div>
+                    {t.type !== "settlement" && (
+                      <div
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: 800,
+                          color: t.type === "deposit" ? "#16a34a" : "var(--text)",
+                        }}
+                      >
+                        {t.type === "deposit" ? "+" : "−"}
+                        {fmtAmt(t.amount)} {currency}
                       </div>
                     )}
                   </div>
-                  {monthTx.map((t) => {
-                    const member = fund.members.find((m) => m.id === t.member_id);
-                    return (
-                      <div
-                        key={t.id}
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          padding: "12px 16px",
-                          borderBottom: "1px solid var(--border)",
-                          background: t.type === "settlement" ? "#fffbeb" : undefined,
-                        }}
-                      >
-                        <div>
-                          <div style={{ fontSize: "13px", fontWeight: 700 }}>
-                            {t.type === "deposit"
-                              ? "💰 Investment"
-                              : t.type === "settlement"
-                              ? "⚖️ Settlement"
-                              : t.description}
-                          </div>
-                          <div style={{ fontSize: "12px", color: "var(--text3)" }}>
-                            {t.type === "deposit"
-                              ? t.note || "No note"
-                              : t.type === "settlement"
-                              ? "Balances reconciled"
-                              : member?.display_name || "—"}
-                          </div>
-                        </div>
-                        {t.type !== "settlement" && (
-                          <div
-                            style={{
-                              fontSize: "14px",
-                              fontWeight: 800,
-                              color: t.type === "deposit" ? "#16a34a" : "var(--text)",
-                            }}
-                          >
-                            {t.type === "deposit" ? "+" : "−"}
-                            {fmtAmt(t.amount)} {currency}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                );
+              })}
+              {monthTx.length === 0 && (
+                <div className="empty-state" style={{ padding: "30px" }}>
+                  Nothing in {mlbl(activeMonth)}.
                 </div>
-              );
-            });
+              )}
+            </>
+          );
         })()}
-        {fund.transactions.length === 0 && (
-          <div className="empty-state" style={{ padding: "30px" }}>
-            No transactions yet.
-          </div>
-        )}
       </div>
 
       {showDeposit && (
@@ -10397,6 +10391,33 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                     </div>
                   )}
                 </>
+              )}
+              {isAdmin && !isLocked && (
+                <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid var(--border)" }}>
+                  <label>Danger zone</label>
+                  <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+                    <button
+                      className="btn btn-secondary"
+                      style={{ fontSize: "12px", padding: "7px 14px", flex: 1 }}
+                      onClick={() => {
+                        setShowSettings(false);
+                        onArchive(fund.id);
+                      }}
+                    >
+                      Archive
+                    </button>
+                    <button
+                      className="btn btn-secondary"
+                      style={{ fontSize: "12px", padding: "7px 14px", flex: 1, color: "var(--danger)", borderColor: "#fecaca" }}
+                      onClick={() => {
+                        setShowSettings(false);
+                        setShowDeleteConfirm(true);
+                      }}
+                    >
+                      Delete Fund
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
             <div className="modal-footer">
@@ -16487,9 +16508,12 @@ function Dashboard({
           funds
             .filter((f) => !f.archived)
             .map((f) => {
-              const deposited =
-                (f.initial_amount || 0) +
-                f.transactions.filter((t) => t.type === "deposit").reduce((s, t) => s + t.amount, 0);
+              // initial_amount is already recorded as the first "Investment"
+              // transaction, so it's included in the deposits sum below — no
+              // need to add it separately (that would double it).
+              const deposited = f.transactions
+                .filter((t) => t.type === "deposit")
+                .reduce((s, t) => s + t.amount, 0);
               const spent = f.transactions
                 .filter((t) => t.type === "expense")
                 .reduce((s, t) => s + t.amount, 0);
@@ -19281,6 +19305,15 @@ export default function App() {
   // fund_members / fund_transactions), not an extension of the ledgers
   // schema. See fund_tables_migration.sql.
   const createFund = async (data) => {
+    const initialTx =
+      data.initialAmount > 0
+        ? {
+            type: "deposit",
+            amount: data.initialAmount,
+            note: "Initial amount",
+            member_id: null,
+          }
+        : null;
     if (ENV !== "production") {
       const localFund = {
         id: `f${Date.now()}`,
@@ -19303,7 +19336,9 @@ export default function App() {
           },
           ...data.members.map((m) => ({ ...m })),
         ],
-        transactions: [],
+        transactions: initialTx
+          ? [{ ...initialTx, id: `ftx${Date.now()}`, created_at: new Date().toISOString() }]
+          : [],
       };
       setFunds((p) => [...p, localFund]);
       return;
@@ -19346,6 +19381,9 @@ export default function App() {
       })),
     ];
     await sb.from("fund_members").insert(memberPayloads);
+    if (initialTx) {
+      await sb.from("fund_transactions").insert({ ...initialTx, fund_id: fRow.id });
+    }
     await loadFunds(user.id);
   };
 
