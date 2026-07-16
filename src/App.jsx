@@ -9743,7 +9743,7 @@ function AvatarWithMedal({
 // tab (Funds don't have payouts, only deposits that top up the pool). The
 // header shows one big number (current fund balance) and, per member,
 // "spent X" with the remaining amount in green underneath.
-function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSettings, onSettle, onArchive, onRequestDelete, onCancelDelete, currency = "RSD" }) {
+function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSettings, onSettle, onArchive, onRequestDelete, onCancelDelete, onDeleteNow, currency = "RSD" }) {
   const [showDeposit, setShowDeposit] = useState(false);
   const [showExpense, setShowExpense] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -9757,6 +9757,7 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
   );
 
   const isAdmin = fund.members.some((m) => m.user_id === currentUser.id && m.is_admin);
+  const isSolo = !fund.members.some((m) => m.user_id && m.user_id !== currentUser.id);
   const isPartner = fund.fund_type === "partner";
   const isSplit = fund.fund_type === "purpose" && fund.fund_mode === "split";
   const isRecord = fund.fund_type === "purpose" && fund.fund_mode === "record";
@@ -10470,9 +10471,18 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
             </div>
             <div className="modal-body">
               <div style={{ fontSize: "13px", color: "var(--text2)" }}>
-                This locks the Fund immediately — no more investments or
-                expenses. It will be permanently deleted in <strong>3 days</strong>.
-                You can cancel any time before then.
+                {isSolo ? (
+                  <>
+                    This permanently deletes the Fund and everything in it.
+                    This can't be undone.
+                  </>
+                ) : (
+                  <>
+                    This locks the Fund immediately — no more investments or
+                    expenses. It will be permanently deleted in <strong>3 days</strong>.
+                    You can cancel any time before then.
+                  </>
+                )}
               </div>
             </div>
             <div className="modal-footer">
@@ -10483,11 +10493,12 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                 className="btn"
                 style={{ background: "var(--danger)", color: "white" }}
                 onClick={() => {
-                  onRequestDelete(fund.id);
+                  if (isSolo) onDeleteNow(fund.id);
+                  else onRequestDelete(fund.id);
                   setShowDeleteConfirm(false);
                 }}
               >
-                Delete in 3 days
+                {isSolo ? "Delete" : "Delete in 3 days"}
               </button>
             </div>
           </div>
@@ -16263,6 +16274,30 @@ function Dashboard({
               </button>
             </div>
           )}
+          {funds.length > 0 && (
+            <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+              {[
+                ["all", "All"],
+                ["ledgers", "Ledgers"],
+                ["funds", "Funds"],
+              ].map(([id, label]) => (
+                <button
+                  key={id}
+                  onClick={() => setViewFilter(id)}
+                  className="btn btn-secondary"
+                  style={{
+                    fontSize: "12px",
+                    padding: "6px 14px",
+                    background: viewFilter === id ? "var(--accent)" : undefined,
+                    color: viewFilter === id ? "white" : undefined,
+                    borderColor: viewFilter === id ? "var(--accent)" : undefined,
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
       {shown.length === 0 && tab === "archived" && (
@@ -16432,30 +16467,6 @@ function Dashboard({
           >
             {statsHidden ? "▶ Show statistics" : "▼ Hide statistics"}
           </button>
-        </div>
-      )}
-      {funds.length > 0 && (
-        <div style={{ display: "flex", gap: "6px", marginBottom: "14px" }}>
-          {[
-            ["all", "All"],
-            ["ledgers", "Ledgers"],
-            ["funds", "Funds"],
-          ].map(([id, label]) => (
-            <button
-              key={id}
-              onClick={() => setViewFilter(id)}
-              className="btn btn-secondary"
-              style={{
-                fontSize: "12px",
-                padding: "6px 14px",
-                background: viewFilter === id ? "var(--accent)" : undefined,
-                color: viewFilter === id ? "white" : undefined,
-                borderColor: viewFilter === id ? "var(--accent)" : undefined,
-              }}
-            >
-              {label}
-            </button>
-          ))}
         </div>
       )}
       <div>
@@ -19430,6 +19441,21 @@ export default function App() {
     notify("new-expense", "Deletion cancelled", "", "");
   };
 
+  // Solo funds (no other real member) skip the 3-day grace period entirely —
+  // that window exists to give OTHER members time to save a copy, which
+  // doesn't apply when you're the only real person in it.
+  const deleteFundNow = async (fundId) => {
+    setFunds((p) => p.filter((f) => f.id !== fundId));
+    setActiveFundId(null);
+    setPage("home");
+    notify("new-expense", "Fund deleted", "", "");
+    if (ENV === "production") {
+      await sb.from("fund_transactions").delete().eq("fund_id", fundId);
+      await sb.from("fund_members").delete().eq("fund_id", fundId);
+      await sb.from("funds").delete().eq("id", fundId);
+    }
+  };
+
   const saveExpense = async (ledgerId, exp) => {
     const basePayload = {
       id: exp.id.startsWith("e") ? undefined : exp.id,
@@ -20514,6 +20540,7 @@ export default function App() {
               onArchive={archiveFund}
               onRequestDelete={requestDeleteFund}
               onCancelDelete={cancelDeleteFund}
+              onDeleteNow={deleteFundNow}
               currency={currency}
             />
           ) : activeLedger ? (
