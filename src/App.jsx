@@ -9743,9 +9743,12 @@ function AvatarWithMedal({
 // tab (Funds don't have payouts, only deposits that top up the pool). The
 // header shows one big number (current fund balance) and, per member,
 // "spent X" with the remaining amount in green underneath.
-function FundDetail({ fund, currentUser, onBack, onAddTransaction, currency = "RSD" }) {
+function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSettings, onSettle, onArchive, onRequestDelete, onCancelDelete, currency = "RSD" }) {
   const [showDeposit, setShowDeposit] = useState(false);
   const [showExpense, setShowExpense] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showSettleConfirm, setShowSettleConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [amount, setAmount] = useState("");
   const [desc, setDesc] = useState("");
   const [note, setNote] = useState("");
@@ -9756,17 +9759,32 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, currency = "R
   const isAdmin = fund.members.some((m) => m.user_id === currentUser.id && m.is_admin);
   const isPartner = fund.fund_type === "partner";
   const isSplit = fund.fund_type === "purpose" && fund.fund_mode === "split";
+  const isRecord = fund.fund_type === "purpose" && fund.fund_mode === "record";
+  const isLocked = !!fund.delete_scheduled_at;
+  const deleteSecondsLeft = isLocked
+    ? Math.max(0, Math.floor((new Date(fund.delete_scheduled_at) - new Date()) / 1000))
+    : null;
 
-  const deposits = fund.transactions.filter((t) => t.type === "deposit");
-  const expenses = fund.transactions.filter((t) => t.type === "expense");
-  const totalDeposited = deposits.reduce((s, t) => s + t.amount, 0) + (fund.initial_amount || 0);
-  const totalSpent = expenses.reduce((s, t) => s + t.amount, 0);
-  const totalBalance = totalDeposited - totalSpent;
+  const allDeposits = fund.transactions.filter((t) => t.type === "deposit");
+  const allExpenses = fund.transactions.filter((t) => t.type === "expense");
+  const totalDeposited = allDeposits.reduce((s, t) => s + t.amount, 0) + (fund.initial_amount || 0);
+  const totalSpentEver = allExpenses.reduce((s, t) => s + t.amount, 0);
+  const totalBalance = totalDeposited - totalSpentEver;
+
+  // Live balances/ownership only count what's happened SINCE the last
+  // settlement — a settlement "closes the books" on everything before it.
+  // History still shows everything, grouped by month, regardless.
+  const since = fund.last_settled_at ? new Date(fund.last_settled_at) : null;
+  const deposits = since ? allDeposits.filter((t) => new Date(t.created_at) > since) : allDeposits;
+  const expenses = since ? allExpenses.filter((t) => new Date(t.created_at) > since) : allExpenses;
 
   const spentByMember = {};
   expenses.forEach((t) => {
     spentByMember[t.member_id] = (spentByMember[t.member_id] || 0) + t.amount;
   });
+  // Purpose Fund (split mode) budgets are allocated by the fixed share_percent
+  // set at creation, topped up by any deposits — that's what "contribution"
+  // means here.
   const contributionByMember = {};
   fund.members.forEach((m) => {
     contributionByMember[m.id] = ((m.share_percent || 0) / 100) * (fund.initial_amount || 0);
@@ -9776,6 +9794,40 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, currency = "R
       contributionByMember[t.member_id] = (contributionByMember[t.member_id] || 0) + t.amount;
   });
   const totalContribution = Object.values(contributionByMember).reduce((s, v) => s + v, 0);
+  // Partner Fund ownership is dynamic and based on SPENDING, not deposits —
+  // whoever has covered more of the fund's expenses owns a bigger share.
+  // Falls back to the initial share_percent until anyone has spent anything.
+  const totalSpentAll = Object.values(spentByMember).reduce((s, v) => s + v, 0);
+
+  // Settlement preview — computed live so the confirm dialog shows exactly
+  // what will be recorded.
+  const settlementPreview = () => {
+    const activeMembers = fund.members.filter((m) => !m.is_spectator);
+    if (isPartner) {
+      if (fund.payout_mode === "fixed_ratio") {
+        // Reimburse each member's own spending first, then split whatever's
+        // left of the balance by the fixed ratio set in Settings.
+        const afterReimbursement = totalBalance - totalSpentAll;
+        return activeMembers.map((m) => {
+          const reimbursed = spentByMember[m.id] || 0;
+          const ratioShare = ((fund.fixed_ratio?.[m.id] ?? m.share_percent ?? 0) / 100) * Math.max(0, afterReimbursement);
+          return { member: m, amount: reimbursed + ratioShare };
+        });
+      }
+      // by_contribution: split current balance by spending-based ownership %
+      return activeMembers.map((m) => {
+        const pct = totalSpentAll > 0 ? (spentByMember[m.id] || 0) / totalSpentAll : (m.share_percent || 0) / 100;
+        return { member: m, amount: totalBalance * pct };
+      });
+    }
+    // Purpose Fund: settle up debts — whoever went negative owes the pool /
+    // the members who are still positive.
+    return activeMembers.map((m) => {
+      const contribution = contributionByMember[m.id] || 0;
+      const spent = spentByMember[m.id] || 0;
+      return { member: m, amount: contribution - spent };
+    });
+  };
 
   const submitDeposit = () => {
     const amt = parseFloat(amount);
@@ -9785,7 +9837,7 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, currency = "R
       type: "deposit",
       amount: amt,
       note: note || null,
-      member_id: payerId,
+      member_id: null,
     });
     setAmount("");
     setNote("");
@@ -9829,8 +9881,27 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, currency = "R
               {isPartner ? "Partner Fund" : "Purpose Fund"}
               {fund.amount_undetermined && !deposits.length ? " · amount TBD" : ""}
             </div>
-            <h1 style={{ fontSize: "20px", fontWeight: 800, color: "white", margin: "2px 0 0" }}>
+            <h1 style={{ fontSize: "20px", fontWeight: 800, color: "white", margin: "2px 0 0", display: "flex", alignItems: "center", gap: "8px" }}>
               {fund.name}
+              {isAdmin && (
+                <button
+                  onClick={() => setShowSettings(true)}
+                  style={{
+                    background: "rgba(255,255,255,0.15)",
+                    border: "none",
+                    borderRadius: "8px",
+                    width: "26px",
+                    height: "26px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    color: "white",
+                  }}
+                >
+                  <Icon.Gear />
+                </button>
+              )}
             </h1>
           </div>
           <div style={{ textAlign: "right" }}>
@@ -9849,43 +9920,69 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, currency = "R
               const contribution = contributionByMember[m.id] || 0;
               const remaining = isSplit ? contribution - spent : null;
               const ownershipPct =
-                isPartner && totalContribution > 0 ? (contribution / totalContribution) * 100 : null;
+                isPartner && totalSpentAll > 0
+                  ? (spent / totalSpentAll) * 100
+                  : isPartner
+                  ? m.share_percent || 0 // no spending yet — fall back to initial split
+                  : null;
               return (
                 <div
                   key={m.id}
                   style={{
                     display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
+                    flexDirection: "column",
                     background: "rgba(255,255,255,0.12)",
                     borderRadius: "10px",
                     padding: "10px 14px",
                   }}
                 >
-                  <span style={{ fontWeight: 700, fontSize: "13px" }}>
-                    {m.display_name}
-                    {ownershipPct !== null && (
-                      <span style={{ fontWeight: 500, opacity: 0.85, marginLeft: "6px" }}>
-                        ({ownershipPct.toFixed(1)}% owned)
-                      </span>
-                    )}
-                  </span>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: "12px", opacity: 0.85 }}>
-                      spent {fmtAmt(spent)} {currency}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontWeight: 700, fontSize: "13px" }}>
+                      {m.display_name}
+                      {ownershipPct !== null && (
+                        <span style={{ fontWeight: 500, opacity: 0.85, marginLeft: "6px" }}>
+                          ({ownershipPct.toFixed(1)}% owned)
+                        </span>
+                      )}
+                    </span>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: "12px", opacity: 0.85 }}>
+                        spent {fmtAmt(spent)} {currency}
+                      </div>
+                      {remaining !== null && (
+                        <div
+                          style={{
+                            fontSize: "13px",
+                            fontWeight: 800,
+                            color: remaining < 0 ? "#fca5a5" : "#86efac",
+                          }}
+                        >
+                          {remaining < 0 ? "owes" : ""} {fmtAmt(Math.abs(remaining))} {currency}
+                        </div>
+                      )}
                     </div>
-                    {remaining !== null && (
-                      <div
-                        style={{
-                          fontSize: "13px",
-                          fontWeight: 800,
-                          color: remaining < 0 ? "#fca5a5" : "#86efac",
-                        }}
-                      >
-                        {remaining < 0 ? "owes" : ""} {fmtAmt(Math.abs(remaining))} {currency}
+                  </div>
+                  {isRecord &&
+                    expenses.filter((t) => t.member_id === m.id).length > 0 && (
+                      <div style={{ marginTop: "6px", display: "flex", flexDirection: "column", gap: "2px" }}>
+                        {expenses
+                          .filter((t) => t.member_id === m.id)
+                          .map((t) => (
+                            <div
+                              key={t.id}
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                fontSize: "11px",
+                                opacity: 0.8,
+                              }}
+                            >
+                              <span>{t.description}</span>
+                              <span>{fmtAmt(t.amount)} {currency}</span>
+                            </div>
+                          ))}
                       </div>
                     )}
-                  </div>
                 </div>
               );
             })}
@@ -9894,63 +9991,206 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, currency = "R
         <div style={{ display: "flex", gap: "8px", marginTop: "16px" }}>
           <button
             className="btn"
-            style={{ background: "white", color: "#92400e", fontWeight: 800, flex: 1 }}
+            style={{ background: "white", color: "#92400e", fontWeight: 800, flex: 1, opacity: isLocked ? 0.5 : 1 }}
             onClick={() => setShowDeposit(true)}
+            disabled={isLocked}
           >
-            <Icon.Plus /> Uplata
+            <Icon.Plus /> Investment
           </button>
           <button
             className="btn"
-            style={{ background: "rgba(255,255,255,0.2)", color: "white", fontWeight: 800, flex: 1 }}
+            style={{ background: "rgba(255,255,255,0.2)", color: "white", fontWeight: 800, flex: 1, opacity: isLocked ? 0.5 : 1 }}
             onClick={() => setShowExpense(true)}
+            disabled={isLocked}
           >
             <Icon.Plus /> Add expense
           </button>
+          {isAdmin && !isLocked && (
+            <button
+              className="btn"
+              style={{ background: "rgba(255,255,255,0.2)", color: "white", fontWeight: 800 }}
+              onClick={() => setShowSettleConfirm(true)}
+            >
+              Settle
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Transaction history */}
+      {isLocked && (
+        <div
+          style={{
+            background: "#fef2f2",
+            border: "2px solid #fecaca",
+            borderRadius: "var(--radius)",
+            padding: "14px 16px",
+            marginBottom: "16px",
+          }}
+        >
+          <div style={{ fontSize: "13px", fontWeight: 800, color: "#b91c1c" }}>
+            This Fund will be deleted in {formatCountdown(deleteSecondsLeft)}
+          </div>
+          <div style={{ fontSize: "12px", color: "#dc2626", marginTop: "2px" }}>
+            It's locked — no new investments or expenses.
+            {isAdmin && " Only you (the admin) can cancel this."}
+          </div>
+          {isAdmin && (
+            <button
+              className="btn btn-secondary"
+              style={{ fontSize: "12px", padding: "7px 14px", marginTop: "8px" }}
+              onClick={() => onCancelDelete(fund.id)}
+            >
+              Cancel deletion
+            </button>
+          )}
+        </div>
+      )}
+
+      {isAdmin && !isLocked && (
+        <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
+          <button
+            className="btn btn-secondary"
+            style={{ fontSize: "12px", padding: "7px 14px" }}
+            onClick={() => onArchive(fund.id)}
+          >
+            Archive
+          </button>
+          <button
+            className="btn btn-secondary"
+            style={{ fontSize: "12px", padding: "7px 14px", color: "var(--danger)", borderColor: "#fecaca" }}
+            onClick={() => setShowDeleteConfirm(true)}
+          >
+            Delete Fund
+          </button>
+        </div>
+      )}
+
+      {/* Transaction history — grouped by month so past periods stay
+          clearly separated, especially useful once you've settled a few
+          times. */}
       <div className="card">
         <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", fontWeight: 800, fontSize: "13px" }}>
           History
         </div>
-        {[...fund.transactions]
-          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-          .map((t) => {
-            const member = fund.members.find((m) => m.id === t.member_id);
-            return (
-              <div
-                key={t.id}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "12px 16px",
-                  borderBottom: "1px solid var(--border)",
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: "13px", fontWeight: 700 }}>
-                    {t.type === "deposit" ? "💰 Uplata" : t.description}
+        {(() => {
+          const sorted = [...fund.transactions].sort(
+            (a, b) => new Date(b.created_at) - new Date(a.created_at)
+          );
+          const groups = {};
+          sorted.forEach((t) => {
+            const key = mk(t.created_at);
+            (groups[key] = groups[key] || []).push(t);
+          });
+          const monthLabel = (key) => {
+            const [y, m] = key.split("-");
+            return new Date(y, m - 1, 1).toLocaleDateString(undefined, {
+              month: "long",
+              year: "numeric",
+            });
+          };
+          return Object.keys(groups)
+            .sort()
+            .reverse()
+            .map((key) => {
+              const monthTx = groups[key];
+              const monthSpent = monthTx
+                .filter((t) => t.type === "expense")
+                .reduce((s, t) => s + t.amount, 0);
+              const monthDeposited = monthTx
+                .filter((t) => t.type === "deposit")
+                .reduce((s, t) => s + t.amount, 0);
+              const monthSpentByMember = {};
+              monthTx
+                .filter((t) => t.type === "expense")
+                .forEach((t) => {
+                  monthSpentByMember[t.member_id] = (monthSpentByMember[t.member_id] || 0) + t.amount;
+                });
+              return (
+                <div key={key}>
+                  <div
+                    style={{
+                      padding: "10px 16px",
+                      background: "var(--bg)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        fontSize: "11px",
+                        fontWeight: 800,
+                        color: "var(--text2)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.4px",
+                      }}
+                    >
+                      <span>{monthLabel(key)}</span>
+                      <span>
+                        +{fmtAmt(monthDeposited)} / −{fmtAmt(monthSpent)} {currency}
+                      </span>
+                    </div>
+                    {Object.keys(monthSpentByMember).length > 0 && (
+                      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "5px" }}>
+                        {Object.entries(monthSpentByMember).map(([mid, amt]) => {
+                          const m = fund.members.find((mm) => mm.id === mid);
+                          return (
+                            <span key={mid} style={{ fontSize: "11px", color: "var(--text3)" }}>
+                              {m?.display_name || "—"}: {fmtAmt(amt)} {currency}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                  <div style={{ fontSize: "12px", color: "var(--text3)" }}>
-                    {member?.display_name || "—"}
-                    {t.note ? ` · ${t.note}` : ""}
-                  </div>
+                  {monthTx.map((t) => {
+                    const member = fund.members.find((m) => m.id === t.member_id);
+                    return (
+                      <div
+                        key={t.id}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "12px 16px",
+                          borderBottom: "1px solid var(--border)",
+                          background: t.type === "settlement" ? "#fffbeb" : undefined,
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontSize: "13px", fontWeight: 700 }}>
+                            {t.type === "deposit"
+                              ? "💰 Investment"
+                              : t.type === "settlement"
+                              ? "⚖️ Settlement"
+                              : t.description}
+                          </div>
+                          <div style={{ fontSize: "12px", color: "var(--text3)" }}>
+                            {t.type === "deposit"
+                              ? t.note || "No note"
+                              : t.type === "settlement"
+                              ? "Balances reconciled"
+                              : member?.display_name || "—"}
+                          </div>
+                        </div>
+                        {t.type !== "settlement" && (
+                          <div
+                            style={{
+                              fontSize: "14px",
+                              fontWeight: 800,
+                              color: t.type === "deposit" ? "#16a34a" : "var(--text)",
+                            }}
+                          >
+                            {t.type === "deposit" ? "+" : "−"}
+                            {fmtAmt(t.amount)} {currency}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-                <div
-                  style={{
-                    fontSize: "14px",
-                    fontWeight: 800,
-                    color: t.type === "deposit" ? "#16a34a" : "var(--text)",
-                  }}
-                >
-                  {t.type === "deposit" ? "+" : "−"}
-                  {fmtAmt(t.amount)} {currency}
-                </div>
-              </div>
-            );
-          })}
+              );
+            });
+        })()}
         {fund.transactions.length === 0 && (
           <div className="empty-state" style={{ padding: "30px" }}>
             No transactions yet.
@@ -9962,7 +10202,7 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, currency = "R
         <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: "380px" }}>
             <div className="modal-header">
-              <h2>Uplata</h2>
+              <h2>Investment</h2>
               <button className="btn-icon" onClick={() => setShowDeposit(false)}>
                 <Icon.X />
               </button>
@@ -9976,16 +10216,6 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, currency = "R
                   onChange={(e) => setAmount(e.target.value)}
                   autoFocus
                 />
-              </div>
-              <div className="form-group">
-                <label>From</label>
-                <select value={payerId} onChange={(e) => setPayerId(e.target.value)}>
-                  {fund.members.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.display_name}
-                    </option>
-                  ))}
-                </select>
               </div>
               <div className="form-group">
                 <label>Note (optional, informational only)</label>
@@ -10039,6 +10269,225 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, currency = "R
               </button>
               <button className="btn btn-primary" onClick={submitExpense}>
                 Add expense
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showSettings && (
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: "380px" }}>
+            <div className="modal-header">
+              <h2>Fund settings</h2>
+              <button className="btn-icon" onClick={() => setShowSettings(false)}>
+                <Icon.X />
+              </button>
+            </div>
+            <div className="modal-body">
+              {!isPartner ? (
+                <>
+                  <label>How should it track spending?</label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "8px" }}>
+                    {[
+                      {
+                        id: "split",
+                        label: "Split by percentage",
+                        desc: "Each member has their own budget share that depletes as they spend.",
+                      },
+                      {
+                        id: "record",
+                        label: "Just record",
+                        desc: "No individual budgets — lists each expense next to who spent it.",
+                      },
+                    ].map((t) => (
+                      <label
+                        key={t.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          gap: "10px",
+                          padding: "10px 12px",
+                          borderRadius: "10px",
+                          border: `1.5px solid ${fund.fund_mode === t.id ? "#d97706" : "var(--border)"}`,
+                          background: fund.fund_mode === t.id ? "#fffbeb" : "white",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="settings_fund_mode"
+                          checked={fund.fund_mode === t.id}
+                          onChange={() => onUpdateSettings(fund.id, { fund_mode: t.id })}
+                          style={{ marginTop: "2px", accentColor: "#d97706" }}
+                        />
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: "13px" }}>{t.label}</div>
+                          <div style={{ fontSize: "12px", color: "var(--text2)" }}>{t.desc}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <label>How should the payout be split?</label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "8px" }}>
+                    {[
+                      {
+                        id: "by_contribution",
+                        label: "By ownership %",
+                        desc: "Ownership shifts automatically based on who has covered more of the fund's expenses — profit is split by that %.",
+                      },
+                      {
+                        id: "fixed_ratio",
+                        label: "Cover expenses, then fixed ratio",
+                        desc: "Whoever paid out of pocket gets reimbursed first, then whatever's left is split by a fixed ratio you set below.",
+                      },
+                    ].map((t) => (
+                      <label
+                        key={t.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          gap: "10px",
+                          padding: "10px 12px",
+                          borderRadius: "10px",
+                          border: `1.5px solid ${fund.payout_mode === t.id ? "#d97706" : "var(--border)"}`,
+                          background: fund.payout_mode === t.id ? "#fffbeb" : "white",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="settings_payout_mode"
+                          checked={fund.payout_mode === t.id}
+                          onChange={() => onUpdateSettings(fund.id, { payout_mode: t.id })}
+                          style={{ marginTop: "2px", accentColor: "#d97706" }}
+                        />
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: "13px" }}>{t.label}</div>
+                          <div style={{ fontSize: "12px", color: "var(--text2)" }}>{t.desc}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  {fund.payout_mode === "fixed_ratio" && (
+                    <div style={{ marginTop: "14px" }}>
+                      <label>Fixed ratio (must add up to 100%)</label>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "6px" }}>
+                        {fund.members
+                          .filter((m) => !m.is_spectator)
+                          .map((m) => (
+                            <div key={m.id} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                              <span style={{ fontSize: "13px", flex: 1 }}>{m.display_name}</span>
+                              <input
+                                type="number"
+                                style={{ width: "70px" }}
+                                defaultValue={fund.fixed_ratio?.[m.id] ?? m.share_percent ?? ""}
+                                onBlur={(e) => {
+                                  const updated = { ...(fund.fixed_ratio || {}), [m.id]: parseFloat(e.target.value) || 0 };
+                                  onUpdateSettings(fund.id, { fixed_ratio: updated });
+                                }}
+                              />
+                              <span style={{ fontSize: "13px" }}>%</span>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-primary" onClick={() => setShowSettings(false)}>
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showSettleConfirm && (
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: "380px" }}>
+            <div className="modal-header">
+              <h2>Settle up</h2>
+              <button className="btn-icon" onClick={() => setShowSettleConfirm(false)}>
+                <Icon.X />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div style={{ fontSize: "12px", color: "var(--text2)", marginBottom: "12px" }}>
+                This records the current breakdown and starts a fresh period —
+                past transactions stay in History, but no longer count toward
+                live balances afterward.
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {settlementPreview().map(({ member, amount }) => (
+                  <div
+                    key={member.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      fontSize: "13px",
+                      padding: "8px 10px",
+                      background: "var(--bg)",
+                      borderRadius: "8px",
+                    }}
+                  >
+                    <span style={{ fontWeight: 700 }}>{member.display_name}</span>
+                    <span style={{ fontWeight: 800, color: amount < 0 ? "var(--danger)" : "#16a34a" }}>
+                      {amount < 0 ? "owes" : "receives"} {fmtAmt(Math.abs(amount))} {currency}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setShowSettleConfirm(false)}>
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  onSettle(fund.id, settlementPreview());
+                  setShowSettleConfirm(false);
+                }}
+              >
+                Confirm settlement
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showDeleteConfirm && (
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: "380px" }}>
+            <div className="modal-header">
+              <h2>Delete Fund</h2>
+              <button className="btn-icon" onClick={() => setShowDeleteConfirm(false)}>
+                <Icon.X />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div style={{ fontSize: "13px", color: "var(--text2)" }}>
+                This locks the Fund immediately — no more investments or
+                expenses. It will be permanently deleted in <strong>3 days</strong>.
+                You can cancel any time before then.
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setShowDeleteConfirm(false)}>
+                Cancel
+              </button>
+              <button
+                className="btn"
+                style={{ background: "var(--danger)", color: "white" }}
+                onClick={() => {
+                  onRequestDelete(fund.id);
+                  setShowDeleteConfirm(false);
+                }}
+              >
+                Delete in 3 days
               </button>
             </div>
           </div>
@@ -15540,6 +15989,7 @@ function Dashboard({
   const curMk = mk(new Date());
   const [tab, setTab] = useState("active");
   const [statsHidden, setStatsHidden] = useState(false);
+  const [viewFilter, setViewFilter] = useState("all");
   const [filterCover, setFilterCover] = useState(null);
   const isDesktop = useIsDesktop();
   const activeLedgers = ledgers.filter((l) => !l.archived);
@@ -15757,7 +16207,9 @@ function Dashboard({
             minWidth: 0,
           }}
         >
-          <h1 className="dashboard-title" style={{ whiteSpace: "nowrap" }}>My Ledgers</h1>
+          <h1 className="dashboard-title" style={{ whiteSpace: "nowrap" }}>
+            {funds.length > 0 ? "Workspace" : "My Ledgers"}
+          </h1>
           {archivedLedgers.length > 0 && (
             <div
               style={{
@@ -15983,45 +16435,27 @@ function Dashboard({
         </div>
       )}
       {funds.length > 0 && (
-        <div style={{ marginBottom: "20px" }}>
-          <div style={{ fontSize: "13px", fontWeight: 800, color: "var(--text2)", marginBottom: "10px" }}>
-            Funds
-          </div>
-          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-            {funds
-              .filter((f) => !f.archived)
-              .map((f) => {
-                const deposited =
-                  (f.initial_amount || 0) +
-                  f.transactions.filter((t) => t.type === "deposit").reduce((s, t) => s + t.amount, 0);
-                const spent = f.transactions
-                  .filter((t) => t.type === "expense")
-                  .reduce((s, t) => s + t.amount, 0);
-                return (
-                  <div
-                    key={f.id}
-                    onClick={() => onSelectFund(f.id)}
-                    style={{
-                      cursor: "pointer",
-                      background: "linear-gradient(135deg,#92400e,#d97706)",
-                      borderRadius: "var(--radius)",
-                      padding: "16px 18px",
-                      color: "white",
-                      minWidth: "220px",
-                    }}
-                  >
-                    <div style={{ fontSize: "11px", opacity: 0.85, fontWeight: 700, textTransform: "uppercase" }}>
-                      {f.fund_type === "partner" ? "Partner Fund" : "Purpose Fund"}
-                    </div>
-                    <div style={{ fontSize: "15px", fontWeight: 800, marginTop: "2px" }}>{f.name}</div>
-                    <div style={{ fontSize: "20px", fontWeight: 800, marginTop: "8px" }}>
-                      {fmtAmt(deposited - spent)}
-                    </div>
-                    <div style={{ fontSize: "11px", opacity: 0.8 }}>remaining</div>
-                  </div>
-                );
-              })}
-          </div>
+        <div style={{ display: "flex", gap: "6px", marginBottom: "14px" }}>
+          {[
+            ["all", "All"],
+            ["ledgers", "Ledgers"],
+            ["funds", "Funds"],
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() => setViewFilter(id)}
+              className="btn btn-secondary"
+              style={{
+                fontSize: "12px",
+                padding: "6px 14px",
+                background: viewFilter === id ? "var(--accent)" : undefined,
+                color: viewFilter === id ? "white" : undefined,
+                borderColor: viewFilter === id ? "var(--accent)" : undefined,
+              }}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       )}
       <div>
@@ -16038,7 +16472,42 @@ function Dashboard({
               : undefined
           }
         >
-        {shown.map((l) => {
+        {viewFilter !== "ledgers" &&
+          funds
+            .filter((f) => !f.archived)
+            .map((f) => {
+              const deposited =
+                (f.initial_amount || 0) +
+                f.transactions.filter((t) => t.type === "deposit").reduce((s, t) => s + t.amount, 0);
+              const spent = f.transactions
+                .filter((t) => t.type === "expense")
+                .reduce((s, t) => s + t.amount, 0);
+              return (
+                <div
+                  key={f.id}
+                  onClick={() => onSelectFund(f.id)}
+                  className="ledger-card"
+                  style={{
+                    cursor: "pointer",
+                    background: "linear-gradient(135deg,#92400e,#d97706)",
+                    color: "white",
+                    padding: "16px 18px",
+                  }}
+                >
+                  <div style={{ fontSize: "11px", opacity: 0.85, fontWeight: 700, textTransform: "uppercase" }}>
+                    {f.fund_type === "partner" ? "Partner Fund" : "Purpose Fund"}
+                  </div>
+                  <div style={{ fontSize: "15px", fontWeight: 800, marginTop: "2px" }}>{f.name}</div>
+                  <div style={{ fontSize: "20px", fontWeight: 800, marginTop: "8px" }}>
+                    {fmtAmt(deposited - spent)}
+                  </div>
+                  <div style={{ fontSize: "11px", opacity: 0.8 }}>remaining</div>
+                </div>
+              );
+            })}
+        {viewFilter === "funds"
+          ? null
+          : shown.map((l) => {
           const cover =
             COVERS.find((c) => c.id === (l.cover || "house")) || COVERS[0];
           const currExp = l.expenses.filter(
@@ -18251,11 +18720,16 @@ export default function App() {
 
   const userPlan = getEffectiveUserPlan(user);
   const noAds = user?.noAds || userPlan.id !== "free";
+  const ownedFundsCount = funds.filter(
+    (f) => !f.archived && f.members.some((m) => m.user_id === user?.id && m.is_admin)
+  ).length;
   const overLedgerLimit = !!(
     userPlan.maxOwnLedgers &&
     ledgers.filter(
       (l) => isCountingActive(l) && l.members[0]?.user_id === user?.id
-    ).length > userPlan.maxOwnLedgers
+    ).length +
+      ownedFundsCount >
+      userPlan.maxOwnLedgers
   );
   // Ledgers where user is participant (not admin)
   const participantLedgers = ledgers.filter(
@@ -18891,6 +19365,71 @@ export default function App() {
     await loadFunds(user.id);
   };
 
+  const updateFundSettings = async (fundId, changes) => {
+    setFunds((prev) => prev.map((f) => (f.id === fundId ? { ...f, ...changes } : f)));
+    if (ENV !== "production") return;
+    const { error } = await sb.from("funds").update(changes).eq("id", fundId);
+    if (error) notify("error", "Couldn't save settings", error.message, "");
+  };
+
+  // Records the settlement breakdown as a transaction and closes the current
+  // period — live balance/ownership calculations only look at what happens
+  // AFTER this moment going forward.
+  const settleFund = async (fundId, breakdown) => {
+    const now2 = new Date().toISOString();
+    const settlementTx = {
+      fund_id: fundId,
+      type: "settlement",
+      amount: 0,
+      settlement_breakdown: breakdown.map((b) => ({
+        member_id: b.member.id,
+        display_name: b.member.display_name,
+        amount: b.amount,
+      })),
+      created_at: now2,
+    };
+    if (ENV !== "production") {
+      setFunds((prev) =>
+        prev.map((f) =>
+          f.id === fundId
+            ? {
+                ...f,
+                last_settled_at: now2,
+                transactions: [...f.transactions, { ...settlementTx, id: `ftx${Date.now()}` }],
+              }
+            : f
+        )
+      );
+      return;
+    }
+    await sb.from("fund_transactions").insert(settlementTx);
+    await sb.from("funds").update({ last_settled_at: now2 }).eq("id", fundId);
+    await loadFunds(user.id);
+    notify("new-expense", "Settled up", "The current period has been closed out.", "");
+  };
+
+  const archiveFund = async (fundId) => {
+    await updateFundSettings(fundId, { archived: true, archived_at: new Date().toISOString() });
+    setActiveFundId(null);
+    notify("new-expense", "Fund archived", "", "");
+  };
+
+  // Same 3-day lock-then-execute model as ledgers (requestDelete) — no
+  // approval needed, the countdown starts immediately.
+  const requestDeleteFund = async (fundId) => {
+    const scheduledAt = new Date(Date.now() + DELETE_COUNTDOWN_SECONDS * 1000).toISOString();
+    await updateFundSettings(fundId, {
+      delete_request: { initiated_at: now(), initiated_by: user.id },
+      delete_scheduled_at: scheduledAt,
+    });
+    notify("pending", "Fund locked", "It will be deleted in 3 days unless you cancel.", "");
+  };
+
+  const cancelDeleteFund = async (fundId) => {
+    await updateFundSettings(fundId, { delete_request: null, delete_scheduled_at: null });
+    notify("new-expense", "Deletion cancelled", "", "");
+  };
+
   const saveExpense = async (ledgerId, exp) => {
     const basePayload = {
       id: exp.id.startsWith("e") ? undefined : exp.id,
@@ -19138,6 +19677,34 @@ export default function App() {
     const interval = setInterval(check, 5000); // re-check every 5s — cheap, and needed for short test countdowns
     return () => clearInterval(interval);
   }, [ledgers, activeLedgerId]);
+
+  // Same 3-day countdown model as ledgers, but no per-member archive-copy
+  // branching — a Fund's transaction history isn't split per member the same
+  // way, so deletion here is a straightforward removal once the countdown
+  // elapses.
+  useEffect(() => {
+    const check = () => {
+      funds.forEach(async (f) => {
+        const deadline = f.delete_scheduled_at;
+        if (!deadline) return;
+        if (secondsUntil(deadline) > 0) return;
+        setFunds((p) => p.filter((x) => x.id !== f.id));
+        notify("locked", "Fund deleted", `"${f.name}" has been permanently deleted.`, f.name);
+        if (activeFundId === f.id) {
+          setActiveFundId(null);
+          setPage("home");
+        }
+        if (ENV === "production") {
+          await sb.from("fund_transactions").delete().eq("fund_id", f.id);
+          await sb.from("fund_members").delete().eq("fund_id", f.id);
+          await sb.from("funds").delete().eq("id", f.id);
+        }
+      });
+    };
+    check();
+    const interval = setInterval(check, 5000);
+    return () => clearInterval(interval);
+  }, [funds, activeFundId]);
 
   if (!user && ENV !== "development") {
     if (loadingData)
@@ -19942,6 +20509,11 @@ export default function App() {
               currentUser={user}
               onBack={() => setActiveFundId(null)}
               onAddTransaction={addFundTransaction}
+              onUpdateSettings={updateFundSettings}
+              onSettle={settleFund}
+              onArchive={archiveFund}
+              onRequestDelete={requestDeleteFund}
+              onCancelDelete={cancelDeleteFund}
               currency={currency}
             />
           ) : activeLedger ? (
