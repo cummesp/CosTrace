@@ -3392,19 +3392,26 @@ function AuthScreen({ onLogin }) {
 // tables: funds / fund_members / fund_transactions — NOT a ledger).
 // Regular plan: Purpose Fund only (no type choice shown).
 // Gold plan: choice between Purpose Fund and Partner Fund.
+// FOND — creation flow, redesigned to be as fast as possible. The
+// spending-mode choice (Purpose: split vs record) and the payout-mode choice
+// (Partner: by ownership % vs cover-expenses-then-fixed-ratio) both move to
+// Settings AFTER creation — at creation time we just pick the fund type and
+// go. Purpose Fund defaults to an equal split (percentages are optional,
+// left blank = equal); Partner Fund needs no percentages at all, since
+// ownership is dynamic based on spending from day one.
 function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople = [] }) {
   const canPartner = userPlan.id === "gold";
   const [fundType, setFundType] = useState("purpose"); // "purpose" | "partner"
-  const [fundMode, setFundMode] = useState("split"); // "split" | "record" (purpose only)
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [amountTBD, setAmountTBD] = useState(false);
   const [members, setMembers] = useState([{ name: "", email: "", percent: "" }]);
   const [selfPct, setSelfPct] = useState("");
 
+  const isPurpose = fundType === "purpose";
   const totalOthers = members.reduce((s, m) => s + (parseFloat(m.percent) || 0), 0);
   const totalAll = totalOthers + (parseFloat(selfPct) || 0);
-  const pctEntered = members.some((m) => m.percent) || selfPct;
+  const pctEntered = isPurpose && (members.some((m) => m.percent) || selfPct);
   const pctOk = !pctEntered || Math.abs(totalAll - 100) < 0.01;
   const amt = amountTBD ? 0 : parseFloat(amount) || 0;
   const amountOk = amountTBD || amt > 0;
@@ -3425,20 +3432,23 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
       return {
         id: `nm${i}_${Date.now()}`,
         display_name: m.name,
-        share_percent: parseFloat(m.percent) || eq,
+        // Blank percent = equal split, same for everyone. Partner Fund
+        // ignores this entirely (share_percent only matters as a fallback
+        // before anyone has spent anything).
+        share_percent: isPurpose ? parseFloat(m.percent) || eq : eq,
         user_id: netMatch?.user_id || null,
         is_admin: false,
         avatar: netMatch?.avatar || null,
         invited_email: m.email || netMatch?.email || null,
       };
     });
-    const selfShare = parseFloat(selfPct) || eq;
+    const selfShare = isPurpose ? parseFloat(selfPct) || eq : eq;
     onCreate({
       name,
       cover: "house",
       fundType,
-      fundMode: fundType === "purpose" ? fundMode : null,
-      payoutMode: fundType === "partner" ? "by_contribution" : null,
+      fundMode: isPurpose ? "split" : null, // default — switch to "record" later in Settings if wanted
+      payoutMode: fundType === "partner" ? "by_contribution" : null, // default — switch to fixed-ratio later in Settings
       initialAmount: amt,
       amountUndetermined: amountTBD,
       members: built,
@@ -3457,112 +3467,60 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
           </button>
         </div>
         <div className="modal-body">
-          {canPartner && (
-            <div className="form-group">
-              <label>Fund type</label>
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {[
-                  {
-                    id: "purpose",
-                    label: "Purpose Fund",
-                    desc: "A pool split by fixed percentages — each member spends against their own share.",
-                  },
-                  {
-                    id: "partner",
-                    label: "Partner Fund",
-                    desc: "Ownership shifts automatically based on how much each partner has put in.",
-                  },
-                ].map((t) => (
-                  <label
-                    key={t.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: "10px",
-                      padding: "10px 12px",
-                      borderRadius: "10px",
-                      border: `1.5px solid ${fundType === t.id ? "#d97706" : "var(--border)"}`,
-                      background: fundType === t.id ? "#fffbeb" : "white",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <input
-                      type="radio"
-                      name="fund_type"
-                      checked={fundType === t.id}
-                      onChange={() => setFundType(t.id)}
-                      style={{ marginTop: "2px", accentColor: "#d97706" }}
-                    />
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: "13px" }}>{t.label}</div>
-                      <div style={{ fontSize: "12px", color: "var(--text2)" }}>{t.desc}</div>
+          <div className="form-group">
+            <label>Fund type</label>
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {[
+                {
+                  id: "purpose",
+                  label: "Purpose Fund",
+                  desc: "A pool split by percentage — each member spends against their own share.",
+                  locked: false,
+                },
+                {
+                  id: "partner",
+                  label: "Partner Fund",
+                  desc: "Ownership shifts automatically based on how much each partner has put in.",
+                  locked: !canPartner,
+                },
+              ].map((t) => (
+                <label
+                  key={t.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "10px",
+                    padding: "10px 12px",
+                    borderRadius: "10px",
+                    border: `1.5px solid ${fundType === t.id ? "#d97706" : "var(--border)"}`,
+                    background: fundType === t.id ? "#fffbeb" : t.locked ? "var(--bg)" : "white",
+                    cursor: t.locked ? "not-allowed" : "pointer",
+                    opacity: t.locked ? 0.6 : 1,
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="fund_type"
+                    checked={fundType === t.id}
+                    disabled={t.locked}
+                    onChange={() => setFundType(t.id)}
+                    style={{ marginTop: "2px", accentColor: "#d97706" }}
+                  />
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: "13px" }}>
+                      {t.label}
+                      {t.locked && (
+                        <span style={{ fontWeight: 500, color: "var(--text3)", marginLeft: "6px" }}>
+                          (Gold)
+                        </span>
+                      )}
                     </div>
-                  </label>
-                ))}
-              </div>
+                    <div style={{ fontSize: "12px", color: "var(--text2)" }}>{t.desc}</div>
+                  </div>
+                </label>
+              ))}
             </div>
-          )}
-          {!canPartner && (
-            <div
-              style={{
-                fontSize: "12px",
-                color: "var(--text2)",
-                background: "var(--bg)",
-                borderRadius: "var(--radius-sm)",
-                padding: "10px 12px",
-                marginBottom: "16px",
-              }}
-            >
-              Your Regular plan includes <strong>Purpose Fund</strong>. Partner
-              Fund (dynamic ownership by contribution) is a Gold feature.
-            </div>
-          )}
-
-          {fundType === "purpose" && (
-            <div className="form-group">
-              <label>How should it track spending?</label>
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {[
-                  {
-                    id: "split",
-                    label: "Split by percentage",
-                    desc: "Each member gets their own share of the pool. Their spending comes out of their own balance.",
-                  },
-                  {
-                    id: "record",
-                    label: "Just record",
-                    desc: "No individual budgets — just track who spent what and the total remaining.",
-                  },
-                ].map((t) => (
-                  <label
-                    key={t.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: "10px",
-                      padding: "10px 12px",
-                      borderRadius: "10px",
-                      border: `1.5px solid ${fundMode === t.id ? "#d97706" : "var(--border)"}`,
-                      background: fundMode === t.id ? "#fffbeb" : "white",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <input
-                      type="radio"
-                      name="fund_mode"
-                      checked={fundMode === t.id}
-                      onChange={() => setFundMode(t.id)}
-                      style={{ marginTop: "2px", accentColor: "#d97706" }}
-                    />
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: "13px" }}>{t.label}</div>
-                      <div style={{ fontSize: "12px", color: "var(--text2)" }}>{t.desc}</div>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
+          </div>
 
           <div className="form-group">
             <label>Fund name</label>
@@ -3608,134 +3566,112 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
           </div>
 
           <div className="form-group">
-            <label>
-              {fundType === "partner" ? "Initial ownership %" : "Your share %"}
-            </label>
-            <input
-              type="number"
-              placeholder="e.g. 50"
-              value={selfPct}
-              onChange={(e) => setSelfPct(e.target.value)}
-            />
-          </div>
-
-          {members.map((m, i) => (
-            <div key={i} className="form-group" style={{ display: "flex", gap: "8px" }}>
-              <div style={{ flex: 2, position: "relative" }}>
-                <input
-                  placeholder="Member name"
-                  value={m.name}
-                  onChange={(e) => upd(i, "name", e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    border: "1.5px solid var(--border)",
-                    borderRadius: "var(--radius-sm)",
-                    fontFamily: "inherit",
-                    fontSize: "13px",
-                    outline: "none",
-                    boxSizing: "border-box",
-                  }}
-                />
-                {m.name.trim().length >= 1 &&
-                  (() => {
-                    const q = m.name.toLowerCase();
-                    const hits = networkPeople.filter(
-                      (p) =>
-                        p.name.toLowerCase().includes(q) &&
-                        p.name.toLowerCase() !== q
-                    );
-                    if (!hits.length) return null;
-                    return (
-                      <div
-                        style={{
-                          position: "absolute",
-                          top: "calc(100% + 2px)",
-                          left: 0,
-                          right: 0,
-                          zIndex: 200,
-                          background: "white",
-                          border: "1.5px solid var(--accent)",
-                          borderRadius: "10px",
-                          boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-                          overflow: "hidden",
-                        }}
-                      >
-                        {hits.slice(0, 5).map((p, pi) => (
-                          <div
-                            key={pi}
-                            onClick={() => upd(i, "name", p.name)}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "8px",
-                              padding: "9px 12px",
-                              cursor: "pointer",
-                              borderBottom:
-                                pi < hits.length - 1
-                                  ? "1px solid var(--border)"
-                                  : "none",
-                              background: "white",
-                              fontSize: "13px",
-                              fontWeight: "600",
-                            }}
-                            onMouseEnter={(e) =>
-                              (e.currentTarget.style.background = "var(--accent-light)")
-                            }
-                            onMouseLeave={(e) =>
-                              (e.currentTarget.style.background = "white")
-                            }
-                          >
+            <label>Members</label>
+            <div style={{ fontSize: "12px", color: "var(--text2)", marginBottom: "8px" }}>
+              {isPurpose
+                ? "Leave % blank to split equally — you can fine-tune it later."
+                : "Just names — ownership is tracked automatically as people spend."}
+            </div>
+            {members.map((m, i) => (
+              <div key={i} style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                <div style={{ flex: 2, position: "relative" }}>
+                  <input
+                    placeholder="Member name"
+                    value={m.name}
+                    onChange={(e) => upd(i, "name", e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "10px",
+                      border: "1.5px solid var(--border)",
+                      borderRadius: "var(--radius-sm)",
+                      fontFamily: "inherit",
+                      fontSize: "13px",
+                      outline: "none",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                  {m.name.trim().length >= 1 &&
+                    (() => {
+                      const q = m.name.toLowerCase();
+                      const hits = networkPeople.filter(
+                        (p) => p.name.toLowerCase().includes(q) && p.name.toLowerCase() !== q
+                      );
+                      if (!hits.length) return null;
+                      return (
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: "calc(100% + 2px)",
+                            left: 0,
+                            right: 0,
+                            zIndex: 200,
+                            background: "white",
+                            border: "1.5px solid var(--accent)",
+                            borderRadius: "10px",
+                            boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {hits.slice(0, 5).map((p, pi) => (
                             <div
-                              className="stmt-av av0"
+                              key={pi}
+                              onClick={() => upd(i, "name", p.name)}
                               style={{
-                                width: "22px",
-                                height: "22px",
-                                borderRadius: "50%",
-                                fontSize: "9px",
-                                flexShrink: 0,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                                padding: "9px 12px",
+                                cursor: "pointer",
+                                borderBottom: pi < hits.length - 1 ? "1px solid var(--border)" : "none",
+                                background: "white",
+                                fontSize: "13px",
+                                fontWeight: "600",
                               }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--accent-light)")}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
                             >
-                              {initials(p.name)}
+                              <div
+                                className="stmt-av av0"
+                                style={{ width: "22px", height: "22px", borderRadius: "50%", fontSize: "9px", flexShrink: 0 }}
+                              >
+                                {initials(p.name)}
+                              </div>
+                              {p.name}
                             </div>
-                            {p.name}
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
+                          ))}
+                        </div>
+                      );
+                    })()}
+                </div>
+                {isPurpose && (
+                  <input
+                    type="number"
+                    placeholder="%"
+                    value={m.percent}
+                    onChange={(e) => upd(i, "percent", e.target.value)}
+                    style={{ flex: "0 0 70px" }}
+                  />
+                )}
               </div>
-              <input
-                type="number"
-                placeholder="%"
-                value={m.percent}
-                onChange={(e) => upd(i, "percent", e.target.value)}
-                style={{ flex: 1 }}
-              />
-            </div>
-          ))}
-          <button
-            className="btn btn-secondary"
-            style={{ fontSize: "12px" }}
-            onClick={() => setMembers([...members, { name: "", email: "", percent: "" }])}
-          >
-            <Icon.Plus /> Add member
-          </button>
-
-          {!pctOk && (
-            <div style={{ fontSize: "12px", color: "var(--danger)", marginTop: "8px" }}>
-              Percentages must add up to 100%.
-            </div>
-          )}
+            ))}
+            <button
+              className="btn btn-secondary"
+              style={{ fontSize: "12px" }}
+              onClick={() => setMembers([...members, { name: "", email: "", percent: "" }])}
+            >
+              <Icon.Plus /> Add member
+            </button>
+            {!pctOk && (
+              <div style={{ fontSize: "12px", color: "var(--danger)", marginTop: "8px" }}>
+                Percentages must add up to 100% (or leave them all blank for an equal split).
+              </div>
+            )}
+          </div>
         </div>
         <div className="modal-footer" style={{ flexDirection: "column", alignItems: "stretch", gap: "8px" }}>
-          {(!name.trim() || !amountOk || !pctOk) && (
+          {(!name.trim() || !amountOk) && (
             <div style={{ fontSize: "12px", color: "var(--danger)", textAlign: "right" }}>
-              {!name.trim()
-                ? "Enter a fund name."
-                : !amountOk
-                ? "Enter an initial amount, or check \"not known yet\"."
-                : "Percentages must add up to 100%."}
+              {!name.trim() ? "Enter a fund name." : "Enter an initial amount, or check \"not known yet\"."}
             </div>
           )}
           <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
@@ -3764,10 +3700,6 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
   );
 }
 
-// Small chooser shown when clicking the single "+ New" button — pick
-// between a standard Ledger and a Fund. Fund still gates by plan (Free/
-// Light get sent to Upgrade instead), and Gold users get the Purpose/
-// Partner choice one step later, inside NewFundModal itself.
 function NewEntryChooserModal({ onClose, onPickLedger, onPickFund }) {
   return (
     <div className="modal-overlay">
