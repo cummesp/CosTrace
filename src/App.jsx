@@ -3497,6 +3497,8 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
                     cursor: t.locked ? "not-allowed" : "pointer",
                     opacity: t.locked ? 0.6 : 1,
                     position: "relative",
+                    textTransform: "none",
+                    letterSpacing: "normal",
                   }}
                 >
                   <input
@@ -3580,6 +3582,8 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
                 color: "var(--text2)",
                 cursor: "pointer",
                 position: "relative",
+                textTransform: "none",
+                letterSpacing: "normal",
               }}
             >
               <input
@@ -17063,6 +17067,11 @@ function ComparisonTable({
     { label: "No ads", get: (pl) => !pl.ads },
     { label: "Payout Pass included (19.99€ value)", get: (pl) => (pl.id === "gold" ? true : false) },
     { label: "Members get Payouts in your ledgers", get: (pl) => pl.id === "gold" },
+    {
+      label: "Fund (Purpose)",
+      get: (pl) => pl.id === "regular" || pl.id === "gold",
+    },
+    { label: "Fund (Partner)", get: (pl) => pl.id === "gold" },
   ];
 
   return (
@@ -17456,6 +17465,7 @@ function UpgradeModal({
       "Cancel & delete expenses",
       "Custom header color & label",
       "No ads",
+      "Fund (Purpose)",
     ],
     gold: [
       "Unlimited ledgers",
@@ -17467,6 +17477,7 @@ function UpgradeModal({
       "No ads",
       "Payout Pass included (19.99€ value)",
       "Members get Payouts in your ledgers",
+      "Fund (Purpose & Partner)",
     ],
   };
 
