@@ -3532,15 +3532,17 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
                     )}
                   </span>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: "13px" }}>
+                    <div style={{ fontWeight: 800, fontSize: "16px", color: "#111827" }}>
                       {t.label}
                       {t.locked && (
-                        <span style={{ fontWeight: 500, color: "var(--text3)", marginLeft: "6px" }}>
+                        <span style={{ fontWeight: 500, fontSize: "12px", color: "var(--text3)", marginLeft: "6px" }}>
                           (Gold)
                         </span>
                       )}
                     </div>
-                    <div style={{ fontSize: "12px", color: "var(--text2)" }}>{t.desc}</div>
+                    <div style={{ fontSize: "11.5px", fontWeight: 400, fontStyle: "italic", color: "var(--text3)", marginTop: "2px" }}>
+                      {t.desc}
+                    </div>
                   </div>
                 </label>
               ))}
@@ -3574,6 +3576,7 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
                 gap: "8px",
                 marginTop: "8px",
                 fontSize: "12px",
+                fontWeight: 400,
                 color: "var(--text2)",
                 cursor: "pointer",
                 position: "relative",
