@@ -3496,6 +3496,7 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
                     background: fundType === t.id ? "#fffbeb" : t.locked ? "var(--bg)" : "white",
                     cursor: t.locked ? "not-allowed" : "pointer",
                     opacity: t.locked ? 0.6 : 1,
+                    position: "relative",
                   }}
                 >
                   <input
@@ -3504,8 +3505,32 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
                     checked={fundType === t.id}
                     disabled={t.locked}
                     onChange={() => setFundType(t.id)}
-                    style={{ marginTop: "2px", accentColor: "#d97706" }}
+                    style={{ position: "absolute", opacity: 0, width: 0, height: 0 }}
                   />
+                  <span
+                    style={{
+                      flexShrink: 0,
+                      marginTop: "2px",
+                      width: "16px",
+                      height: "16px",
+                      borderRadius: "50%",
+                      border: `2px solid ${fundType === t.id ? "#d97706" : "var(--border)"}`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {fundType === t.id && (
+                      <span
+                        style={{
+                          width: "8px",
+                          height: "8px",
+                          borderRadius: "50%",
+                          background: "#d97706",
+                        }}
+                      />
+                    )}
+                  </span>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: "13px" }}>
                       {t.label}
@@ -3551,6 +3576,7 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
                 fontSize: "12px",
                 color: "var(--text2)",
                 cursor: "pointer",
+                position: "relative",
               }}
             >
               <input
@@ -3560,7 +3586,27 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
                   setAmountTBD(e.target.checked);
                   if (e.target.checked) setAmount("");
                 }}
+                style={{ position: "absolute", opacity: 0, width: 0, height: 0 }}
               />
+              <span
+                style={{
+                  flexShrink: 0,
+                  width: "15px",
+                  height: "15px",
+                  borderRadius: "4px",
+                  border: `2px solid ${amountTBD ? "#d97706" : "var(--border)"}`,
+                  background: amountTBD ? "#d97706" : "white",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {amountTBD && (
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </span>
               Amount not known yet — start the Fund at 0
             </label>
           </div>
