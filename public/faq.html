@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FAQ — CosTrace</title>
+<style>
+  body {
+    background: #010715;
+    color: rgba(255,255,255,0.88);
+    font-family: 'Plus Jakarta Sans','Manrope',-apple-system,sans-serif;
+    margin: 0;
+    padding: 0;
+    line-height: 1.7;
+  }
+  .wrap {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 48px 24px 100px;
+  }
+  .logo {
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 32px;
+  }
+  .logo a { text-decoration: none; }
+  .logo span:first-child { color: white; }
+  .logo span:last-child { color: #DC2626; }
+  h1 { font-size: 30px; font-weight: 800; color: white; margin-bottom: 8px; }
+  .sub { color: rgba(255,255,255,0.5); font-size: 14.5px; margin-bottom: 36px; }
+  .section-title {
+    font-size: 12px;
+    font-weight: 800;
+    color: #ff6b6b;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin: 36px 0 12px;
+  }
+  .section-title:first-of-type { margin-top: 0; }
+  details {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    margin-bottom: 10px;
+    overflow: hidden;
+  }
+  summary {
+    padding: 16px 18px;
+    font-size: 14.5px;
+    font-weight: 700;
+    color: white;
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::after {
+    content: "+";
+    font-size: 20px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.4);
+    margin-left: 12px;
+    flex-shrink: 0;
+  }
+  details[open] summary::after { content: "−"; }
+  details p {
+    padding: 0 18px 16px;
+    margin: 0;
+    font-size: 14px;
+    color: rgba(255,255,255,0.65);
+  }
+  .back { display: inline-block; margin-top: 40px; color: rgba(255,255,255,0.5); font-size: 13px; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo"><a href="/"><span>Cos</span><span>Trace</span></a></div>
+  <h1>Frequently asked questions</h1>
+  <div class="sub">Everything you might want to know before (or after) you dive in.</div>
+
+  <div class="section-title">Getting started</div>
+
+  <details>
+    <summary>Is CosTrace free?</summary>
+    <p>Yes — the Free plan lets you track expenses in one ledger with up to 2 members. Paid plans (Light, Regular, Gold) unlock more ledgers, members, history, and features like Funds and Payouts.</p>
+  </details>
+
+  <details>
+    <summary>Do the people I share expenses with need to create an account?</summary>
+    <p>No — you can add them by name only. They'll show up in your ledger, and if they ever create a CosTrace account with a matching invite, everything links up automatically.</p>
+  </details>
+
+  <details>
+    <summary>What's the difference between a Ledger and a Fund?</summary>
+    <p>A Ledger tracks shared expenses as you go — no starting balance, just running totals of who paid what. A Fund starts with a pool of money (or one you fill in later) and tracks how it's spent down, with each member's share calculated automatically.</p>
+  </details>
+
+  <div class="section-title">Plans &amp; billing</div>
+
+  <details>
+    <summary>Can I switch plans anytime?</summary>
+    <p>Yes. Upgrades apply immediately; downgrades take effect at the end of your current billing period so you don't lose access mid-cycle.</p>
+  </details>
+
+  <details>
+    <summary>What happens to my ledgers if I downgrade below their limits?</summary>
+    <p>You'll see exactly what needs to change (e.g. remove members, archive a ledger) before the downgrade takes effect — nothing is deleted automatically.</p>
+  </details>
+
+  <details>
+    <summary>Is EarlyBird pricing permanent?</summary>
+    <p>Yes, for the first 1,000 accounts — it's locked in for as long as your account stays active.</p>
+  </details>
+
+  <details>
+    <summary>Do you offer refunds?</summary>
+    <p>Refunds are handled by Paddle, our payment processor, in line with their policies and your local consumer protection laws. Contact us and we'll help sort it out.</p>
+  </details>
+
+  <div class="section-title">Funds</div>
+
+  <details>
+    <summary>What's a Purpose Fund vs a Partner Fund?</summary>
+    <p>A Purpose Fund splits a pool by fixed percentages (or just records who spent what). A Partner Fund's ownership shifts automatically based on who's covered more of the spending — useful for business partners or ongoing joint investments.</p>
+  </details>
+
+  <details>
+    <summary>Can I change how a Fund tracks spending after creating it?</summary>
+    <p>Yes, anytime from Fund Settings — no need to start over.</p>
+  </details>
+
+  <div class="section-title">Privacy &amp; security</div>
+
+  <details>
+    <summary>Can other members see my personal financial info outside our shared ledger?</summary>
+    <p>No — you only see data within ledgers/Funds you're actually part of.</p>
+  </details>
+
+  <details>
+    <summary>What happens if I delete my account?</summary>
+    <p>It's scheduled for permanent deletion in 30 days (cancel anytime before then). Ledgers you own alone are deleted; ledgers you share stay intact for the other members.</p>
+  </details>
+
+  <div class="section-title">Support</div>
+
+  <details>
+    <summary>How do I report a bug or suggest a feature?</summary>
+    <p>Use the Feedback button in the app, or email <a href="mailto:support@costrace.app" style="color:#ff6b6b">support@costrace.app</a>.</p>
+  </details>
+
+  <a class="back" href="/">&larr; Back to CosTrace</a>
+</div>
+</body>
+</html>
