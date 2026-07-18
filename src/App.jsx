@@ -3284,7 +3284,7 @@ function AuthScreen({ onLogin }) {
             {[
               { label: "Privacy Policy", href: "/privacy" },
               { label: "Terms of Service", href: "/terms" },
-              { label: "Contact", href: "mailto:support@costrace.app" },
+              { label: "Contact", href: "/contact" },
               { label: "About", href: "/about" },
               { label: "FAQ", href: "/faq" },
             ].map((l) => (
