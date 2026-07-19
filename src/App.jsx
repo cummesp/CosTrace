@@ -4381,6 +4381,9 @@ function AddExpenseModal({
 }) {
   const [desc, setDesc] = useState("");
   const [amount, setAmount] = useState("");
+  const ledgerCurrency = ledger.currency || currency;
+  const availableCurrencies = [ledgerCurrency, ...(ledger.currency_pairs || []).map((p) => p.currency)];
+  const [entryCurrency, setEntryCurrency] = useState(ledgerCurrency);
   const [notMe, setNotMe] = useState(false);
   const [paidById, setPaidById] = useState("");
   const [isSettle, setIsSettle] = useState(forceSettle);
@@ -4485,7 +4488,18 @@ function AddExpenseModal({
     if (!desc.trim() || !amount) return;
     if (isSettle && multiMember && !paidToId) return;
     if (overMaxSettle) return;
-    const amt = parseFloat(amount);
+    const rawAmt = parseFloat(amount);
+    // Convert to the ledger's main currency at THIS moment and lock it in —
+    // amt (used for every downstream balance calc) is always in
+    // ledgerCurrency; original_amount/original_currency/exchange_rate_used
+    // are stored purely for display/audit and never re-read for math, so a
+    // later rate change can never silently alter this expense's contribution
+    // to the ledger's balances.
+    const usedRate =
+      entryCurrency !== ledgerCurrency
+        ? (ledger.currency_pairs || []).find((p) => p.currency === entryCurrency)?.rate || 1
+        : 1;
+    const amt = entryCurrency !== ledgerCurrency ? rawAmt * usedRate : rawAmt;
     let finalSplits;
     if (isSettle) {
       const creditors =
@@ -4516,6 +4530,9 @@ function AddExpenseModal({
       id: `e${Date.now()}`,
       description: desc,
       amount: amt,
+      original_amount: entryCurrency !== ledgerCurrency ? rawAmt : null,
+      original_currency: entryCurrency !== ledgerCurrency ? entryCurrency : null,
+      exchange_rate_used: entryCurrency !== ledgerCurrency ? usedRate : null,
       paid_by_name: payer?.display_name || currentUser.full_name,
       // Only fall back to currentUser.id when there's truly no payer selected.
       // If a payer IS selected but has no account (user_id is null — a virtual
@@ -4767,17 +4784,39 @@ function AddExpenseModal({
                 </span>
               )}
             </label>
-            <input
-              type="number"
-              placeholder="0.00"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              max={maxSettle || undefined}
-              style={{
-                fontFamily: "var(--mono)",
-                borderColor: overMaxSettle ? "var(--danger)" : undefined,
-              }}
-            />
+            <div style={{ display: "flex", gap: "8px" }}>
+              <input
+                type="number"
+                placeholder="0.00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                max={maxSettle || undefined}
+                style={{
+                  fontFamily: "var(--mono)",
+                  borderColor: overMaxSettle ? "var(--danger)" : undefined,
+                  flex: 1,
+                }}
+              />
+              {availableCurrencies.length > 1 && (
+                <select
+                  value={entryCurrency}
+                  onChange={(e) => setEntryCurrency(e.target.value)}
+                  style={{ flex: "0 0 90px" }}
+                >
+                  {availableCurrencies.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+            {entryCurrency !== ledgerCurrency && amount && (
+              <p className="tip" style={{ marginTop: "4px" }}>
+                ≈ {fmtAmt(
+                  parseFloat(amount) *
+                    ((ledger.currency_pairs || []).find((p) => p.currency === entryCurrency)?.rate || 1)
+                )} {ledgerCurrency} at today's rate — locked in once saved
+              </p>
+            )}
             {overMaxSettle && (
               <p
                 className="tip"
@@ -5400,6 +5439,9 @@ function LedgerSettingsModal({
   const [soloWord, setSoloWord] = useState("");
   const solo = isSoloDeletable ? isSoloDeletable(ledger) : false;
   const [name, setName] = useState(ledger.name);
+  const [ledgerCurrency, setLedgerCurrency] = useState(ledger.currency || "RSD");
+  const [currencyPairs, setCurrencyPairs] = useState(ledger.currency_pairs || []);
+  const maxPairs = plan.id === "gold" ? 2 : plan.id === "regular" ? 1 : 0;
   const [req, setReq] = useState(ledger.require_approval);
   const [notifEnabled, setNotifEnabled] = useState(
     ledger.notifications_enabled !== false
@@ -5520,6 +5562,8 @@ function LedgerSettingsModal({
     onUpdate({
       ...ledger,
       name,
+      currency: ledgerCurrency,
+      currency_pairs: maxPairs > 0 ? currencyPairs.slice(0, maxPairs) : [],
       require_approval: req,
       cover: selectedCover,
       notifications_enabled: notifEnabled,
@@ -5594,6 +5638,88 @@ function LedgerSettingsModal({
             <label>Name</label>
             <input value={name} onChange={(e) => setName(e.target.value)} />
           </div>
+
+          {/* Currency — Light+: change the ledger's main currency (no
+              conversion, whole ledger just displays/operates in that
+              currency). Regular: +1 currency pair with a manual rate.
+              Gold: +2 pairs. Whatever's entered in a non-main currency gets
+              converted to the main currency AT ENTRY TIME and locked
+              permanently — later rate changes never touch past expenses. */}
+          <div className="form-group">
+            <label>Ledger currency</label>
+            {plan.id === "free" ? (
+              <div style={{ fontSize: "12px", color: "var(--text2)", background: "var(--bg)", borderRadius: "var(--radius-sm)", padding: "10px 12px" }}>
+                Uses your profile currency ({ledgerCurrency}). Upgrade to Light+ to set a different currency per ledger.
+              </div>
+            ) : (
+              <>
+                <select value={ledgerCurrency} onChange={(e) => setLedgerCurrency(e.target.value)}>
+                  {COMMON_CURRENCIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                <div style={{ fontSize: "11px", color: "var(--text3)", marginTop: "4px" }}>
+                  All balances and totals in this ledger are shown in this currency.
+                </div>
+              </>
+            )}
+          </div>
+
+          {maxPairs > 0 && (
+            <div className="form-group">
+              <label>Additional currencies {plan.id === "gold" ? "(up to 2)" : "(up to 1)"}</label>
+              <div style={{ fontSize: "11px", color: "var(--text3)", marginBottom: "8px" }}>
+                Let members enter expenses in another currency — it's converted to {ledgerCurrency} using the rate below, at the moment it's entered. The rate never affects past expenses if you change it later.
+              </div>
+              {currencyPairs.map((p, i) => (
+                <div key={i} style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px" }}>
+                  <select
+                    value={p.currency}
+                    onChange={(e) => {
+                      const next = [...currencyPairs];
+                      next[i] = { ...next[i], currency: e.target.value };
+                      setCurrencyPairs(next);
+                    }}
+                    style={{ flex: 1 }}
+                  >
+                    {COMMON_CURRENCIES.filter((c) => c !== ledgerCurrency).map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                  <span style={{ fontSize: "12px", color: "var(--text3)", flexShrink: 0 }}>1 {p.currency} =</span>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    value={p.rate}
+                    onChange={(e) => {
+                      const next = [...currencyPairs];
+                      next[i] = { ...next[i], rate: parseFloat(e.target.value) || 0 };
+                      setCurrencyPairs(next);
+                    }}
+                    style={{ width: "90px", flexShrink: 0 }}
+                  />
+                  <span style={{ fontSize: "12px", color: "var(--text3)", flexShrink: 0 }}>{ledgerCurrency}</span>
+                  <button className="btn-icon" onClick={() => setCurrencyPairs(currencyPairs.filter((_, ix) => ix !== i))}>
+                    <Icon.X />
+                  </button>
+                </div>
+              ))}
+              {currencyPairs.length < maxPairs && (
+                <button
+                  className="btn btn-secondary"
+                  style={{ fontSize: "12px" }}
+                  onClick={() => {
+                    const unused = COMMON_CURRENCIES.find(
+                      (c) => c !== ledgerCurrency && !currencyPairs.some((p) => p.currency === c)
+                    );
+                    setCurrencyPairs([...currencyPairs, { currency: unused || "EUR", rate: 1 }]);
+                  }}
+                >
+                  <Icon.Plus /> Add currency
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Cover & Style — single collapsible */}
           {
@@ -17116,6 +17242,14 @@ function getMonthlyExpenseCount(ledger) {
 }
 
 // ── PLANS ─────────────────────────────────────────────────────────────────────
+// Used by the ledger multi-currency settings (currency pairs) — a smaller,
+// common-currency subset for that picker, separate from the full ~50-entry
+// CURRENCIES list used for profile/ledger base currency selection.
+const COMMON_CURRENCIES = [
+  "RSD", "EUR", "USD", "GBP", "CHF", "HUF", "BAM", "RON", "TRY", "AED",
+  "AUD", "CAD", "JPY", "CNY", "INR",
+];
+
 const PLANS = {
   free: {
     id: "free",
@@ -19687,6 +19821,9 @@ export default function App() {
       is_settlement: exp.is_settlement || false,
       is_payout: exp.is_payout || false,
       payout_mode: exp.payout_mode || null,
+      original_amount: exp.original_amount ?? null,
+      original_currency: exp.original_currency ?? null,
+      exchange_rate_used: exp.exchange_rate_used ?? null,
     };
     // Try with is_carryover first; if column doesn't exist yet (schema not
     // migrated), fall back to saving without it so regular expenses aren't lost.
@@ -19695,11 +19832,23 @@ export default function App() {
       .insert({ ...basePayload, is_carryover: exp.is_carryover || false })
       .select()
       .single();
-    if (error && error.message?.includes("is_carryover")) {
-      console.warn("is_carryover column missing — saving without it");
+    if (error && (error.message?.includes("is_carryover") || error.message?.includes("original_amount") || error.message?.includes("original_currency") || error.message?.includes("exchange_rate_used"))) {
+      console.warn("Multi-currency/carryover columns missing — saving without them");
       ({ data: eRow, error } = await sb
         .from("expenses")
-        .insert(basePayload)
+        .insert({
+          id: basePayload.id,
+          ledger_id: basePayload.ledger_id,
+          description: basePayload.description,
+          amount: basePayload.amount,
+          paid_by_name: basePayload.paid_by_name,
+          paid_by_id: basePayload.paid_by_id,
+          expense_date: basePayload.expense_date,
+          approval_status: basePayload.approval_status,
+          is_settlement: basePayload.is_settlement,
+          is_payout: basePayload.is_payout,
+          payout_mode: basePayload.payout_mode,
+        })
         .select()
         .single());
     }
@@ -19778,9 +19927,11 @@ export default function App() {
     let { error } = await sb.from("ledgers").upsert({
       ...basePayload,
       carry_balance: l.carry_balance || false,
+      currency: l.currency || "RSD",
+      currency_pairs: l.currency_pairs || [],
     });
-    if (error && error.message?.includes("carry_balance")) {
-      console.warn("carry_balance column missing — saving without it");
+    if (error && (error.message?.includes("carry_balance") || error.message?.includes("currency"))) {
+      console.warn("currency/carry_balance column missing — saving without them");
       ({ error } = await sb.from("ledgers").upsert(basePayload));
     }
     if (error) console.error("saveLedger error:", error);
