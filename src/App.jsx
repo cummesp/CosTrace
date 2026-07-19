@@ -3497,8 +3497,9 @@ function AuthScreen({ onLogin }) {
 // left blank = equal); Partner Fund needs no percentages at all, since
 // ownership is dynamic based on spending from day one.
 function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople = [] }) {
+  const canPurpose = userPlan.id === "regular" || userPlan.id === "gold";
   const canPartner = userPlan.id === "gold";
-  const [fundType, setFundType] = useState("purpose"); // "purpose" | "partner"
+  const [fundType, setFundType] = useState(canPurpose ? "purpose" : "savings"); // "purpose" | "partner" | "savings"
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [amountTBD, setAmountTBD] = useState(false);
@@ -3506,12 +3507,15 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
   const [selfPct, setSelfPct] = useState("");
 
   const isPurpose = fundType === "purpose";
+  const isSavings = fundType === "savings";
   const totalOthers = members.reduce((s, m) => s + (parseFloat(m.percent) || 0), 0);
   const totalAll = totalOthers + (parseFloat(selfPct) || 0);
   const pctEntered = isPurpose && (members.some((m) => m.percent) || selfPct);
   const pctOk = !pctEntered || Math.abs(totalAll - 100) < 0.01;
   const amt = amountTBD ? 0 : parseFloat(amount) || 0;
-  const amountOk = amountTBD || amt > 0;
+  // Savings starts empty by definition — it only ever grows from named
+  // deposits, there's no "initial pool" concept the way Purpose/Partner have.
+  const amountOk = isSavings || amountTBD || amt > 0;
 
   const upd = (i, f, v) => {
     const n = [...members];
@@ -3569,10 +3573,16 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
               {[
                 {
+                  id: "savings",
+                  label: "Savings Fund",
+                  desc: "A simple shared piggy bank — track who put in how much, and withdraw when needed. No spending or splitting.",
+                  locked: false,
+                },
+                {
                   id: "purpose",
                   label: "Purpose Fund",
                   desc: "A pool split by percentage — each member spends against their own share.",
-                  locked: false,
+                  locked: !canPurpose,
                 },
                 {
                   id: "partner",
@@ -3658,6 +3668,7 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
             />
           </div>
 
+          {!isSavings && (
           <div className="form-group">
             <label>Initial amount</label>
             <input
@@ -3714,11 +3725,14 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
               Amount not known yet — start the Fund at 0
             </label>
           </div>
+          )}
 
           <div className="form-group">
             <label>Members</label>
             <div style={{ fontSize: "12px", color: "var(--text2)", marginBottom: "8px" }}>
-              {isPurpose
+              {isSavings
+                ? "Just names — each person's share is calculated automatically from what they actually put in."
+                : isPurpose
                 ? "Leave % blank to split equally — you can fine-tune it later."
                 : "Just names — ownership is tracked automatically as people spend."}
             </div>
@@ -10108,21 +10122,26 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
   const isAdmin = fund.members.some((m) => m.user_id === currentUser.id && m.is_admin);
   const isSolo = !fund.members.some((m) => m.user_id && m.user_id !== currentUser.id);
   const isPartner = fund.fund_type === "partner";
+  const isSavings = fund.fund_type === "savings";
   const isSplit = fund.fund_type === "purpose" && fund.fund_mode === "split";
   const isRecord = fund.fund_type === "purpose" && fund.fund_mode === "record";
   const isLocked = !!fund.delete_scheduled_at;
   const deleteSecondsLeft = isLocked
     ? Math.max(0, Math.floor((new Date(fund.delete_scheduled_at) - new Date()) / 1000))
     : null;
+  const [showWithdraw, setShowWithdraw] = useState(false);
+  const [excludeOtherFromPct, setExcludeOtherFromPct] = useState(false);
 
   const allDeposits = fund.transactions.filter((t) => t.type === "deposit");
   const allExpenses = fund.transactions.filter((t) => t.type === "expense");
+  const allWithdrawals = fund.transactions.filter((t) => t.type === "withdrawal");
   // initial_amount is no longer added separately here — it's recorded as the
   // very first "Investment" transaction at creation time, so summing
   // allDeposits already includes it. Adding it again would double-count it.
   const totalDeposited = allDeposits.reduce((s, t) => s + t.amount, 0);
   const totalSpentEver = allExpenses.reduce((s, t) => s + t.amount, 0);
-  const totalBalance = totalDeposited - totalSpentEver;
+  const totalWithdrawn = allWithdrawals.reduce((s, t) => s + t.amount, 0);
+  const totalBalance = totalDeposited - totalSpentEver - totalWithdrawn;
 
   // Live balances/ownership only count what's happened SINCE the last
   // settlement — a settlement "closes the books" on everything before it.
@@ -10146,7 +10165,18 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
     if (t.member_id)
       contributionByMember[t.member_id] = (contributionByMember[t.member_id] || 0) + t.amount;
   });
-  const totalContribution = Object.values(contributionByMember).reduce((s, v) => s + v, 0);
+  const namedContribution = Object.values(contributionByMember).reduce((s, v) => s + v, 0);
+  // Deposits with no member attached — "Other" contributions (gifts, outside
+  // money). Always counted in totalBalance. For the PERCENTAGE breakdown,
+  // included by default (your % reflects your real share of the whole pot,
+  // diluted by outside money like it should be) — excludeOtherFromPct lets
+  // you flip that off if you'd rather see % of just what members put in.
+  const otherContribution = deposits
+    .filter((t) => !t.member_id)
+    .reduce((s, t) => s + t.amount, 0);
+  const totalContribution = excludeOtherFromPct
+    ? namedContribution
+    : namedContribution + otherContribution;
   // Partner Fund ownership is dynamic and based on SPENDING, not deposits —
   // whoever has covered more of the fund's expenses owns a bigger share.
   // Falls back to the initial share_percent until anyone has spent anything.
@@ -10190,11 +10220,29 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
       type: "deposit",
       amount: amt,
       note: note || null,
-      member_id: null,
+      // Purpose/Partner deposits stay anonymous (per spec). Savings is the
+      // one exception — attribution is the whole point, since each
+      // member's % share is computed straight from what they've put in.
+      member_id: isSavings && payerId !== "other" ? payerId : null,
     });
     setAmount("");
     setNote("");
     setShowDeposit(false);
+  };
+
+  const submitWithdraw = () => {
+    const amt = parseFloat(amount);
+    if (!amt || amt <= 0) return;
+    onAddTransaction({
+      fund_id: fund.id,
+      type: "withdrawal",
+      amount: amt,
+      note: note || null,
+      member_id: null,
+    });
+    setAmount("");
+    setNote("");
+    setShowWithdraw(false);
   };
 
   const submitExpense = () => {
@@ -10231,7 +10279,7 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
           <div>
             <div style={{ fontSize: "12px", opacity: 0.8, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-              {isPartner ? "Partner Fund" : "Purpose Fund"}
+              {isSavings ? "Savings Fund" : isPartner ? "Partner Fund" : "Purpose Fund"}
               {fund.amount_undetermined && !deposits.length ? " · amount TBD" : ""}
             </div>
             <h1 style={{ fontSize: "20px", fontWeight: 800, color: "white", margin: "2px 0 0", display: "flex", alignItems: "center", gap: "8px" }}>
@@ -10272,6 +10320,8 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
               const spent = spentByMember[m.id] || 0;
               const contribution = contributionByMember[m.id] || 0;
               const remaining = isSplit ? contribution - spent : null;
+              const savingsPct =
+                isSavings && totalContribution > 0 ? (contribution / totalContribution) * 100 : null;
               const ownershipPct =
                 isPartner && totalSpentAll > 0
                   ? (spent / totalSpentAll) * 100
@@ -10298,6 +10348,16 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                         </span>
                       )}
                     </span>
+                    {isSavings ? (
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: "15px", fontWeight: 800 }}>
+                          {savingsPct !== null ? `${savingsPct.toFixed(0)}%` : "—"}
+                        </div>
+                        <div style={{ fontSize: "11px", opacity: 0.8 }}>
+                          put in {fmtAmt(contribution)} {currency}
+                        </div>
+                      </div>
+                    ) : (
                     <div style={{ textAlign: "right" }}>
                       <div style={{ fontSize: "12px", opacity: 0.85 }}>
                         spent {fmtAmt(spent)} {currency}
@@ -10314,6 +10374,7 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                         </div>
                       )}
                     </div>
+                    )}
                   </div>
                   {isRecord &&
                     expenses.filter((t) => t.member_id === m.id).length > 0 && (
@@ -10339,6 +10400,43 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                 </div>
               );
             })}
+          {isSavings && otherContribution > 0 && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                background: "rgba(255,255,255,0.08)",
+                borderRadius: "10px",
+                padding: "10px 14px",
+              }}
+            >
+              <div>
+                <span style={{ fontWeight: 700, fontSize: "13px", opacity: 0.85, fontStyle: "italic" }}>
+                  Other (gifts, outside sources)
+                </span>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontSize: "11px",
+                    opacity: 0.75,
+                    marginTop: "3px",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={excludeOtherFromPct}
+                    onChange={(e) => setExcludeOtherFromPct(e.target.checked)}
+                  />
+                  Exclude from % breakdown above
+                </label>
+              </div>
+              <span style={{ fontSize: "13px", opacity: 0.85, fontStyle: "italic" }}>{fmtAmt(otherContribution)} {currency}</span>
+            </div>
+          )}
         </div>
 
         <div style={{ display: "flex", gap: "8px", marginTop: "16px" }}>
@@ -10350,22 +10448,35 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
           >
             <Icon.Plus /> Investment
           </button>
-          <button
-            className="btn"
-            style={{ background: "rgba(255,255,255,0.2)", color: "white", fontWeight: 800, flex: 1, opacity: isLocked ? 0.5 : 1 }}
-            onClick={() => setShowExpense(true)}
-            disabled={isLocked}
-          >
-            <Icon.Plus /> Add expense
-          </button>
-          {isAdmin && !isLocked && (
+          {isSavings ? (
             <button
               className="btn"
-              style={{ background: "rgba(255,255,255,0.2)", color: "white", fontWeight: 800 }}
-              onClick={() => setShowSettleConfirm(true)}
+              style={{ background: "rgba(255,255,255,0.2)", color: "white", fontWeight: 800, flex: 1, opacity: isLocked ? 0.5 : 1 }}
+              onClick={() => setShowWithdraw(true)}
+              disabled={isLocked || totalBalance <= 0}
             >
-              Settle
+              Withdraw
             </button>
+          ) : (
+            <>
+              <button
+                className="btn"
+                style={{ background: "rgba(255,255,255,0.2)", color: "white", fontWeight: 800, flex: 1, opacity: isLocked ? 0.5 : 1 }}
+                onClick={() => setShowExpense(true)}
+                disabled={isLocked}
+              >
+                <Icon.Plus /> Add expense
+              </button>
+              {isAdmin && !isLocked && (
+                <button
+                  className="btn"
+                  style={{ background: "rgba(255,255,255,0.2)", color: "white", fontWeight: 800 }}
+                  onClick={() => setShowSettleConfirm(true)}
+                >
+                  Settle
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -10504,12 +10615,18 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                       <div style={{ fontSize: "13px", fontWeight: 700 }}>
                         {t.type === "deposit"
                           ? "💰 Investment"
+                          : t.type === "withdrawal"
+                          ? "💸 Withdrawal"
                           : t.type === "settlement"
                           ? "⚖️ Settlement"
                           : t.description}
                       </div>
                       <div style={{ fontSize: "12px", color: "var(--text3)" }}>
                         {t.type === "deposit"
+                          ? isSavings
+                            ? `${member?.display_name || "Other"}${t.note ? ` · ${t.note}` : ""}`
+                            : t.note || "No note"
+                          : t.type === "withdrawal"
                           ? t.note || "No note"
                           : t.type === "settlement"
                           ? "Balances reconciled"
@@ -10560,9 +10677,32 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                   autoFocus
                 />
               </div>
+              {isSavings && (
+                <div className="form-group">
+                  <label>From</label>
+                  <select value={payerId} onChange={(e) => setPayerId(e.target.value)}>
+                    {fund.members.map((m) => (
+                      <option key={m.id} value={m.id}>{m.display_name}</option>
+                    ))}
+                    <option value="other">Other (not from a member)</option>
+                  </select>
+                  {payerId === "other" && (
+                    <div style={{ fontSize: "11px", color: "var(--text3)", marginTop: "4px" }}>
+                      For money that didn't come from one of the members — a gift, outside contribution, etc. It's added to the total but won't count toward anyone's %.
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="form-group">
-                <label>Note (optional, informational only)</label>
-                <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Monthly top-up" />
+                <label>
+                  Note {payerId === "other" ? "(explain the source)" : "(optional" + (isSavings ? "" : ", informational only") + ")"}
+                </label>
+                <input
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder={payerId === "other" ? "e.g. Gift from Pera's uncle" : "e.g. Monthly top-up"}
+                  style={payerId === "other" && !note ? { borderColor: "#f59e0b" } : undefined}
+                />
               </div>
             </div>
             <div className="modal-footer">
@@ -10571,6 +10711,40 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
               </button>
               <button className="btn btn-primary" onClick={submitDeposit}>
                 Add deposit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showWithdraw && (
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: "380px" }}>
+            <div className="modal-header">
+              <h2>Withdraw</h2>
+              <button className="btn-icon" onClick={() => setShowWithdraw(false)}>
+                <Icon.X />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div style={{ fontSize: "12px", color: "var(--text2)", marginBottom: "12px" }}>
+                Just reduces the total — no split, no debt tracking.
+              </div>
+              <div className="form-group">
+                <label>Amount</label>
+                <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus />
+              </div>
+              <div className="form-group">
+                <label>Note (optional)</label>
+                <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Paid for the trip" />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setShowWithdraw(false)}>
+                Cancel
+              </button>
+              <button className="btn btn-primary" onClick={submitWithdraw}>
+                Withdraw
               </button>
             </div>
           </div>
@@ -10627,7 +10801,11 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
               </button>
             </div>
             <div className="modal-body">
-              {!isPartner ? (
+              {isSavings ? (
+                <div style={{ fontSize: "12px", color: "var(--text2)" }}>
+                  Savings Funds are simple by design — nothing to configure here beyond archiving or deleting below.
+                </div>
+              ) : !isPartner ? (
                 <>
                   <label>How should it track spending?</label>
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "8px" }}>
@@ -16878,7 +17056,7 @@ function Dashboard({
                   }}
                 >
                   <div style={{ fontSize: "11px", opacity: 0.85, fontWeight: 700, textTransform: "uppercase" }}>
-                    {f.fund_type === "partner" ? "Partner Fund" : "Purpose Fund"}
+                    {f.fund_type === "savings" ? "Savings Fund" : f.fund_type === "partner" ? "Partner Fund" : "Purpose Fund"}
                   </div>
                   <div style={{ fontSize: "15px", fontWeight: 800, marginTop: "2px" }}>{f.name}</div>
                   <div style={{ fontSize: "20px", fontWeight: 800, marginTop: "8px" }}>
@@ -21216,7 +21394,7 @@ export default function App() {
           }}
           onPickFund={() => {
             setShowNewChooser(false);
-            if (userPlan.id === "free" || userPlan.id === "light") {
+            if (userPlan.id === "free") {
               openUpgrade();
             } else {
               setShowNewFund(true);
