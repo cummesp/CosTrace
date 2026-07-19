@@ -5442,6 +5442,25 @@ function LedgerSettingsModal({
   const [ledgerCurrency, setLedgerCurrency] = useState(ledger.currency || "RSD");
   const [currencyPairs, setCurrencyPairs] = useState(ledger.currency_pairs || []);
   const maxPairs = plan.id === "gold" ? 2 : plan.id === "regular" ? 1 : 0;
+  const [suggestedRates, setSuggestedRates] = useState(null); // { currency: rate_to_eur } | null
+  useEffect(() => {
+    if (maxPairs === 0) return;
+    sb.from("exchange_rates")
+      .select("currency, rate_to_eur")
+      .then(({ data }) => {
+        if (data) {
+          const map = {};
+          data.forEach((r) => (map[r.currency] = r.rate_to_eur));
+          setSuggestedRates(map);
+        }
+      });
+  }, []);
+  // rate_to_eur[X] = how many units of X equal 1 EUR — cross the pair
+  // through EUR to get "how many units of `to` equal 1 unit of `from`".
+  const suggestedRate = (from, to) => {
+    if (!suggestedRates || !suggestedRates[from] || !suggestedRates[to]) return null;
+    return suggestedRates[to] / suggestedRates[from];
+  };
   const [req, setReq] = useState(ledger.require_approval);
   const [notifEnabled, setNotifEnabled] = useState(
     ledger.notifications_enabled !== false
@@ -5672,7 +5691,8 @@ function LedgerSettingsModal({
                 Let members enter expenses in another currency — it's converted to {ledgerCurrency} using the rate below, at the moment it's entered. The rate never affects past expenses if you change it later.
               </div>
               {currencyPairs.map((p, i) => (
-                <div key={i} style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px" }}>
+                <div key={i} style={{ marginBottom: "12px" }}>
+                <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "6px" }}>
                   <select
                     value={p.currency}
                     onChange={(e) => {
@@ -5691,17 +5711,50 @@ function LedgerSettingsModal({
                     type="number"
                     step="0.0001"
                     value={p.rate}
+                    disabled={p.auto_update}
                     onChange={(e) => {
                       const next = [...currencyPairs];
                       next[i] = { ...next[i], rate: parseFloat(e.target.value) || 0 };
                       setCurrencyPairs(next);
                     }}
-                    style={{ width: "90px", flexShrink: 0 }}
+                    style={{ width: "90px", flexShrink: 0, opacity: p.auto_update ? 0.5 : 1 }}
                   />
                   <span style={{ fontSize: "12px", color: "var(--text3)", flexShrink: 0 }}>{ledgerCurrency}</span>
+                  {!p.auto_update && suggestedRate(p.currency, ledgerCurrency) !== null && (
+                    <button
+                      className="btn-icon"
+                      title={`Use today's rate (~${suggestedRate(p.currency, ledgerCurrency).toFixed(4)})`}
+                      onClick={() => {
+                        const next = [...currencyPairs];
+                        next[i] = { ...next[i], rate: +suggestedRate(p.currency, ledgerCurrency).toFixed(4) };
+                        setCurrencyPairs(next);
+                      }}
+                    >
+                      <Icon.Copy />
+                    </button>
+                  )}
                   <button className="btn-icon" onClick={() => setCurrencyPairs(currencyPairs.filter((_, ix) => ix !== i))}>
                     <Icon.X />
                   </button>
+                </div>
+                <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", color: "var(--text3)", cursor: "pointer", paddingLeft: "2px" }}>
+                  <input
+                    type="checkbox"
+                    checked={!!p.auto_update}
+                    onChange={(e) => {
+                      const next = [...currencyPairs];
+                      const auto_update = e.target.checked;
+                      const sugg = suggestedRate(p.currency, ledgerCurrency);
+                      next[i] = {
+                        ...next[i],
+                        auto_update,
+                        rate: auto_update && sugg !== null ? +sugg.toFixed(4) : next[i].rate,
+                      };
+                      setCurrencyPairs(next);
+                    }}
+                  />
+                  Auto-update this rate every day at 6am (uses that day's market rate — only affects new expenses, never past ones)
+                </label>
                 </div>
               ))}
               {currencyPairs.length < maxPairs && (
