@@ -3319,6 +3319,7 @@ function AuthScreen({ onLogin }) {
           </div>
           <div style={{ display: "flex", gap: "clamp(12px,1.8vw,28px)" }}>
             {[
+              { label: "Pricing", href: "/pricing" },
               { label: "Privacy Policy", href: "/privacy" },
               { label: "Terms of Service", href: "/terms" },
               { label: "Contact", href: "/contact" },
