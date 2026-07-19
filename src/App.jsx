@@ -180,6 +180,22 @@ async function sendPushTo(userIds, title, body, url) {
   }
 }
 
+// Sends a real email invitation to someone added by email who doesn't have
+// an account yet — previously `invited_email` was only ever stored as data,
+// nothing was actually sent. contextName is just for the email copy (ledger
+// or Fund name), not required.
+async function sendMemberInvite(email, contextName) {
+  if (!email) return;
+  try {
+    const { error } = await sb.functions.invoke("send-invite", {
+      body: { email, contextName },
+    });
+    if (error) console.error("sendMemberInvite failed", error);
+  } catch (e) {
+    console.error("sendMemberInvite failed", e);
+  }
+}
+
 // Dynamic invite link — works on any host (CodeSandbox, production, localhost)
 const inviteBase = () =>
   `${window.location.origin}${window.location.pathname.replace(/\/?$/, "")}`;
@@ -19374,6 +19390,9 @@ export default function App() {
       })),
     ];
     await sb.from("fund_members").insert(memberPayloads);
+    data.members
+      .filter((m) => !m.user_id && m.invited_email)
+      .forEach((m) => sendMemberInvite(m.invited_email, data.name));
     if (initialTx) {
       await sb.from("fund_transactions").insert({ ...initialTx, fund_id: fRow.id });
     }
@@ -19963,6 +19982,11 @@ export default function App() {
               .single());
           }
           if (mRow) idMap[m.id] = mRow.id;
+          // No matched account (m.user_id null) but they gave an email —
+          // actually send them an invite instead of just storing the address.
+          if (mRow && !m.user_id && m.invited_email) {
+            sendMemberInvite(m.invited_email, data.name);
+          }
         }
         // Update local state with real Supabase ids (ledger + every member) and clear the sync flag —
         // until this runs, local ids wouldn't match real DB rows, so writes keyed by them (e.g. a
@@ -20107,6 +20131,9 @@ export default function App() {
             avatar: m.avatar || null,
             plan: m.user_id ? m.plan || "free" : "free",
           });
+          if (!m.user_id && m.invited_email) {
+            sendMemberInvite(m.invited_email, u.name);
+          }
         }
         // Sync updated shares (existing members only — new ones were just inserted above)
         for (const m of u.members) {
