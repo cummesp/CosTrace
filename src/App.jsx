@@ -2835,6 +2835,7 @@ function AuthScreen({ onLogin }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   // Dynamic button positioning — reads the actual rendered image rect and
   // calculates where the painted button area lands on screen regardless of
@@ -2914,6 +2915,24 @@ function AuthScreen({ onLogin }) {
     return () => window.removeEventListener("resize", recalc);
   }, [isMobileHero]);
   const [category, setCategory] = useState(null);
+
+  const sendResetLink = async () => {
+    if (!form.email) {
+      setError("Email is required.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    const { error: err } = await sb.auth.resetPasswordForEmail(form.email, {
+      redirectTo: window.location.origin,
+    });
+    setLoading(false);
+    if (err) {
+      setError(err.message);
+      return;
+    }
+    setResetSent(true);
+  };
 
   const submit = async () => {
     if (!form.email) {
@@ -3324,12 +3343,57 @@ function AuthScreen({ onLogin }) {
             <div className="modal-header">
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <img src={LOGO_ICON} alt="CosTrace" style={{ height: "32px", objectFit: "contain", borderRadius: "6px" }} />
-                <h2>{mode === "login" ? "Welcome back" : "Create account"}</h2>
+                <h2>{mode === "login" ? "Welcome back" : mode === "forgot" ? "Reset password" : "Create account"}</h2>
               </div>
               <button className="btn-icon" onClick={() => setShowAuthModal(false)}><Icon.X /></button>
             </div>
             <div className="modal-body">
               <div className="auth-form-inner" style={{ maxWidth: "none" }}>
+                {mode === "forgot" ? (
+                  resetSent ? (
+                    <div style={{ textAlign: "center", padding: "12px 0" }}>
+                      <div style={{ fontSize: "40px", marginBottom: "12px" }}>📧</div>
+                      <p style={{ fontSize: "14px", color: "#374151", marginBottom: "20px", lineHeight: 1.5 }}>
+                        If an account exists for <strong>{form.email}</strong>, we've sent a link to reset your password.
+                      </p>
+                      <span
+                        style={{ color: "#DC2626", fontWeight: "700", cursor: "pointer", fontSize: "13px" }}
+                        onClick={() => { setMode("login"); setResetSent(false); setError(""); }}
+                      >
+                        Back to sign in
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <p style={{ fontSize: "13px", color: "#9ca3af", marginBottom: "20px" }}>
+                        Enter your email and we'll send you a link to reset your password.
+                      </p>
+                      {error && (
+                        <div style={{ background: "#fef2f2", border: "1.5px solid #fecaca", borderRadius: "10px", padding: "10px 14px", fontSize: "13px", color: "#ef4444", marginBottom: "12px" }}>
+                          {error}
+                        </div>
+                      )}
+                      <div style={{ marginBottom: "20px" }}>
+                        <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#374151", marginBottom: "5px", letterSpacing: "0.5px", textTransform: "uppercase" }}>Email</label>
+                        <input type="email" placeholder="you@example.com" value={form.email}
+                          onChange={(e) => setForm({ ...form, email: e.target.value })}
+                          onKeyDown={(e) => e.key === "Enter" && sendResetLink()}
+                          style={{ width: "100%", padding: "13px 16px", border: "1.5px solid #e5e7eb", borderRadius: "12px", fontSize: "15px", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+                      </div>
+                      <button onClick={sendResetLink} disabled={loading}
+                        style={{ width: "100%", padding: "16px", borderRadius: "14px", border: "none", background: "linear-gradient(90deg,#DC2626,#b91c1c)", color: "white", fontSize: "16px", fontWeight: "800", cursor: "pointer", marginBottom: "14px", opacity: loading ? 0.7 : 1, fontFamily: "inherit" }}>
+                        {loading ? "Sending..." : "Send reset link"}
+                      </button>
+                      <div style={{ textAlign: "center" }}>
+                        <span style={{ color: "#DC2626", fontWeight: "700", cursor: "pointer", fontSize: "13px" }}
+                          onClick={() => { setMode("login"); setError(""); }}>
+                          Back to sign in
+                        </span>
+                      </div>
+                    </>
+                  )
+                ) : (
+                <>
                 <p style={{ fontSize: "13px", color: "#9ca3af", marginBottom: "20px" }}>
                   {mode === "login" ? "Sign in to your account" : "Join CosTrace for free"}
                 </p>
@@ -3362,6 +3426,16 @@ function AuthScreen({ onLogin }) {
                       {showPwd ? "Hide" : "Show"}
                     </button>
                   </div>
+                  {mode === "login" && (
+                    <div style={{ textAlign: "right", marginTop: "8px" }}>
+                      <span
+                        style={{ fontSize: "12px", color: "#DC2626", fontWeight: "700", cursor: "pointer" }}
+                        onClick={() => { setMode("forgot"); setError(""); setResetSent(false); }}
+                      >
+                        Forgot password?
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <button onClick={submit} disabled={loading}
                   style={{ width: "100%", padding: "16px", borderRadius: "14px", border: "none", background: "linear-gradient(90deg,#DC2626,#b91c1c)", color: "white", fontSize: "16px", fontWeight: "800", cursor: "pointer", marginBottom: "14px", opacity: loading ? 0.7 : 1, fontFamily: "inherit" }}>
@@ -3382,8 +3456,11 @@ function AuthScreen({ onLogin }) {
                   </svg>
                   Continue with Google
                 </button>
+                </>
+                )}
               </div>
             </div>
+            {mode !== "forgot" && (
             <div className="modal-footer" style={{ justifyContent: "center" }}>
               <p style={{ fontSize: "13px", color: "#6b7280", margin: 0 }}>
                 {mode === "login" ? (
@@ -3393,6 +3470,7 @@ function AuthScreen({ onLogin }) {
                 )}
               </p>
             </div>
+            )}
           </div>
         </div>
       )}
@@ -3764,6 +3842,93 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
               Create Fund
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Shown after clicking the reset-password link from email — Supabase gives
+// a temporary recovery session just for setting a new password, detected
+// via the PASSWORD_RECOVERY auth event.
+function SetNewPasswordModal({ onDone }) {
+  const [pwd, setPwd] = useState("");
+  const [pwd2, setPwd2] = useState("");
+  const [showPwd, setShowPwd] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const submit = async () => {
+    setError("");
+    if (pwd.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+    if (pwd !== pwd2) {
+      setError("Passwords don't match.");
+      return;
+    }
+    setLoading(true);
+    const { error: err } = await sb.auth.updateUser({ password: pwd });
+    setLoading(false);
+    if (err) {
+      setError(err.message);
+      return;
+    }
+    onDone();
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal" style={{ maxWidth: "380px" }}>
+        <div className="modal-header">
+          <h2>Set a new password</h2>
+        </div>
+        <div className="modal-body">
+          {error && (
+            <div style={{ background: "#fef2f2", border: "1.5px solid #fecaca", borderRadius: "10px", padding: "10px 14px", fontSize: "13px", color: "#ef4444", marginBottom: "12px" }}>
+              {error}
+            </div>
+          )}
+          <div style={{ marginBottom: "12px" }}>
+            <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#374151", marginBottom: "5px", letterSpacing: "0.5px", textTransform: "uppercase" }}>
+              New password
+            </label>
+            <div style={{ position: "relative" }}>
+              <input
+                type={showPwd ? "text" : "password"}
+                value={pwd}
+                onChange={(e) => setPwd(e.target.value)}
+                style={{ width: "100%", padding: "13px 60px 13px 16px", border: "1.5px solid #e5e7eb", borderRadius: "12px", fontSize: "15px", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
+              />
+              <button onClick={() => setShowPwd((p) => !p)}
+                style={{ position: "absolute", right: "14px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: "600", color: "#6b7280", fontFamily: "inherit" }}>
+                {showPwd ? "Hide" : "Show"}
+              </button>
+            </div>
+          </div>
+          <div className="form-group">
+            <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#374151", marginBottom: "5px", letterSpacing: "0.5px", textTransform: "uppercase" }}>
+              Confirm new password
+            </label>
+            <input
+              type={showPwd ? "text" : "password"}
+              value={pwd2}
+              onChange={(e) => setPwd2(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submit()}
+              style={{ width: "100%", padding: "13px 16px", border: "1.5px solid #e5e7eb", borderRadius: "12px", fontSize: "15px", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
+            />
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button
+            className="btn"
+            style={{ width: "100%", background: "linear-gradient(90deg,#DC2626,#b91c1c)", color: "white", fontWeight: 800, border: "none" }}
+            onClick={submit}
+            disabled={loading}
+          >
+            {loading ? "Saving..." : "Save new password"}
+          </button>
         </div>
       </div>
     </div>
@@ -18738,6 +18903,7 @@ export default function App() {
   const [showNew, setShowNew] = useState(false);
   const [showNewFund, setShowNewFund] = useState(false);
   const [showNewChooser, setShowNewChooser] = useState(false);
+  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
   const [prefillMember, setPrefillMember] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
   const [upgradeBusy, setUpgradeBusy] = useState(false);
@@ -19700,6 +19866,12 @@ export default function App() {
         setUser(null);
         setLedgers([]);
       }
+      // Fired when the user lands back on the site after clicking the reset
+      // link in their email — Supabase establishes a temporary session just
+      // for setting a new password.
+      if (event === "PASSWORD_RECOVERY") {
+        setShowResetPasswordModal(true);
+      }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -19781,6 +19953,17 @@ export default function App() {
     const interval = setInterval(check, 5000);
     return () => clearInterval(interval);
   }, [funds, activeFundId]);
+
+  if (showResetPasswordModal) {
+    return (
+      <SetNewPasswordModal
+        onDone={() => {
+          setShowResetPasswordModal(false);
+          notify("new-expense", "Password updated", "You can now sign in with your new password.", "");
+        }}
+      />
+    );
+  }
 
   if (!user && ENV !== "development") {
     if (loadingData)
