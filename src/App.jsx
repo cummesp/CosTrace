@@ -5516,6 +5516,7 @@ function LedgerSettingsModal({
   const [showInvite, setShowInvite] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
   const [showCoverPicker, setShowCoverPicker] = useState(false);
+  const [showThemeDropdown, setShowThemeDropdown] = useState(false);
   const [coverColor, setCoverColor] = useState(ledger.coverColor || null);
   const [labelColor, setLabelColor] = useState(ledger.labelColor || null);
   const [customLabel, setCustomLabel] = useState(ledger.customLabel || "");
@@ -5762,7 +5763,24 @@ function LedgerSettingsModal({
                     <Icon.X />
                   </button>
                 </div>
-                <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", color: "var(--text3)", cursor: "pointer", paddingLeft: "2px" }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "10px",
+                    fontSize: "11px",
+                    fontWeight: 400,
+                    color: "var(--text3)",
+                    cursor: "pointer",
+                    paddingLeft: "2px",
+                    textTransform: "none",
+                    letterSpacing: "normal",
+                  }}
+                >
+                  <span>
+                    Auto-update this rate every day at 6am (uses that day's market rate — only affects new expenses, never past ones)
+                  </span>
                   <input
                     type="checkbox"
                     checked={!!p.auto_update}
@@ -5777,8 +5795,8 @@ function LedgerSettingsModal({
                       };
                       setCurrencyPairs(next);
                     }}
+                    style={{ flexShrink: 0 }}
                   />
-                  Auto-update this rate every day at 6am (uses that day's market rate — only affects new expenses, never past ones)
                 </label>
                 </div>
               ))}
@@ -5920,7 +5938,7 @@ function LedgerSettingsModal({
                     )}
                   </div>
 
-                  {/* Cover theme — tiered */}
+                  {/* Cover theme — dropdown, color only, no names */}
                   <div className="form-group">
                     <label
                       style={{
@@ -5942,132 +5960,112 @@ function LedgerSettingsModal({
                           : themeLimit + " of 18 themes"}
                       </span>
                     </label>
-                    <div
-                      style={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: "8px",
-                        padding: "4px 0",
-                      }}
-                    >
-                      {/* Reset to category default */}
-                      <div
-                        onClick={() => setCoverColor(null)}
+                    <div style={{ position: "relative" }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowThemeDropdown((p) => !p)}
                         style={{
+                          width: "100%",
                           display: "flex",
-                          flexDirection: "column",
                           alignItems: "center",
-                          gap: "4px",
+                          gap: "10px",
+                          padding: "10px 14px",
+                          borderRadius: "12px",
+                          border: "1.5px solid var(--border)",
+                          background: "white",
                           cursor: "pointer",
-                          opacity: 1,
+                          fontFamily: "inherit",
                         }}
                       >
                         <div
                           style={{
-                            width: "40px",
-                            height: "40px",
-                            borderRadius: "10px",
-                            background: currentCover.bg,
-                            border: !coverColor
-                              ? "3px solid #1F2937"
-                              : "2px solid #e5e7eb",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: "11px",
-                            color: "white",
-                            fontWeight: "800",
-                            textShadow: "0 1px 3px rgba(0,0,0,0.4)",
+                            width: "24px",
+                            height: "24px",
+                            borderRadius: "6px",
+                            background: coverColor || currentCover.bg,
                             flexShrink: 0,
+                            border: "1px solid rgba(0,0,0,0.1)",
                           }}
-                        >
-                          ↺
-                        </div>
-                        <span
-                          style={{
-                            fontSize: "9px",
-                            color: "var(--text3)",
-                            fontWeight: "600",
-                            textAlign: "center",
-                            lineHeight: 1.2,
-                            maxWidth: "44px",
-                          }}
-                        >
-                          Default
+                        />
+                        <span style={{ flex: 1, textAlign: "left", fontSize: "13px", color: "var(--text3)" }}>
+                          {coverColor ? "Custom color" : "Default"}
                         </span>
-                      </div>
-                      {/* Theme swatches */}
-                      {ALL_THEMES.map((theme, i) => {
-                        const locked = i >= themeLimit;
-                        const isActive = coverColor === theme.bg;
-                        return (
+                        <span style={{ fontSize: "11px", color: "var(--text3)" }}>
+                          {showThemeDropdown ? "▲" : "▼"}
+                        </span>
+                      </button>
+                      {showThemeDropdown && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: "calc(100% + 4px)",
+                            left: 0,
+                            right: 0,
+                            zIndex: 50,
+                            background: "white",
+                            border: "1.5px solid var(--border)",
+                            borderRadius: "12px",
+                            padding: "10px",
+                            boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: "8px",
+                            maxHeight: "180px",
+                            overflowY: "auto",
+                          }}
+                        >
                           <div
-                            key={i}
-                            onClick={() =>
-                              locked
-                                ? onShowUpgrade && onShowUpgrade()
-                                : setCoverColor(theme.bg)
-                            }
-                            style={{
-                              display: "flex",
-                              flexDirection: "column",
-                              alignItems: "center",
-                              gap: "4px",
-                              cursor: locked ? "not-allowed" : "pointer",
-                              opacity: locked ? 0.45 : 1,
-                              position: "relative",
+                            onClick={() => {
+                              setCoverColor(null);
+                              setShowThemeDropdown(false);
                             }}
-                          >
-                            <div
-                              style={{
-                                width: "40px",
-                                height: "40px",
-                                borderRadius: "10px",
-                                background: theme.bg,
-                                border: isActive
-                                  ? "3px solid #1F2937"
-                                  : "2px solid transparent",
-                                boxShadow: isActive
-                                  ? "0 0 0 1px #1F2937"
-                                  : "0 1px 4px rgba(0,0,0,0.15)",
-                                flexShrink: 0,
-                                position: "relative",
-                              }}
-                            >
-                              {locked && (
-                                <div
-                                  style={{
-                                    position: "absolute",
-                                    inset: 0,
-                                    borderRadius: "8px",
-                                    background: "rgba(255,255,255,0.5)",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    fontSize: "10px",
-                                  }}
-                                >
-                                  🔒
-                                </div>
-                              )}
-                            </div>
-                            <span
-                              style={{
-                                fontSize: "9px",
-                                color: isActive
-                                  ? "var(--text)"
-                                  : "var(--text3)",
-                                fontWeight: isActive ? "700" : "500",
-                                textAlign: "center",
-                                lineHeight: 1.2,
-                                maxWidth: "44px",
-                              }}
-                            >
-                              {theme.name}
-                            </span>
-                          </div>
-                        );
-                      })}
+                            title="Default"
+                            style={{
+                              width: "32px",
+                              height: "32px",
+                              borderRadius: "8px",
+                              background: currentCover.bg,
+                              cursor: "pointer",
+                              border: !coverColor ? "3px solid #1F2937" : "2px solid transparent",
+                              flexShrink: 0,
+                            }}
+                          />
+                          {ALL_THEMES.map((theme, i) => {
+                            const locked = i >= themeLimit;
+                            const isActive = coverColor === theme.bg;
+                            return (
+                              <div
+                                key={i}
+                                title={locked ? "Upgrade to unlock" : undefined}
+                                onClick={() => {
+                                  if (locked) {
+                                    onShowUpgrade && onShowUpgrade();
+                                    return;
+                                  }
+                                  setCoverColor(theme.bg);
+                                  setShowThemeDropdown(false);
+                                }}
+                                style={{
+                                  width: "32px",
+                                  height: "32px",
+                                  borderRadius: "8px",
+                                  background: theme.bg,
+                                  cursor: locked ? "not-allowed" : "pointer",
+                                  opacity: locked ? 0.4 : 1,
+                                  border: isActive ? "3px solid #1F2937" : "2px solid transparent",
+                                  flexShrink: 0,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontSize: "11px",
+                                }}
+                              >
+                                {locked && "🔒"}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                     {themeLimit < 18 && (
                       <p className="tip" style={{ marginTop: "6px" }}>
