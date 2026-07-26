@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD 2026-06-18-d (delete_scheduled_at column)",
+  "%cCOSTRACE BUILD v5.79 2026-07-27 (amount-first expense form, profile billing section)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -4706,6 +4706,65 @@ function AddExpenseModal({
             </div>
           )}
           <div className="form-group">
+            <label>
+              Amount ({currency})
+              {isSettle && maxSettle && (
+                <span
+                  style={{
+                    float: "right",
+                    fontSize: "11px",
+                    color: "var(--settle)",
+                    fontWeight: "600",
+                  }}
+                >
+                  max {fmtAmt(maxSettle)}
+                </span>
+              )}
+            </label>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <input
+                type="number"
+                placeholder="0.00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                max={maxSettle || undefined}
+                autoFocus
+                style={{
+                  fontFamily: "var(--mono)",
+                  borderColor: overMaxSettle ? "var(--danger)" : undefined,
+                  flex: 1,
+                }}
+              />
+              {availableCurrencies.length > 1 && (
+                <select
+                  value={entryCurrency}
+                  onChange={(e) => setEntryCurrency(e.target.value)}
+                  style={{ flex: "0 0 90px" }}
+                >
+                  {availableCurrencies.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+            {entryCurrency !== ledgerCurrency && amount && (
+              <p className="tip" style={{ marginTop: "4px" }}>
+                ≈ {fmtAmt(
+                  parseFloat(amount) *
+                    ((ledger.currency_pairs || []).find((p) => p.currency === entryCurrency)?.rate || 1)
+                )} {ledgerCurrency} at today's rate — locked in once saved
+              </p>
+            )}
+            {overMaxSettle && (
+              <p
+                className="tip"
+                style={{ color: "var(--danger)", marginTop: "4px" }}
+              >
+                Cannot exceed debt of {fmtAmt(maxSettle)} {currency}
+              </p>
+            )}
+          </div>
+          <div className="form-group">
             <label>Description</label>
             <div style={{ position: "relative" }}>
               <input
@@ -4792,64 +4851,6 @@ function AddExpenseModal({
                 return null;
               })()}
             </div>
-          </div>
-          <div className="form-group">
-            <label>
-              Amount ({currency})
-              {isSettle && maxSettle && (
-                <span
-                  style={{
-                    float: "right",
-                    fontSize: "11px",
-                    color: "var(--settle)",
-                    fontWeight: "600",
-                  }}
-                >
-                  max {fmtAmt(maxSettle)}
-                </span>
-              )}
-            </label>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <input
-                type="number"
-                placeholder="0.00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                max={maxSettle || undefined}
-                style={{
-                  fontFamily: "var(--mono)",
-                  borderColor: overMaxSettle ? "var(--danger)" : undefined,
-                  flex: 1,
-                }}
-              />
-              {availableCurrencies.length > 1 && (
-                <select
-                  value={entryCurrency}
-                  onChange={(e) => setEntryCurrency(e.target.value)}
-                  style={{ flex: "0 0 90px" }}
-                >
-                  {availableCurrencies.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              )}
-            </div>
-            {entryCurrency !== ledgerCurrency && amount && (
-              <p className="tip" style={{ marginTop: "4px" }}>
-                ≈ {fmtAmt(
-                  parseFloat(amount) *
-                    ((ledger.currency_pairs || []).find((p) => p.currency === entryCurrency)?.rate || 1)
-                )} {ledgerCurrency} at today's rate — locked in once saved
-              </p>
-            )}
-            {overMaxSettle && (
-              <p
-                className="tip"
-                style={{ color: "var(--danger)", marginTop: "4px" }}
-              >
-                Cannot exceed debt of {fmtAmt(maxSettle)} {currency}
-              </p>
-            )}
           </div>
           {forceSettle && (
             <div className="form-group">
@@ -10771,12 +10772,12 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
             </div>
             <div className="modal-body">
               <div className="form-group">
-                <label>Description</label>
-                <input value={desc} onChange={(e) => setDesc(e.target.value)} autoFocus />
+                <label>Amount</label>
+                <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus />
               </div>
               <div className="form-group">
-                <label>Amount</label>
-                <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
+                <label>Description</label>
+                <input value={desc} onChange={(e) => setDesc(e.target.value)} />
               </div>
               <div className="form-group">
                 <label>Spent by</label>
@@ -15419,6 +15420,66 @@ function ProfileModal({
             >
               {showAvatarPicker ? "Close" : "Change avatar"}
             </button>
+          </div>
+
+          {/* Billing */}
+          <div
+            style={{
+              marginBottom: "20px",
+              background: "var(--bg)",
+              borderRadius: "var(--radius-sm)",
+              padding: "14px",
+              border: "1.5px solid var(--border)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "10px",
+                marginBottom:
+                  plan.id !== "free" && user.plan_expires_at ? "8px" : 0,
+              }}
+            >
+              <div>
+                <div style={{ fontSize: "13px", fontWeight: "700" }}>
+                  Billing
+                </div>
+                <div style={{ fontSize: "12px", color: "var(--text2)" }}>
+                  {plan.name} plan
+                </div>
+              </div>
+              <button
+                className="btn btn-secondary"
+                style={{ fontSize: "12px", padding: "6px 14px", whiteSpace: "nowrap" }}
+                onClick={() => {
+                  onClose();
+                  onShowUpgrade && onShowUpgrade();
+                }}
+              >
+                Manage plan
+              </button>
+            </div>
+            {plan.id !== "free" && user.plan_expires_at && (
+              <div style={{ fontSize: "12px", color: "var(--text2)" }}>
+                {user.downgrade_pending ? (
+                  <>
+                    Paid until{" "}
+                    {new Date(user.plan_expires_at).toLocaleDateString()} —
+                    switches to {PLANS[user.downgrade_pending.plan]?.name}{" "}
+                    after that.
+                  </>
+                ) : (
+                  <>
+                    Paid until{" "}
+                    {new Date(user.plan_expires_at).toLocaleDateString()}.
+                    Next payment:{" "}
+                    {new Date(user.plan_expires_at).toLocaleDateString()}.
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Push notifications */}
