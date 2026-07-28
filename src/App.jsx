@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.79 2026-07-27 (amount-first expense form, profile billing section)",
+  "%cCOSTRACE BUILD v5.80 2026-07-28 (voucher code submission in profile billing)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -15139,6 +15139,11 @@ function ProfileModal({
   const [selectedAvatar, setSelectedAvatar] = useState(user.avatar || null);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [saved, setSaved] = useState(false);
+  // Voucher / promo code — submitted for manual review, not auto-applied.
+  const [voucherCode, setVoucherCode] = useState("");
+  const [voucherStatus, setVoucherStatus] = useState(
+    user.pending_voucher_code ? "submitted" : "idle"
+  ); // idle | submitting | submitted | error
   // Password change
   const [showPwdSection, setShowPwdSection] = useState(false);
   const [pwdCurrent, setPwdCurrent] = useState("");
@@ -15319,6 +15324,25 @@ function ProfileModal({
     if (lockedBySelf.length > 0 && onLedgersRefresh) onLedgersRefresh();
   };
 
+  const submitVoucher = async () => {
+    const code = voucherCode.trim();
+    if (!code) return;
+    setVoucherStatus("submitting");
+    const { error } = await sb
+      .from("profiles")
+      .update({
+        pending_voucher_code: code,
+        voucher_submitted_at: new Date().toISOString(),
+      })
+      .eq("id", user.id);
+    if (error) {
+      setVoucherStatus("error");
+      return;
+    }
+    onUpdate({ ...user, pending_voucher_code: code });
+    setVoucherStatus("submitted");
+  };
+
   const daysLeft = deleteScheduled
     ? Math.ceil(
         (new Date(deleteScheduled) - new Date()) / (1000 * 60 * 60 * 24)
@@ -15480,6 +15504,72 @@ function ProfileModal({
                 )}
               </div>
             )}
+
+            <div
+              style={{
+                marginTop: "12px",
+                paddingTop: "12px",
+                borderTop: "1px solid var(--border)",
+              }}
+            >
+              {voucherStatus === "submitted" ? (
+                <div style={{ fontSize: "12px", color: "var(--success)" }}>
+                  ✓ Voucher code submitted — we review these manually and
+                  apply it to your account within 24–48h.
+                </div>
+              ) : (
+                <>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: "600",
+                      marginBottom: "6px",
+                    }}
+                  >
+                    Have a voucher code?
+                  </div>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <input
+                      value={voucherCode}
+                      onChange={(e) => setVoucherCode(e.target.value)}
+                      placeholder="Enter code"
+                      style={{ flex: 1, fontSize: "12px" }}
+                      disabled={voucherStatus === "submitting"}
+                    />
+                    <button
+                      className="btn btn-secondary"
+                      style={{ fontSize: "12px", padding: "6px 14px", whiteSpace: "nowrap" }}
+                      onClick={submitVoucher}
+                      disabled={
+                        !voucherCode.trim() || voucherStatus === "submitting"
+                      }
+                    >
+                      {voucherStatus === "submitting" ? "Submitting…" : "Submit"}
+                    </button>
+                  </div>
+                  {voucherStatus === "error" && (
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        color: "var(--danger)",
+                        marginTop: "6px",
+                      }}
+                    >
+                      Something went wrong — please try again.
+                    </div>
+                  )}
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      color: "var(--text3)",
+                      marginTop: "6px",
+                    }}
+                  >
+                    Codes are checked and applied manually, not instantly.
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Push notifications */}
