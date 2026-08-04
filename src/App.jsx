@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.80 2026-07-28 (voucher code submission in profile billing)",
+  "%cCOSTRACE BUILD v5.81 2026-07-30 (New chooser everywhere, fund type colors)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -278,6 +278,18 @@ const COVERS = [
 ];
 
 const COVER_COMPONENTS = {};
+
+// Distinct color per Fund type, used for the dashboard tile and the fund's
+// detail page header. Partner Fund keeps the original gold — it's the most
+// established of the three and users already recognize it by that color.
+const FUND_COLORS = {
+  savings: "linear-gradient(135deg,#065f46,#10b981)", // royal green
+  purpose: "linear-gradient(135deg,#4b5563,#9ca3af)", // silver
+  partner: "linear-gradient(135deg,#92400e,#d97706)", // gold (unchanged)
+};
+function fundGradient(fundType) {
+  return FUND_COLORS[fundType] || FUND_COLORS.partner;
+}
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
@@ -10279,7 +10291,7 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
       {/* Header — big balance number + per-member spent/remaining */}
       <div
         style={{
-          background: "linear-gradient(135deg,#92400e,#d97706)",
+          background: fundGradient(fund.fund_type),
           borderRadius: "var(--radius-lg)",
           padding: "24px",
           color: "white",
@@ -17210,7 +17222,7 @@ function Dashboard({
                   className="ledger-card"
                   style={{
                     cursor: "pointer",
-                    background: "linear-gradient(135deg,#92400e,#d97706)",
+                    background: fundGradient(f.fund_type),
                     color: "white",
                     padding: "16px 18px",
                   }}
@@ -17544,7 +17556,7 @@ function Dashboard({
                 }}
               ></div>
               <span style={{ fontSize: "12px", fontWeight: "700" }}>
-                New Ledger
+                New
               </span>
             </div>
             {/* Ad card — same size and shape */}
@@ -21428,7 +21440,7 @@ export default function App() {
               onSelectFund={setActiveFundId}
               currentUser={user}
               onSelectLedger={onOpenLedger}
-              onNewLedger={() => setShowNew(true)}
+              onNewLedger={() => setShowNewChooser(true)}
               onOpenProfile={() => setShowProfile(true)}
               onCancelDelete={() =>
                 setUser((u) => ({ ...u, deleteScheduled: null }))
@@ -21476,7 +21488,7 @@ export default function App() {
           </div>
           <span>Home</span>
         </button>
-        <button className="mobile-nav-item" onClick={() => setShowNew(true)}>
+        <button className="mobile-nav-item" onClick={() => setShowNewChooser(true)}>
           <div className="nav-icon">
             <svg
               width="24"
