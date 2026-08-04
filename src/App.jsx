@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.82 2026-07-30 (fund currencies, past-months balance on ledger cards)",
+  "%cCOSTRACE BUILD v5.83 2026-07-30 (fund budget label fix, all-settled indicator, editable fund %, fund multi-currency)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -10149,7 +10149,7 @@ function AvatarWithMedal({
 // tab (Funds don't have payouts, only deposits that top up the pool). The
 // header shows one big number (current fund balance) and, per member,
 // "spent X" with the remaining amount in green underneath.
-function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSettings, onSettle, onArchive, onRequestDelete, onCancelDelete, onDeleteNow, currency: profileCurrency = "RSD" }) {
+function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSettings, onUpdateMemberPercents, onSettle, onArchive, onRequestDelete, onCancelDelete, onDeleteNow, currency: profileCurrency = "RSD", userPlan }) {
   // Funds can have their own currency (Light+ plans); every {currency}
   // reference below now resolves to the fund's own currency first, falling
   // back to the user's profile currency for funds created before this existed.
@@ -10166,6 +10166,13 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
   const [payerId, setPayerId] = useState(
     fund.members.find((m) => m.user_id === currentUser.id)?.id || fund.members[0]?.id
   );
+  const availableCurrencies = [currency, ...(fund.currency_pairs || []).map((p) => p.currency)];
+  const [entryCurrency, setEntryCurrency] = useState(currency);
+  const convertToFundCurrency = (amt) => {
+    if (entryCurrency === currency) return { converted: amt, rate: 1 };
+    const rate = (fund.currency_pairs || []).find((p) => p.currency === entryCurrency)?.rate || 1;
+    return { converted: amt * rate, rate };
+  };
 
   const isAdmin = fund.members.some((m) => m.user_id === currentUser.id && m.is_admin);
   const isSolo = !fund.members.some((m) => m.user_id && m.user_id !== currentUser.id);
@@ -10179,6 +10186,26 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
     : null;
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [excludeOtherFromPct, setExcludeOtherFromPct] = useState(false);
+  const [pctDraft, setPctDraft] = useState(null); // null = not editing; else { [memberId]: string }
+  const [fundCurrencyPairs, setFundCurrencyPairs] = useState(fund.currency_pairs || []);
+  const fundMaxPairs = userPlan?.id === "gold" ? 2 : userPlan?.id === "regular" ? 1 : 0;
+  const [fundSuggestedRates, setFundSuggestedRates] = useState(null);
+  useEffect(() => {
+    if (fundMaxPairs === 0) return;
+    sb.from("exchange_rates")
+      .select("currency, rate_to_eur")
+      .then(({ data }) => {
+        if (data) {
+          const map = {};
+          data.forEach((r) => (map[r.currency] = r.rate_to_eur));
+          setFundSuggestedRates(map);
+        }
+      });
+  }, []);
+  const fundSuggestedRate = (from, to) => {
+    if (!fundSuggestedRates || !fundSuggestedRates[from] || !fundSuggestedRates[to]) return null;
+    return fundSuggestedRates[to] / fundSuggestedRates[from];
+  };
 
   const allDeposits = fund.transactions.filter((t) => t.type === "deposit");
   const allExpenses = fund.transactions.filter((t) => t.type === "expense");
@@ -10263,10 +10290,14 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
   const submitDeposit = () => {
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) return;
+    const { converted, rate } = convertToFundCurrency(amt);
     onAddTransaction({
       fund_id: fund.id,
       type: "deposit",
-      amount: amt,
+      amount: converted,
+      original_amount: entryCurrency !== currency ? amt : null,
+      original_currency: entryCurrency !== currency ? entryCurrency : null,
+      exchange_rate_used: entryCurrency !== currency ? rate : null,
       note: note || null,
       // Purpose/Partner deposits stay anonymous (per spec). Savings is the
       // one exception — attribution is the whole point, since each
@@ -10281,10 +10312,14 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
   const submitWithdraw = () => {
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) return;
+    const { converted, rate } = convertToFundCurrency(amt);
     onAddTransaction({
       fund_id: fund.id,
       type: "withdrawal",
-      amount: amt,
+      amount: converted,
+      original_amount: entryCurrency !== currency ? amt : null,
+      original_currency: entryCurrency !== currency ? entryCurrency : null,
+      exchange_rate_used: entryCurrency !== currency ? rate : null,
       note: note || null,
       member_id: null,
     });
@@ -10296,10 +10331,14 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
   const submitExpense = () => {
     const amt = parseFloat(amount);
     if (!amt || amt <= 0 || !desc.trim()) return;
+    const { converted, rate } = convertToFundCurrency(amt);
     onAddTransaction({
       fund_id: fund.id,
       type: "expense",
-      amount: amt,
+      amount: converted,
+      original_amount: entryCurrency !== currency ? amt : null,
+      original_currency: entryCurrency !== currency ? entryCurrency : null,
+      exchange_rate_used: entryCurrency !== currency ? rate : null,
       description: desc,
       member_id: payerId,
     });
@@ -10418,7 +10457,9 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                             color: remaining < 0 ? "#fca5a5" : "#86efac",
                           }}
                         >
-                          {remaining < 0 ? "owes" : ""} {fmtAmt(Math.abs(remaining))} {currency}
+                          {remaining < 0
+                            ? `owes ${fmtAmt(Math.abs(remaining))} ${currency}`
+                            : `${fmtAmt(remaining)} ${currency} available`}
                         </div>
                       )}
                     </div>
@@ -10718,12 +10759,31 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
             <div className="modal-body">
               <div className="form-group">
                 <label>Amount</label>
-                <input
-                  type="number"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  autoFocus
-                />
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <input
+                    type="number"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    autoFocus
+                    style={{ flex: 1 }}
+                  />
+                  {availableCurrencies.length > 1 && (
+                    <select
+                      value={entryCurrency}
+                      onChange={(e) => setEntryCurrency(e.target.value)}
+                      style={{ width: "90px", flexShrink: 0 }}
+                    >
+                      {availableCurrencies.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+                {entryCurrency !== currency && amount && (
+                  <div style={{ fontSize: "11px", color: "var(--text3)", marginTop: "4px" }}>
+                    ≈ {fmtAmt(convertToFundCurrency(parseFloat(amount) || 0).converted)} {currency}
+                  </div>
+                )}
               </div>
               {isSavings && (
                 <div className="form-group">
@@ -10780,7 +10840,20 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
               </div>
               <div className="form-group">
                 <label>Amount</label>
-                <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus />
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus style={{ flex: 1 }} />
+                  {availableCurrencies.length > 1 && (
+                    <select
+                      value={entryCurrency}
+                      onChange={(e) => setEntryCurrency(e.target.value)}
+                      style={{ width: "90px", flexShrink: 0 }}
+                    >
+                      {availableCurrencies.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
               </div>
               <div className="form-group">
                 <label>Note (optional)</label>
@@ -10811,7 +10884,20 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
             <div className="modal-body">
               <div className="form-group">
                 <label>Amount</label>
-                <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus />
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus style={{ flex: 1 }} />
+                  {availableCurrencies.length > 1 && (
+                    <select
+                      value={entryCurrency}
+                      onChange={(e) => setEntryCurrency(e.target.value)}
+                      style={{ width: "90px", flexShrink: 0 }}
+                    >
+                      {availableCurrencies.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
               </div>
               <div className="form-group">
                 <label>Description</label>
@@ -10849,6 +10935,89 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
               </button>
             </div>
             <div className="modal-body">
+              <div className="form-group">
+                <label>Fund currency</label>
+                <div style={{ fontSize: "12px", color: "var(--text2)", background: "var(--bg)", borderRadius: "var(--radius-sm)", padding: "10px 12px" }}>
+                  This fund is in {currency}. To change the main currency, create a new fund — it can't be changed after transactions exist.
+                </div>
+              </div>
+
+              {fundMaxPairs > 0 && (
+                <div className="form-group">
+                  <label>Additional currencies {userPlan?.id === "gold" ? "(up to 2)" : "(up to 1)"}</label>
+                  <div style={{ fontSize: "11px", color: "var(--text3)", marginBottom: "8px" }}>
+                    Let members enter deposits/expenses in another currency — it's converted to {currency} using the rate below, at the moment it's entered. Changing the rate later never affects past transactions.
+                  </div>
+                  {fundCurrencyPairs.map((p, i) => (
+                    <div key={i} style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px" }}>
+                      <select
+                        value={p.currency}
+                        onChange={(e) => {
+                          const next = [...fundCurrencyPairs];
+                          next[i] = { ...next[i], currency: e.target.value };
+                          setFundCurrencyPairs(next);
+                        }}
+                        style={{ flex: 1 }}
+                      >
+                        {COMMON_CURRENCIES.filter((c) => c !== currency).map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                      <span style={{ fontSize: "12px", color: "var(--text3)", flexShrink: 0 }}>1 {p.currency} =</span>
+                      <input
+                        type="number"
+                        step="0.0001"
+                        value={p.rate}
+                        onChange={(e) => {
+                          const next = [...fundCurrencyPairs];
+                          next[i] = { ...next[i], rate: parseFloat(e.target.value) || 0 };
+                          setFundCurrencyPairs(next);
+                        }}
+                        style={{ width: "90px", flexShrink: 0 }}
+                      />
+                      <span style={{ fontSize: "12px", color: "var(--text3)", flexShrink: 0 }}>{currency}</span>
+                      {fundSuggestedRate(p.currency, currency) !== null && (
+                        <button
+                          className="btn-icon"
+                          title={`Use today's rate (~${fundSuggestedRate(p.currency, currency).toFixed(4)})`}
+                          onClick={() => {
+                            const next = [...fundCurrencyPairs];
+                            next[i] = { ...next[i], rate: +fundSuggestedRate(p.currency, currency).toFixed(4) };
+                            setFundCurrencyPairs(next);
+                          }}
+                        >
+                          <Icon.Copy />
+                        </button>
+                      )}
+                      <button className="btn-icon" onClick={() => setFundCurrencyPairs(fundCurrencyPairs.filter((_, ix) => ix !== i))}>
+                        <Icon.X />
+                      </button>
+                    </div>
+                  ))}
+                  {fundCurrencyPairs.length < fundMaxPairs && (
+                    <button
+                      className="btn btn-secondary"
+                      style={{ fontSize: "12px", padding: "6px 14px" }}
+                      onClick={() =>
+                        setFundCurrencyPairs([
+                          ...fundCurrencyPairs,
+                          { currency: COMMON_CURRENCIES.find((c) => c !== currency) || "EUR", rate: 1 },
+                        ])
+                      }
+                    >
+                      + Add currency
+                    </button>
+                  )}
+                  <button
+                    className="btn btn-primary"
+                    style={{ fontSize: "12px", padding: "6px 14px", marginTop: "10px", marginLeft: fundCurrencyPairs.length < fundMaxPairs ? "8px" : 0 }}
+                    onClick={() => onUpdateSettings(fund.id, { currency_pairs: fundCurrencyPairs })}
+                  >
+                    Save currencies
+                  </button>
+                </div>
+              )}
+
               {isSavings ? (
                 <div style={{ fontSize: "12px", color: "var(--text2)" }}>
                   Savings Funds are simple by design — nothing to configure here beyond archiving or deleting below.
@@ -10896,6 +11065,78 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                       </label>
                     ))}
                   </div>
+                  {fund.fund_mode === "split" && (
+                    <div style={{ marginTop: "18px" }}>
+                      <label>Budget split</label>
+                      <div style={{ fontSize: "11px", color: "var(--text3)", marginBottom: "8px" }}>
+                        Changes here only affect the budget split going forward — expenses already recorded are never touched.
+                      </div>
+                      {(() => {
+                        const activeMembers = fund.members.filter((m) => !m.is_spectator);
+                        const draft =
+                          pctDraft ||
+                          Object.fromEntries(
+                            activeMembers.map((m) => [m.id, String(m.share_percent ?? "")])
+                          );
+                        const sum = activeMembers.reduce(
+                          (s, m) => s + (parseFloat(draft[m.id]) || 0),
+                          0
+                        );
+                        const ok = Math.abs(sum - 100) < 0.01;
+                        return (
+                          <>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                              {activeMembers.map((m) => (
+                                <div
+                                  key={m.id}
+                                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}
+                                >
+                                  <span style={{ fontSize: "13px", fontWeight: 600 }}>{m.display_name}</span>
+                                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                                    <input
+                                      type="number"
+                                      value={draft[m.id]}
+                                      onChange={(e) =>
+                                        setPctDraft({ ...draft, [m.id]: e.target.value })
+                                      }
+                                      style={{ width: "70px", textAlign: "right" }}
+                                    />
+                                    <span style={{ fontSize: "12px", color: "var(--text3)" }}>%</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: "11px",
+                                marginTop: "6px",
+                                color: ok ? "var(--text3)" : "var(--danger)",
+                              }}
+                            >
+                              Total: {sum.toFixed(1)}% {!ok && "— must add up to 100%"}
+                            </div>
+                            <button
+                              className="btn btn-secondary"
+                              style={{ marginTop: "8px", fontSize: "12px", padding: "6px 14px" }}
+                              disabled={!ok}
+                              onClick={() => {
+                                onUpdateMemberPercents(
+                                  fund.id,
+                                  activeMembers.map((m) => ({
+                                    memberId: m.id,
+                                    percent: parseFloat(draft[m.id]) || 0,
+                                  }))
+                                );
+                                setPctDraft(null);
+                              }}
+                            >
+                              Save split
+                            </button>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </>
               ) : (
                 <>
@@ -17277,6 +17518,7 @@ function Dashboard({
           const net = mine?.net || 0;
           const pastBals = computeLifetimeBalance(l);
           const myPast = pastBals.find((b) => b.user_id === currentUser.id)?.net || 0;
+          const hasLockedMonths = getMonths(l).some((m) => l.lockedMonths?.[m]);
           const total = currExp
             .filter((e) => !e.is_settlement && e.approval_status === "approved")
             .reduce((s, e) => s + e.amount, 0);
@@ -17537,7 +17779,7 @@ function Dashboard({
                     </div>
                   </div>
                 </div>
-                {Math.abs(myPast) > 0.01 && (
+                {hasLockedMonths && Math.abs(myPast) > 0.01 && (
                   <div
                     style={{
                       display: "flex",
@@ -17562,6 +17804,34 @@ function Dashboard({
                     >
                       {myPast > 0.01 ? "+" : ""}
                       {fmtAmt(myPast)}
+                    </span>
+                  </div>
+                )}
+                {hasLockedMonths && Math.abs(myPast) <= 0.01 && (
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginTop: isDesktop ? "6px" : "4px",
+                      paddingTop: isDesktop ? "6px" : "4px",
+                      borderTop: "1px dashed var(--border)",
+                    }}
+                  >
+                    <span
+                      className="bal-label"
+                      style={{ fontSize: isDesktop ? "10px" : "9px" }}
+                    >
+                      Past months
+                    </span>
+                    <span
+                      style={{
+                        fontSize: isDesktop ? "11px" : "10px",
+                        fontWeight: 700,
+                        color: "#16a34a",
+                      }}
+                    >
+                      ✓ All settled
                     </span>
                   </div>
                 )}
@@ -20200,7 +20470,17 @@ export default function App() {
       );
       return;
     }
-    const { error } = await sb.from("fund_transactions").insert(tx);
+    let { error } = await sb.from("fund_transactions").insert(tx);
+    if (
+      error &&
+      (error.message?.includes("original_amount") ||
+        error.message?.includes("original_currency") ||
+        error.message?.includes("exchange_rate_used"))
+    ) {
+      console.warn("fund_transactions currency columns missing — saving without them");
+      const { original_amount, original_currency, exchange_rate_used, ...rest } = tx;
+      ({ error } = await sb.from("fund_transactions").insert(rest));
+    }
     if (error) {
       notify("error", "Couldn't save", error.message, "");
       return;
@@ -20212,7 +20492,48 @@ export default function App() {
     setFunds((prev) => prev.map((f) => (f.id === fundId ? { ...f, ...changes } : f)));
     if (ENV !== "production") return;
     const { error } = await sb.from("funds").update(changes).eq("id", fundId);
+    if (error?.message?.includes("currency_pairs")) {
+      console.warn("funds.currency_pairs column missing — skipping that field");
+      const { currency_pairs, ...rest } = changes;
+      if (Object.keys(rest).length > 0) {
+        await sb.from("funds").update(rest).eq("id", fundId);
+      }
+      return;
+    }
     if (error) notify("error", "Couldn't save settings", error.message, "");
+  };
+
+  // Updates each member's share_percent going forward only. Purpose Fund
+  // expenses are recorded as fixed amounts against a member, never as a
+  // percentage — so changing percentages here never touches anything
+  // already spent or already recorded. It only changes how future budget
+  // (the initial investment split, and any future top-ups) is allocated.
+  const updateFundMemberPercents = async (fundId, updates) => {
+    // updates: [{ memberId, percent }]
+    setFunds((prev) =>
+      prev.map((f) =>
+        f.id === fundId
+          ? {
+              ...f,
+              members: f.members.map((m) => {
+                const u = updates.find((x) => x.memberId === m.id);
+                return u ? { ...m, share_percent: u.percent } : m;
+              }),
+            }
+          : f
+      )
+    );
+    if (ENV !== "production") return;
+    for (const u of updates) {
+      const { error } = await sb
+        .from("fund_members")
+        .update({ share_percent: u.percent })
+        .eq("id", u.memberId);
+      if (error) {
+        notify("error", "Couldn't save percentages", error.message, "");
+        return;
+      }
+    }
   };
 
   // Records the settlement breakdown as a transaction and closes the current
@@ -21433,6 +21754,8 @@ export default function App() {
               onBack={() => setActiveFundId(null)}
               onAddTransaction={addFundTransaction}
               onUpdateSettings={updateFundSettings}
+              onUpdateMemberPercents={updateFundMemberPercents}
+              userPlan={userPlan}
               onSettle={settleFund}
               onArchive={archiveFund}
               onRequestDelete={requestDeleteFund}
