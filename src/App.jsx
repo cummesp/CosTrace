@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.83 2026-07-30 (fund budget label fix, all-settled indicator, editable fund %, fund multi-currency)",
+  "%cCOSTRACE BUILD v5.84 2026-07-30 (fix: later deposits now count toward Purpose Fund split budget)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -10240,6 +10240,21 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
     if (t.member_id)
       contributionByMember[t.member_id] = (contributionByMember[t.member_id] || 0) + t.amount;
   });
+  // Split-mode Purpose Funds: any deposit added later without a specific
+  // member attached (e.g. topping up via "+ Investment" on an existing
+  // fund) is pooled the same way the original investment is — split by
+  // each member's current share_percent — instead of silently not
+  // counting toward anyone's available budget.
+  if (isSplit) {
+    const unattributedPool = deposits
+      .filter((t) => !t.member_id)
+      .reduce((s, t) => s + t.amount, 0);
+    fund.members.forEach((m) => {
+      contributionByMember[m.id] =
+        (contributionByMember[m.id] || 0) +
+        ((m.share_percent || 0) / 100) * unattributedPool;
+    });
+  }
   const namedContribution = Object.values(contributionByMember).reduce((s, v) => s + v, 0);
   // Deposits with no member attached — "Other" contributions (gifts, outside
   // money). Always counted in totalBalance. For the PERCENTAGE breakdown,
