@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.81 2026-07-30 (New chooser everywhere, fund type colors)",
+  "%cCOSTRACE BUILD v5.82 2026-07-30 (fund currencies, past-months balance on ledger cards)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -3519,11 +3519,12 @@ function AuthScreen({ onLogin }) {
 // go. Purpose Fund defaults to an equal split (percentages are optional,
 // left blank = equal); Partner Fund needs no percentages at all, since
 // ownership is dynamic based on spending from day one.
-function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople = [] }) {
+function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople = [], profileCurrency = "RSD" }) {
   const canPurpose = userPlan.id === "regular" || userPlan.id === "gold";
   const canPartner = userPlan.id === "gold";
   const [fundType, setFundType] = useState(canPurpose ? "purpose" : "savings"); // "purpose" | "partner" | "savings"
   const [name, setName] = useState("");
+  const [fundCurrency, setFundCurrency] = useState(profileCurrency);
   const [amount, setAmount] = useState("");
   const [amountTBD, setAmountTBD] = useState(false);
   const [members, setMembers] = useState([{ name: "", email: "", percent: "" }]);
@@ -3570,6 +3571,7 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
     onCreate({
       name,
       cover: "house",
+      currency: fundCurrency,
       fundType,
       fundMode: isPurpose ? "split" : null, // default — switch to "record" later in Settings if wanted
       payoutMode: fundType === "partner" ? "by_contribution" : null, // default — switch to fixed-ratio later in Settings
@@ -3689,6 +3691,26 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
               onChange={(e) => setName(e.target.value)}
               autoFocus
             />
+          </div>
+
+          <div className="form-group">
+            <label>Fund currency</label>
+            {userPlan.id === "free" ? (
+              <div style={{ fontSize: "12px", color: "var(--text2)", background: "var(--bg)", borderRadius: "var(--radius-sm)", padding: "10px 12px" }}>
+                Uses your profile currency ({fundCurrency}). Upgrade to Light+ to set a different currency per fund.
+              </div>
+            ) : (
+              <>
+                <select value={fundCurrency} onChange={(e) => setFundCurrency(e.target.value)}>
+                  {COMMON_CURRENCIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                <div style={{ fontSize: "11px", color: "var(--text3)", marginTop: "4px" }}>
+                  All amounts in this fund are shown in this currency.
+                </div>
+              </>
+            )}
           </div>
 
           {!isSavings && (
@@ -10127,7 +10149,11 @@ function AvatarWithMedal({
 // tab (Funds don't have payouts, only deposits that top up the pool). The
 // header shows one big number (current fund balance) and, per member,
 // "spent X" with the remaining amount in green underneath.
-function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSettings, onSettle, onArchive, onRequestDelete, onCancelDelete, onDeleteNow, currency = "RSD" }) {
+function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSettings, onSettle, onArchive, onRequestDelete, onCancelDelete, onDeleteNow, currency: profileCurrency = "RSD" }) {
+  // Funds can have their own currency (Light+ plans); every {currency}
+  // reference below now resolves to the fund's own currency first, falling
+  // back to the user's profile currency for funds created before this existed.
+  const currency = fund.currency || profileCurrency;
   const [showDeposit, setShowDeposit] = useState(false);
   const [showExpense, setShowExpense] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -17232,7 +17258,7 @@ function Dashboard({
                   </div>
                   <div style={{ fontSize: "15px", fontWeight: 800, marginTop: "2px" }}>{f.name}</div>
                   <div style={{ fontSize: "20px", fontWeight: 800, marginTop: "8px" }}>
-                    {fmtAmt(deposited - spent)}
+                    {fmtAmt(deposited - spent)} {f.currency || currency}
                   </div>
                   <div style={{ fontSize: "11px", opacity: 0.8 }}>remaining</div>
                 </div>
@@ -17249,6 +17275,8 @@ function Dashboard({
           const bals = computeBalances(l, currExp);
           const mine = bals.find((b) => b.user_id === currentUser.id);
           const net = mine?.net || 0;
+          const pastBals = computeLifetimeBalance(l);
+          const myPast = pastBals.find((b) => b.user_id === currentUser.id)?.net || 0;
           const total = currExp
             .filter((e) => !e.is_settlement && e.approval_status === "approved")
             .reduce((s, e) => s + e.amount, 0);
@@ -17509,6 +17537,34 @@ function Dashboard({
                     </div>
                   </div>
                 </div>
+                {Math.abs(myPast) > 0.01 && (
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginTop: isDesktop ? "6px" : "4px",
+                      paddingTop: isDesktop ? "6px" : "4px",
+                      borderTop: "1px dashed var(--border)",
+                    }}
+                  >
+                    <span
+                      className="bal-label"
+                      style={{ fontSize: isDesktop ? "10px" : "9px" }}
+                    >
+                      Past months
+                    </span>
+                    <span
+                      className={`bal-val ${
+                        myPast > 0.01 ? "bal-pos" : "bal-neg"
+                      }`}
+                      style={{ fontSize: isDesktop ? "12px" : "11px" }}
+                    >
+                      {myPast > 0.01 ? "+" : ""}
+                      {fmtAmt(myPast)}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -20035,6 +20091,7 @@ export default function App() {
         id: `f${Date.now()}`,
         name: data.name,
         cover: data.cover || "house",
+        currency: data.currency || "RSD",
         fund_type: data.fundType,
         fund_mode: data.fundMode,
         payout_mode: data.payoutMode,
@@ -20059,11 +20116,12 @@ export default function App() {
       setFunds((p) => [...p, localFund]);
       return;
     }
-    const { data: fRow, error: fErr } = await sb
+    let { data: fRow, error: fErr } = await sb
       .from("funds")
       .insert({
         name: data.name,
         cover: data.cover || "house",
+        currency: data.currency || "RSD",
         fund_type: data.fundType,
         fund_mode: data.fundMode,
         payout_mode: data.payoutMode,
@@ -20073,6 +20131,23 @@ export default function App() {
       })
       .select()
       .single();
+    if (fErr?.message?.includes("currency")) {
+      console.warn("funds.currency column missing — creating without it");
+      ({ data: fRow, error: fErr } = await sb
+        .from("funds")
+        .insert({
+          name: data.name,
+          cover: data.cover || "house",
+          fund_type: data.fundType,
+          fund_mode: data.fundMode,
+          payout_mode: data.payoutMode,
+          initial_amount: data.initialAmount || 0,
+          amount_undetermined: data.amountUndetermined || false,
+          created_by: user.id,
+        })
+        .select()
+        .single());
+    }
     if (fErr || !fRow) {
       notify("error", "Couldn't create Fund", fErr?.message || "Please try again.", "");
       return;
@@ -21634,6 +21709,7 @@ export default function App() {
           onCreate={createFund}
           currentUser={user}
           userPlan={userPlan}
+          profileCurrency={currency}
           networkPeople={(() => {
             const p = {};
             ledgers.forEach((l) =>
