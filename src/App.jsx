@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.84 2026-07-30 (fix: later deposits now count toward Purpose Fund split budget)",
+  "%cCOSTRACE BUILD v5.85 2026-07-30 (archived funds now visible, fixed archive-tab ledger leak)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -17006,10 +17006,8 @@ function Dashboard({
   const isDesktop = useIsDesktop();
   const activeLedgers = ledgers.filter((l) => !l.archived);
   const archivedLedgers = ledgers.filter((l) => l.archived);
-  const shownBase =
-    tab === "archived" && archivedLedgers.length > 0
-      ? archivedLedgers
-      : activeLedgers;
+  const archivedFunds = funds.filter((f) => f.archived);
+  const shownBase = tab === "archived" ? archivedLedgers : activeLedgers;
   const shown = filterCover
     ? shownBase.filter((l) => (l.cover || "house") === filterCover)
     : shownBase;
@@ -17222,7 +17220,7 @@ function Dashboard({
           <h1 className="dashboard-title" style={{ whiteSpace: "nowrap" }}>
             {funds.length > 0 ? "Workspace" : "My Ledgers"}
           </h1>
-          {archivedLedgers.length > 0 && (
+          {(archivedLedgers.length > 0 || archivedFunds.length > 0) && (
             <div
               style={{
                 display: "inline-flex",
@@ -17271,7 +17269,7 @@ function Dashboard({
                   transition: "all 0.15s",
                 }}
               >
-                Archive ({archivedLedgers.length})
+                Archive ({archivedLedgers.length + archivedFunds.length})
               </button>
             </div>
           )}
@@ -17486,7 +17484,7 @@ function Dashboard({
         >
         {viewFilter !== "ledgers" &&
           funds
-            .filter((f) => !f.archived)
+            .filter((f) => (tab === "archived" ? f.archived : !f.archived))
             .map((f) => {
               // initial_amount is already recorded as the first "Investment"
               // transaction, so it's included in the deposits sum below — no
@@ -17504,11 +17502,30 @@ function Dashboard({
                   className="ledger-card"
                   style={{
                     cursor: "pointer",
+                    position: "relative",
                     background: fundGradient(f.fund_type),
                     color: "white",
                     padding: "16px 18px",
+                    opacity: f.archived ? 0.65 : 1,
                   }}
                 >
+                  {f.archived && (
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: 7,
+                        left: 8,
+                        background: "rgba(55,65,81,0.9)",
+                        color: "white",
+                        borderRadius: "6px",
+                        padding: "2px 7px",
+                        fontSize: "10px",
+                        fontWeight: "700",
+                      }}
+                    >
+                      Archived
+                    </span>
+                  )}
                   <div style={{ fontSize: "11px", opacity: 0.85, fontWeight: 700, textTransform: "uppercase" }}>
                     {f.fund_type === "savings" ? "Savings Fund" : f.fund_type === "partner" ? "Partner Fund" : "Purpose Fund"}
                   </div>
