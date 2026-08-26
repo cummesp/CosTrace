@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.85 2026-07-30 (archived funds now visible, fixed archive-tab ledger leak)",
+  "%cCOSTRACE BUILD v5.90 2026-07-30 (expense edit window — configurable per-ledger, default 5 min)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -3523,6 +3523,8 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
   const canPurpose = userPlan.id === "regular" || userPlan.id === "gold";
   const canPartner = userPlan.id === "gold";
   const [fundType, setFundType] = useState(canPurpose ? "purpose" : "savings"); // "purpose" | "partner" | "savings"
+  const [partnerPayoutMode, setPartnerPayoutMode] = useState("by_contribution"); // "by_contribution" | "fixed_ratio"
+  const [purposeFundMode, setPurposeFundMode] = useState("split"); // "split" | "record"
   const [name, setName] = useState("");
   const [fundCurrency, setFundCurrency] = useState(profileCurrency);
   const [amount, setAmount] = useState("");
@@ -3534,7 +3536,7 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
   const isSavings = fundType === "savings";
   const totalOthers = members.reduce((s, m) => s + (parseFloat(m.percent) || 0), 0);
   const totalAll = totalOthers + (parseFloat(selfPct) || 0);
-  const pctEntered = isPurpose && (members.some((m) => m.percent) || selfPct);
+  const pctEntered = isPurpose && purposeFundMode === "split" && (members.some((m) => m.percent) || selfPct);
   const pctOk = !pctEntered || Math.abs(totalAll - 100) < 0.01;
   const amt = amountTBD ? 0 : parseFloat(amount) || 0;
   // Savings starts empty by definition — it only ever grows from named
@@ -3573,8 +3575,8 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
       cover: "house",
       currency: fundCurrency,
       fundType,
-      fundMode: isPurpose ? "split" : null, // default — switch to "record" later in Settings if wanted
-      payoutMode: fundType === "partner" ? "by_contribution" : null, // default — switch to fixed-ratio later in Settings
+      fundMode: isPurpose ? purposeFundMode : null, // chosen above — can still switch later in Settings
+      payoutMode: fundType === "partner" ? partnerPayoutMode : null, // chosen above — can still switch later in Settings
       initialAmount: amt,
       amountUndetermined: amountTBD,
       members: built,
@@ -3681,6 +3683,100 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
                 </label>
               ))}
             </div>
+            {fundType === "partner" && (
+              <div style={{ marginTop: "10px", paddingLeft: "4px" }}>
+                <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text2)" }}>
+                  How should the payout be split?
+                </label>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "6px" }}>
+                  {[
+                    {
+                      id: "by_contribution",
+                      label: "By expense",
+                      desc: "Ownership shifts automatically based on who has covered more of the fund's expenses.",
+                    },
+                    {
+                      id: "fixed_ratio",
+                      label: "Fixed",
+                      desc: "A set ratio you control — starts 50/50, adjustable anytime in Settings.",
+                    },
+                  ].map((t) => (
+                    <label
+                      key={t.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: "8px",
+                        padding: "8px 10px",
+                        borderRadius: "8px",
+                        border: `1.5px solid ${partnerPayoutMode === t.id ? "#d97706" : "var(--border)"}`,
+                        background: partnerPayoutMode === t.id ? "#fffbeb" : "white",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="partner_payout_mode"
+                        checked={partnerPayoutMode === t.id}
+                        onChange={() => setPartnerPayoutMode(t.id)}
+                        style={{ marginTop: "2px", accentColor: "#d97706" }}
+                      />
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: "13px" }}>{t.label}</div>
+                        <div style={{ fontSize: "11px", color: "var(--text3)" }}>{t.desc}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+            {fundType === "purpose" && (
+              <div style={{ marginTop: "10px", paddingLeft: "4px" }}>
+                <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text2)" }}>
+                  How should it track spending?
+                </label>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "6px" }}>
+                  {[
+                    {
+                      id: "split",
+                      label: "Split by percentage",
+                      desc: "Each member has their own budget share that depletes as they spend.",
+                    },
+                    {
+                      id: "record",
+                      label: "Just record",
+                      desc: "No individual budgets — lists each expense next to who spent it.",
+                    },
+                  ].map((t) => (
+                    <label
+                      key={t.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: "8px",
+                        padding: "8px 10px",
+                        borderRadius: "8px",
+                        border: `1.5px solid ${purposeFundMode === t.id ? "#d97706" : "var(--border)"}`,
+                        background: purposeFundMode === t.id ? "#fffbeb" : "white",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="purpose_fund_mode"
+                        checked={purposeFundMode === t.id}
+                        onChange={() => setPurposeFundMode(t.id)}
+                        style={{ marginTop: "2px", accentColor: "#d97706" }}
+                      />
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: "13px" }}>{t.label}</div>
+                        <div style={{ fontSize: "11px", color: "var(--text3)" }}>{t.desc}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="form-group">
@@ -3852,7 +3948,7 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
                       );
                     })()}
                 </div>
-                {isPurpose && (
+                {isPurpose && purposeFundMode === "split" && (
                   <input
                     type="number"
                     placeholder="%"
@@ -5500,6 +5596,7 @@ function LedgerSettingsModal({
   const solo = isSoloDeletable ? isSoloDeletable(ledger) : false;
   const [name, setName] = useState(ledger.name);
   const [ledgerCurrency, setLedgerCurrency] = useState(ledger.currency || "RSD");
+  const [editWindowMinutes, setEditWindowMinutes] = useState(ledger.edit_window_minutes ?? 5);
   const [currencyPairs, setCurrencyPairs] = useState(ledger.currency_pairs || []);
   const maxPairs = plan.id === "gold" ? 2 : plan.id === "regular" ? 1 : 0;
   const [suggestedRates, setSuggestedRates] = useState(null); // { currency: rate_to_eur } | null
@@ -5644,6 +5741,7 @@ function LedgerSettingsModal({
       name,
       currency: ledgerCurrency,
       currency_pairs: maxPairs > 0 ? currencyPairs.slice(0, maxPairs) : [],
+      editWindowMinutes,
       require_approval: req,
       cover: selectedCover,
       notifications_enabled: notifEnabled,
@@ -5718,6 +5816,25 @@ function LedgerSettingsModal({
             <label>Name</label>
             <input value={name} onChange={(e) => setName(e.target.value)} />
           </div>
+
+          {isAdmin && (
+            <div className="form-group">
+              <label>Edit window</label>
+              <select
+                value={editWindowMinutes}
+                onChange={(e) => setEditWindowMinutes(parseInt(e.target.value, 10))}
+              >
+                {[3, 5, 10, 15].map((n) => (
+                  <option key={n} value={n}>
+                    {n} minutes
+                  </option>
+                ))}
+              </select>
+              <div style={{ fontSize: "11px", color: "var(--text3)", marginTop: "4px" }}>
+                How long after logging an expense the person who entered it (or an admin) can still fix it.
+              </div>
+            </div>
+          )}
 
           {/* Currency — Light+: change the ledger's main currency (no
               conversion, whole ledger just displays/operates in that
@@ -8288,6 +8405,7 @@ function ExpenseDetailModal({
   onApprove,
   onDeny,
   onCancel,
+  onUpdateExpense,
   plan,
   currency = "RSD",
 }) {
@@ -8309,6 +8427,31 @@ function ExpenseDetailModal({
     !isCancelled &&
     !isPending &&
     (isAdmin || exp.paid_by_id === currentUser.id);
+
+  // Anyone who logged the expense (or an admin) can fix a typo shortly after
+  // entering it — but only for a short window, configurable per-ledger by
+  // an admin (Settings → Edit window, 3/5/10/15 min). Once that window
+  // passes, the entry is final, same as before this existed.
+  const editWindowMs = (ledger.edit_window_minutes ?? 5) * 60000;
+  const msSinceCreated = exp.created_at
+    ? Date.now() - new Date(exp.created_at).getTime()
+    : Infinity;
+  const withinEditWindow = msSinceCreated < editWindowMs;
+  const canEdit =
+    withinEditWindow &&
+    !isLocked &&
+    !isCancelled &&
+    !isSettle &&
+    !isPayout &&
+    (isAdmin || exp.paid_by_id === currentUser.id);
+  const minutesLeft = Math.max(0, Math.ceil((editWindowMs - msSinceCreated) / 60000));
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editAmount, setEditAmount] = useState(String(exp.amount));
+  const [editDesc, setEditDesc] = useState(exp.description || "");
+  const [editDate, setEditDate] = useState(
+    exp.expense_date ? exp.expense_date.slice(0, 10) : ""
+  );
 
   const hasCustomSplit =
     exp.splits &&
@@ -8610,6 +8753,35 @@ function ExpenseDetailModal({
               marginBottom: "16px",
             }}
           >
+            {isEditing ? (
+              <>
+                <div className="form-group">
+                  <label>Amount</label>
+                  <input
+                    type="number"
+                    value={editAmount}
+                    onChange={(e) => setEditAmount(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Description</label>
+                  <input
+                    value={editDesc}
+                    onChange={(e) => setEditDesc(e.target.value)}
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Date</label>
+                  <input
+                    type="date"
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                  />
+                </div>
+              </>
+            ) : (
+            <>
             <div
               style={{
                 display: "flex",
@@ -8692,6 +8864,8 @@ function ExpenseDetailModal({
                 {currency}
               </span>
             </div>
+            </>
+            )}
           </div>
 
           {/* Split breakdown */}
@@ -8862,10 +9036,49 @@ function ExpenseDetailModal({
           className="modal-footer"
           style={{ justifyContent: "space-between" }}
         >
+          {isEditing ? (
+            <div style={{ display: "flex", gap: "8px", width: "100%", justifyContent: "flex-end" }}>
+              <button
+                className="btn btn-secondary"
+                onClick={() => {
+                  setIsEditing(false);
+                  setEditAmount(String(exp.amount));
+                  setEditDesc(exp.description || "");
+                  setEditDate(exp.expense_date ? exp.expense_date.slice(0, 10) : "");
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  const amt = parseFloat(editAmount);
+                  if (!amt || amt <= 0 || !editDesc.trim() || !editDate) return;
+                  onUpdateExpense(exp.id, {
+                    amount: amt,
+                    description: editDesc.trim(),
+                    expense_date: editDate,
+                  });
+                  setIsEditing(false);
+                }}
+              >
+                Save
+              </button>
+            </div>
+          ) : (
           <div style={{ display: "flex", gap: "8px" }}>
             <button className="btn btn-secondary" onClick={onClose}>
               Close
             </button>
+            {canEdit && (
+              <button
+                className="btn btn-secondary"
+                title={`Editable for ${minutesLeft} more minute${minutesLeft === 1 ? "" : "s"}`}
+                onClick={() => setIsEditing(true)}
+              >
+                Edit
+              </button>
+            )}
             {canDelete && (
               <button
                 className="btn"
@@ -8890,6 +9103,7 @@ function ExpenseDetailModal({
               </button>
             )}
           </div>
+          )}
           {canApprove && (
             <div style={{ display: "flex", gap: "8px" }}>
               <button
@@ -10270,7 +10484,13 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
   // Partner Fund ownership is dynamic and based on SPENDING, not deposits —
   // whoever has covered more of the fund's expenses owns a bigger share.
   // Falls back to the initial share_percent until anyone has spent anything.
-  const totalSpentAll = Object.values(spentByMember).reduce((s, v) => s + v, 0);
+  // Only counts expenses tied to an actual member — a "Fund expense" (no
+  // member_id, used when the fixed ratio doesn't add up to 100%) already
+  // reduces totalBalance on its own; including it here too would subtract
+  // it a second time from the fixed-ratio payout math below.
+  const totalSpentAll = expenses
+    .filter((t) => t.member_id)
+    .reduce((s, t) => s + t.amount, 0);
 
   // Settlement preview — computed live so the confirm dialog shows exactly
   // what will be recorded.
@@ -10355,7 +10575,7 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
       original_currency: entryCurrency !== currency ? entryCurrency : null,
       exchange_rate_used: entryCurrency !== currency ? rate : null,
       description: desc,
-      member_id: payerId,
+      member_id: payerId === "fund" ? null : payerId,
     });
     setAmount("");
     setDesc("");
@@ -10425,7 +10645,9 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
               const savingsPct =
                 isSavings && totalContribution > 0 ? (contribution / totalContribution) * 100 : null;
               const ownershipPct =
-                isPartner && totalSpentAll > 0
+                isPartner && fund.payout_mode === "fixed_ratio"
+                  ? fund.fixed_ratio?.[m.id] ?? m.share_percent ?? 0
+                  : isPartner && totalSpentAll > 0
                   ? (spent / totalSpentAll) * 100
                   : isPartner
                   ? m.share_percent || 0 // no spending yet — fall back to initial split
@@ -10693,7 +10915,7 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                         const m = fund.members.find((mm) => mm.id === mid);
                         return (
                           <span key={mid} style={{ fontSize: "11px", color: "var(--text3)" }}>
-                            {m?.display_name || "—"}: {fmtAmt(amt)} {currency}
+                            {m?.display_name || "Fund expense"}: {fmtAmt(amt)} {currency}
                           </span>
                         );
                       })}
@@ -10734,7 +10956,7 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                           ? t.note || "No note"
                           : t.type === "settlement"
                           ? "Balances reconciled"
-                          : member?.display_name || "—"}
+                          : member?.display_name || "Fund expense"}
                       </div>
                     </div>
                     {t.type !== "settlement" && (
@@ -10926,6 +11148,16 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                       {m.display_name}
                     </option>
                   ))}
+                  {isPartner &&
+                    fund.payout_mode === "fixed_ratio" &&
+                    fund.members.reduce(
+                      (s, m) => s + (fund.fixed_ratio?.[m.id] ?? m.share_percent ?? 0),
+                      0
+                    ) < 100 - 0.01 && (
+                      <option value="fund">
+                        Fund expense (shared, not from anyone's ratio)
+                      </option>
+                    )}
                 </select>
               </div>
             </div>
@@ -11381,6 +11613,7 @@ function LedgerDetail({
   overParticipantLimit = false,
   onLeave,
   allLedgers = [],
+  onUpdateExpense,
 }) {
   const isArchived = !!ledger.archived;
   const [delCopyConfirm, setDelCopyConfirm] = useState(false);
@@ -11905,7 +12138,9 @@ function LedgerDetail({
                     const spent = spentByMember[key] || 0;
                     const contribution = m.fund_contribution || 0;
                     const ownershipPct =
-                      isPartner && totalContribution > 0
+                      isPartner && ledger.payout_mode === "fixed_ratio"
+                        ? ledger.fixed_ratio?.[m.id] ?? m.share_percent ?? 0
+                        : isPartner && totalContribution > 0
                         ? (contribution / totalContribution) * 100
                         : null;
                     const remaining =
@@ -13471,6 +13706,7 @@ function LedgerDetail({
           }}
           plan={plan}
           currency={currency}
+          onUpdateExpense={onUpdateExpense}
         />
       )}
     </div>
@@ -20740,6 +20976,20 @@ export default function App() {
     }
   };
 
+  // Only touches the fields the edit form actually exposes — approval
+  // status, splits, and everything else about the expense are untouched.
+  const updateExpense = async (id, changes) => {
+    setLedgers((prev) =>
+      prev.map((l) => ({
+        ...l,
+        expenses: l.expenses.map((e) => (e.id === id ? { ...e, ...changes } : e)),
+      }))
+    );
+    if (ENV !== "production") return;
+    const { error } = await sb.from("expenses").update(changes).eq("id", id);
+    if (error) notify("error", "Couldn't save changes", error.message, "");
+  };
+
   const saveLedger = async (l) => {
     const basePayload = {
       id: l.id,
@@ -20762,7 +21012,17 @@ export default function App() {
       carry_balance: l.carry_balance || false,
       currency: l.currency || "RSD",
       currency_pairs: l.currency_pairs || [],
+      edit_window_minutes: l.editWindowMinutes || 5,
     });
+    if (error?.message?.includes("edit_window_minutes")) {
+      console.warn("edit_window_minutes column missing — saving without it");
+      ({ error } = await sb.from("ledgers").upsert({
+        ...basePayload,
+        carry_balance: l.carry_balance || false,
+        currency: l.currency || "RSD",
+        currency_pairs: l.currency_pairs || [],
+      }));
+    }
     if (error && (error.message?.includes("carry_balance") || error.message?.includes("currency"))) {
       console.warn("currency/carry_balance column missing — saving without them");
       ({ error } = await sb.from("ledgers").upsert(basePayload));
@@ -21818,6 +22078,7 @@ export default function App() {
               overParticipantLimit={overParticipantLimit}
               onLeave={leaveledger}
               allLedgers={ledgers}
+              onUpdateExpense={updateExpense}
             />
           ) : page === "plans" && isDesktop ? (
             <UpgradeModal
