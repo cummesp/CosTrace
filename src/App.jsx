@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.90 2026-07-30 (expense edit window — configurable per-ledger, default 5 min)",
+  "%cCOSTRACE BUILD v5.91 2026-07-30 (Partner Fund now shows remaining/available share, not just spent)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -10636,18 +10636,24 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "18px" }}>
-          {fund.members
-            .filter((m) => !m.is_spectator)
-            .map((m) => {
-              const spent = spentByMember[m.id] || 0;
-              const contribution = contributionByMember[m.id] || 0;
-              const remaining = isSplit ? contribution - spent : null;
-              const savingsPct =
-                isSavings && totalContribution > 0 ? (contribution / totalContribution) * 100 : null;
-              const ownershipPct =
-                isPartner && fund.payout_mode === "fixed_ratio"
-                  ? fund.fixed_ratio?.[m.id] ?? m.share_percent ?? 0
-                  : isPartner && totalSpentAll > 0
+          {(() => {
+            const partnerPreview = isPartner ? settlementPreview() : null;
+            return fund.members
+              .filter((m) => !m.is_spectator)
+              .map((m) => {
+                const spent = spentByMember[m.id] || 0;
+                const contribution = contributionByMember[m.id] || 0;
+                const remaining = isSplit
+                  ? contribution - spent
+                  : isPartner
+                  ? partnerPreview?.find((p) => p.member.id === m.id)?.amount ?? null
+                  : null;
+                const savingsPct =
+                  isSavings && totalContribution > 0 ? (contribution / totalContribution) * 100 : null;
+                const ownershipPct =
+                  isPartner && fund.payout_mode === "fixed_ratio"
+                    ? fund.fixed_ratio?.[m.id] ?? m.share_percent ?? 0
+                    : isPartner && totalSpentAll > 0
                   ? (spent / totalSpentAll) * 100
                   : isPartner
                   ? m.share_percent || 0 // no spending yet — fall back to initial split
@@ -10725,7 +10731,8 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                     )}
                 </div>
               );
-            })}
+            });
+          })()}
           {isSavings && otherContribution > 0 && (
             <div
               style={{
