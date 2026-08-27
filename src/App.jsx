@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.98 2026-07-30 (Partner Fund: added third payout option — just split by fixed ratio, no reimbursement)",
+  "%cCOSTRACE BUILD v5.99 2026-07-30 (Partner Fund redesign: Income/Withdraw rename, Founder's loan, module-aware expense/balance rules, 3-algorithm withdraw)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -3524,6 +3524,7 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
   const canPartner = userPlan.id === "gold";
   const [fundType, setFundType] = useState(canPurpose ? "purpose" : "savings"); // "purpose" | "partner" | "savings"
   const [purposeFundMode, setPurposeFundMode] = useState("split"); // "split" | "record"
+  const [partnerPayoutMode, setPartnerPayoutMode] = useState("by_contribution"); // "by_contribution" | "fixed_ratio"
   const [name, setName] = useState("");
   const [fundCurrency, setFundCurrency] = useState(profileCurrency);
   const [amount, setAmount] = useState("");
@@ -3596,7 +3597,7 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
       currency: fundCurrency,
       fundType,
       fundMode: isPurpose ? purposeFundMode : null, // chosen above — can still switch later in Settings
-      payoutMode: fundType === "partner" ? "by_contribution" : null, // default — switch to fixed-ratio later in Settings
+      payoutMode: fundType === "partner" ? partnerPayoutMode : null, // chosen above — can still switch later in Settings
       initialAmount: amt,
       amountUndetermined: amountTBD,
       members: built,
@@ -3739,6 +3740,53 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
                         name="purpose_fund_mode"
                         checked={purposeFundMode === t.id}
                         onChange={() => setPurposeFundMode(t.id)}
+                        style={{ marginTop: "2px", accentColor: "#d97706" }}
+                      />
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: "13px" }}>{t.label}</div>
+                        <div style={{ fontSize: "11px", color: "var(--text3)" }}>{t.desc}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+            {fundType === "partner" && (
+              <div style={{ marginTop: "10px", paddingLeft: "4px" }}>
+                <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text2)" }}>
+                  How should ownership work?
+                </label>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "6px" }}>
+                  {[
+                    {
+                      id: "by_contribution",
+                      label: "By expense participation",
+                      desc: "Each participant's % of the fund is based on how much they've personally covered — expenses are just logged, never taken out of the fund itself.",
+                    },
+                    {
+                      id: "fixed_ratio",
+                      label: "Cover expenses, then fixed ratio",
+                      desc: "Participant expenses come out of the fund and get reimbursed first, then whatever's left is split by a fixed ratio you set later in Settings.",
+                    },
+                  ].map((t) => (
+                    <label
+                      key={t.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: "8px",
+                        padding: "8px 10px",
+                        borderRadius: "8px",
+                        border: `1.5px solid ${partnerPayoutMode === t.id ? "#d97706" : "var(--border)"}`,
+                        background: partnerPayoutMode === t.id ? "#fffbeb" : "white",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="partner_payout_mode"
+                        checked={partnerPayoutMode === t.id}
+                        onChange={() => setPartnerPayoutMode(t.id)}
                         style={{ marginTop: "2px", accentColor: "#d97706" }}
                       />
                       <div>
@@ -10359,12 +10407,18 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
   const [showExpense, setShowExpense] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showSettleConfirm, setShowSettleConfirm] = useState(false);
+  const [settleAmount, setSettleAmount] = useState("");
+  const [settleAlgo, setSettleAlgo] = useState("cover_then_ratio"); // "cover_then_ratio" | "ratio_only" | "expenses_only"
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [activeMonth, setActiveMonth] = useState(mk(new Date()));
   const [amount, setAmount] = useState("");
   const [desc, setDesc] = useState("");
   const [note, setNote] = useState("");
   const [payerId, setPayerId] = useState(
+    fund.members.find((m) => m.user_id === currentUser.id)?.id || fund.members[0]?.id
+  );
+  const [isFounderLoan, setIsFounderLoan] = useState(false);
+  const [loanMemberId, setLoanMemberId] = useState(
     fund.members.find((m) => m.user_id === currentUser.id)?.id || fund.members[0]?.id
   );
   const availableCurrencies = [currency, ...(fund.currency_pairs || []).map((p) => p.currency)];
@@ -10411,11 +10465,20 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
   const allDeposits = fund.transactions.filter((t) => t.type === "deposit");
   const allExpenses = fund.transactions.filter((t) => t.type === "expense");
   const allWithdrawals = fund.transactions.filter((t) => t.type === "withdrawal");
+  const isPartnerByContribution = isPartner && fund.payout_mode !== "fixed_ratio";
+  // Module 1 ("By expense participation"): a participant's own expense is
+  // just a RECORD that shifts their ownership % — it was money they spent
+  // personally, not money taken out of the fund, so it never reduces the
+  // fund's actual balance. A "Fund expense" (no member attached) always
+  // does reduce the balance, in both modules — that's real fund spending.
+  const balanceAffectingExpenses = isPartnerByContribution
+    ? allExpenses.filter((t) => !t.member_id)
+    : allExpenses;
   // initial_amount is no longer added separately here — it's recorded as the
-  // very first "Investment" transaction at creation time, so summing
+  // very first "Income" transaction at creation time, so summing
   // allDeposits already includes it. Adding it again would double-count it.
   const totalDeposited = allDeposits.reduce((s, t) => s + t.amount, 0);
-  const totalSpentEver = allExpenses.reduce((s, t) => s + t.amount, 0);
+  const totalSpentEver = balanceAffectingExpenses.reduce((s, t) => s + t.amount, 0);
   const totalWithdrawn = allWithdrawals.reduce((s, t) => s + t.amount, 0);
   const totalBalance = totalDeposited - totalSpentEver - totalWithdrawn;
   const withdrawAmtConverted = convertToFundCurrency(parseFloat(amount) || 0).converted;
@@ -10437,17 +10500,14 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
   // is their own budget/entitlement, and every deposit — whether it's the
   // original investment or a later "+ Investment" top-up, regardless of
   // who technically submitted it — gets pooled and split by that %.
-  const isDirectRatio = isPartner && fund.payout_mode === "fixed_ratio_direct";
-  const pctFor = (m) =>
-    isDirectRatio ? fund.fixed_ratio?.[m.id] ?? m.share_percent ?? 0 : m.share_percent || 0;
   const contributionByMember = {};
-  if (isSplit || isDirectRatio) {
+  if (isSplit) {
     // "Initial amount" is already recorded as the first deposit transaction
     // too (so it shows up in the history) — fund.initial_amount itself must
     // NOT be added again here, or it gets counted twice.
     const totalDeposited = deposits.reduce((s, t) => s + t.amount, 0);
     fund.members.forEach((m) => {
-      contributionByMember[m.id] = (pctFor(m) / 100) * totalDeposited;
+      contributionByMember[m.id] = ((m.share_percent || 0) / 100) * totalDeposited;
     });
   } else {
     fund.members.forEach((m) => {
@@ -10459,11 +10519,16 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
     });
   }
   const namedContribution = Object.values(contributionByMember).reduce((s, v) => s + v, 0);
-  // Purpose Fund (split mode) is a debit fund — nobody, including a shared
-  // "Fund expense", can spend more than what's actually in the pot, and a
-  // member spending against their own share can't push it negative either.
+  // Every fund type is a debit fund now — nobody, including a shared "Fund
+  // expense", can spend more than what's actually in the pot. The one
+  // nuance: Partner Fund Module 1 (by expense participation) never touches
+  // the balance for a PARTICIPANT's own expense — it's just a record that
+  // shifts ownership — so only a Fund-type expense (or anything in Module 2,
+  // which does spend from the shared pot) needs the balance check.
   const expenseAmtConverted = convertToFundCurrency(parseFloat(amount) || 0).converted;
-  const expenseExceedsTotal = isSplit && expenseAmtConverted > totalBalance + 0.005;
+  const expenseTouchesBalance =
+    isSplit || (isPartner && (payerId === "fund" || fund.payout_mode === "fixed_ratio"));
+  const expenseExceedsTotal = expenseTouchesBalance && expenseAmtConverted > totalBalance + 0.005;
   const payerRemaining =
     isSplit && payerId !== "fund"
       ? (contributionByMember[payerId] || 0) - (spentByMember[payerId] || 0)
@@ -10491,36 +10556,61 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
   const totalSpentAll = expenses
     .filter((t) => t.member_id)
     .reduce((s, t) => s + t.amount, 0);
+  // A "Founder's loan" is income tied to a specific person — it boosts
+  // their ownership in Module 1 the same way covering an expense does,
+  // since both represent them personally putting more into the fund.
+  const loanByMember = {};
+  deposits.forEach((t) => {
+    if (t.is_loan && t.member_id) loanByMember[t.member_id] = (loanByMember[t.member_id] || 0) + t.amount;
+  });
+  const totalLoansAll = Object.values(loanByMember).reduce((s, v) => s + v, 0);
 
   // Settlement preview — computed live so the confirm dialog shows exactly
   // what will be recorded.
   const settlementPreview = () => {
     const activeMembers = fund.members.filter((m) => !m.is_spectator);
     if (isPartner) {
-      if (fund.payout_mode === "fixed_ratio_direct") {
-        // No reimbursement step — same math as Purpose Fund's split mode:
-        // your cut is your % of everything ever invested, minus whatever
-        // you've personally spent. Can go negative (Partner Fund allows it).
-        return activeMembers.map((m) => {
-          const contribution = contributionByMember[m.id] || 0;
-          const spent = spentByMember[m.id] || 0;
-          return { member: m, amount: contribution - spent };
-        });
-      }
+      const W = Math.min(parseFloat(settleAmount) || 0, totalBalance);
       if (fund.payout_mode === "fixed_ratio") {
-        // Reimburse each member's own spending first, then split whatever's
-        // left of the balance by the fixed ratio set in Settings.
-        const afterReimbursement = totalBalance - totalSpentAll;
+        const pctOf = (m) => (fund.fixed_ratio?.[m.id] ?? m.share_percent ?? 0) / 100;
+        if (settleAlgo === "ratio_only") {
+          // Ignore expenses entirely — just split the withdrawal amount by
+          // the fixed ratio.
+          return activeMembers.map((m) => ({ member: m, amount: W * pctOf(m) }));
+        }
+        if (settleAlgo === "expenses_only") {
+          // Try to fully reimburse everyone's own expenses first. If there's
+          // not enough to cover them all, split what's available by each
+          // member's SHARE of the total expenses (not the fixed ratio).
+          if (totalSpentAll <= 0) return activeMembers.map((m) => ({ member: m, amount: 0 }));
+          if (W >= totalSpentAll) {
+            return activeMembers.map((m) => ({ member: m, amount: spentByMember[m.id] || 0 }));
+          }
+          return activeMembers.map((m) => ({
+            member: m,
+            amount: W * ((spentByMember[m.id] || 0) / totalSpentAll),
+          }));
+        }
+        // "cover_then_ratio" (default): reimburse expenses first — fully if
+        // there's enough, proportionally to each member's expense share if
+        // not — then split whatever's left of W by the fixed ratio.
+        const coverable = Math.min(W, totalSpentAll);
+        const coverRatio = totalSpentAll > 0 ? coverable / totalSpentAll : 0;
+        const remainder = W - coverable;
         return activeMembers.map((m) => {
-          const reimbursed = spentByMember[m.id] || 0;
-          const ratioShare = ((fund.fixed_ratio?.[m.id] ?? m.share_percent ?? 0) / 100) * Math.max(0, afterReimbursement);
+          const reimbursed = (spentByMember[m.id] || 0) * coverRatio;
+          const ratioShare = pctOf(m) * remainder;
           return { member: m, amount: reimbursed + ratioShare };
         });
       }
-      // by_contribution: split current balance by spending-based ownership %
+      // Module 1 (by expense participation): no expenses to reimburse (they
+      // never touched the balance) — just split the withdrawal amount by
+      // each member's current share of everything they've contributed.
+      const grandTotal = totalSpentAll + totalLoansAll;
       return activeMembers.map((m) => {
-        const pct = totalSpentAll > 0 ? (spentByMember[m.id] || 0) / totalSpentAll : (m.share_percent || 0) / 100;
-        return { member: m, amount: totalBalance * pct };
+        const contributed = (spentByMember[m.id] || 0) + (loanByMember[m.id] || 0);
+        const pct = grandTotal > 0 ? contributed / grandTotal : (m.share_percent || 0) / 100;
+        return { member: m, amount: W * pct };
       });
     }
     // Purpose Fund: settle up debts — whoever went negative owes the pool /
@@ -10544,13 +10634,18 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
       original_currency: entryCurrency !== currency ? entryCurrency : null,
       exchange_rate_used: entryCurrency !== currency ? rate : null,
       note: note || null,
-      // Purpose/Partner deposits stay anonymous (per spec). Savings is the
-      // one exception — attribution is the whole point, since each
-      // member's % share is computed straight from what they've put in.
-      member_id: isSavings && payerId !== "other" ? payerId : null,
+      is_loan: isPartner ? isFounderLoan : false,
+      // Purpose/Partner income stays anonymous by default (per spec) — it's
+      // just money the fund earned or received, doesn't shift anyone's
+      // ownership. Savings is the one exception (attribution is the whole
+      // point there). A Partner Fund "Founder's loan" is the other
+      // exception — it's tied to a specific person on purpose, since it
+      // increases their stake.
+      member_id: isSavings && payerId !== "other" ? payerId : isPartner && isFounderLoan ? loanMemberId : null,
     });
     setAmount("");
     setNote("");
+    setIsFounderLoan(false);
     setShowDeposit(false);
   };
 
@@ -10653,16 +10748,18 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
               .map((m) => {
                 const spent = spentByMember[m.id] || 0;
                 const contribution = contributionByMember[m.id] || 0;
-                const remaining = isSplit || isDirectRatio ? contribution - spent : null;
+                const remaining = isSplit ? contribution - spent : null;
                 const savingsPct =
                   isSavings && totalContribution > 0 ? (contribution / totalContribution) * 100 : null;
+                const contributedTotal = spent + (loanByMember[m.id] || 0);
+                const grandTotalContributed = totalSpentAll + totalLoansAll;
                 const ownershipPct =
-                  isDirectRatio
+                  isPartner && fund.payout_mode === "fixed_ratio"
                   ? fund.fixed_ratio?.[m.id] ?? m.share_percent ?? 0
-                  : isPartner && totalSpentAll > 0
-                  ? (spent / totalSpentAll) * 100
+                  : isPartner && grandTotalContributed > 0
+                  ? (contributedTotal / grandTotalContributed) * 100
                   : isPartner
-                  ? m.share_percent || 0 // no spending yet — fall back to initial split
+                  ? m.share_percent || 0 // nothing logged yet — fall back to initial split
                   : isSplit
                   ? m.share_percent || 0
                   : null;
@@ -10787,7 +10884,7 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
             onClick={() => setShowDeposit(true)}
             disabled={isLocked}
           >
-            <Icon.Plus /> Investment
+            <Icon.Plus /> Income
           </button>
           {isSavings ? (
             <button
@@ -10812,9 +10909,12 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                 <button
                   className="btn"
                   style={{ background: "rgba(255,255,255,0.2)", color: "white", fontWeight: 800 }}
-                  onClick={() => setShowSettleConfirm(true)}
+                  onClick={() => {
+                    setSettleAmount(String(totalBalance.toFixed(2)));
+                    setShowSettleConfirm(true);
+                  }}
                 >
-                  Settle
+                  Withdraw
                 </button>
               )}
             </>
@@ -10955,7 +11055,7 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                     <div>
                       <div style={{ fontSize: "13px", fontWeight: 700 }}>
                         {t.type === "deposit"
-                          ? "💰 Investment"
+                          ? "💰 Income"
                           : t.type === "withdrawal"
                           ? "💸 Withdrawal"
                           : t.type === "settlement"
@@ -11003,7 +11103,7 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
         <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: "380px" }}>
             <div className="modal-header">
-              <h2>Investment</h2>
+              <h2>Income</h2>
               <button className="btn-icon" onClick={() => setShowDeposit(false)}>
                 <Icon.X />
               </button>
@@ -11053,6 +11153,34 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                   )}
                 </div>
               )}
+              {isPartner && (
+                <div className="form-group">
+                  <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={isFounderLoan}
+                      onChange={(e) => setIsFounderLoan(e.target.checked)}
+                    />
+                    Founder's loan (increases their % of the fund)
+                  </label>
+                  {isFounderLoan && (
+                    <>
+                      <select
+                        value={loanMemberId}
+                        onChange={(e) => setLoanMemberId(e.target.value)}
+                        style={{ marginTop: "8px" }}
+                      >
+                        {fund.members.map((m) => (
+                          <option key={m.id} value={m.id}>{m.display_name}</option>
+                        ))}
+                      </select>
+                      <div style={{ fontSize: "11px", color: "var(--text3)", marginTop: "4px" }}>
+                        Marks this as money {fund.members.find((m) => m.id === loanMemberId)?.display_name} personally put in, on top of what they've covered in expenses — it's added to the fund and boosts their share.
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
               <div className="form-group">
                 <label>
                   Note {payerId === "other" ? "(explain the source)" : "(optional" + (isSavings ? "" : ", informational only") + ")"}
@@ -11070,7 +11198,7 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                 Cancel
               </button>
               <button className="btn btn-primary" onClick={submitDeposit}>
-                Add deposit
+                Add income
               </button>
             </div>
           </div>
@@ -11182,9 +11310,14 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                       {m.display_name}
                     </option>
                   ))}
-                  {(isSplit || isDirectRatio) &&
+                  {isPartner && (
+                    <option value="fund">
+                      Fund expense (shared, doesn't affect anyone's %)
+                    </option>
+                  )}
+                  {isSplit &&
                     fund.members.reduce(
-                      (s, m) => s + (isDirectRatio ? fund.fixed_ratio?.[m.id] ?? m.share_percent ?? 0 : m.share_percent ?? 0),
+                      (s, m) => s + (m.share_percent ?? 0),
                       0
                     ) < 100 - 0.01 && (
                       <option value="fund">
@@ -11429,18 +11562,13 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                     {[
                       {
                         id: "by_contribution",
-                        label: "By ownership %",
-                        desc: "Ownership shifts automatically based on who has covered more of the fund's expenses — profit is split by that %.",
+                        label: "By expense participation",
+                        desc: "Each participant's % of the fund is based on how much they've personally covered — expenses are just logged, never taken out of the fund itself.",
                       },
                       {
                         id: "fixed_ratio",
                         label: "Cover expenses, then fixed ratio",
-                        desc: "Whoever paid out of pocket gets reimbursed first, then whatever's left is split by a fixed ratio you set below.",
-                      },
-                      {
-                        id: "fixed_ratio_direct",
-                        label: "Just split by fixed ratio",
-                        desc: "No reimbursement step — everyone's share is simply their % of everything ever put in, minus whatever they've personally spent.",
+                        desc: "Participant expenses come out of the fund and get reimbursed first (never below what's actually in it), then whatever's left is split by a fixed ratio you set below.",
                       },
                     ].map((t) => (
                       <label
@@ -11470,7 +11598,7 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                       </label>
                     ))}
                   </div>
-                  {(fund.payout_mode === "fixed_ratio" || fund.payout_mode === "fixed_ratio_direct") && (
+                  {fund.payout_mode === "fixed_ratio" && (
                     <div style={{ marginTop: "14px" }}>
                       <label>Fixed ratio (must add up to 100%)</label>
                       <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "6px" }}>
@@ -11536,17 +11664,84 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
         <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: "380px" }}>
             <div className="modal-header">
-              <h2>Settle up</h2>
+              <h2>Withdraw</h2>
               <button className="btn-icon" onClick={() => setShowSettleConfirm(false)}>
                 <Icon.X />
               </button>
             </div>
             <div className="modal-body">
-              <div style={{ fontSize: "12px", color: "var(--text2)", marginBottom: "12px" }}>
-                This records the current breakdown and starts a fresh period —
-                past transactions stay in History, but no longer count toward
-                live balances afterward.
-              </div>
+              {isPartner ? (
+                <>
+                  <div className="form-group">
+                    <label>Amount to withdraw</label>
+                    <input
+                      type="number"
+                      value={settleAmount}
+                      onChange={(e) => setSettleAmount(e.target.value)}
+                      max={totalBalance}
+                    />
+                    <div style={{ fontSize: "11px", color: "var(--text3)", marginTop: "4px" }}>
+                      Up to {fmtAmt(totalBalance)} {currency} available.
+                    </div>
+                  </div>
+                  {fund.payout_mode === "fixed_ratio" && (
+                    <div className="form-group">
+                      <label>How should it be split?</label>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "6px" }}>
+                        {[
+                          {
+                            id: "cover_then_ratio",
+                            label: "Cover expenses, then fixed ratio",
+                            desc: "Settles everyone's expenses down to 0 if there's enough, and splits the rest by the fixed ratio.",
+                          },
+                          {
+                            id: "ratio_only",
+                            label: "Split by fixed ratio, ignore expenses",
+                            desc: "Expenses aren't settled — the amount is just divided by the fixed ratio.",
+                          },
+                          {
+                            id: "expenses_only",
+                            label: "Cover only expenses",
+                            desc: "Tries to fully cover outstanding expenses; if it can't, covers by each person's share of the expenses.",
+                          },
+                        ].map((t) => (
+                          <label
+                            key={t.id}
+                            style={{
+                              display: "flex",
+                              alignItems: "flex-start",
+                              gap: "8px",
+                              padding: "8px 10px",
+                              borderRadius: "8px",
+                              border: `1.5px solid ${settleAlgo === t.id ? "#d97706" : "var(--border)"}`,
+                              background: settleAlgo === t.id ? "#fffbeb" : "white",
+                              cursor: "pointer",
+                            }}
+                          >
+                            <input
+                              type="radio"
+                              name="settle_algo"
+                              checked={settleAlgo === t.id}
+                              onChange={() => setSettleAlgo(t.id)}
+                              style={{ marginTop: "2px", accentColor: "#d97706" }}
+                            />
+                            <div>
+                              <div style={{ fontWeight: 700, fontSize: "12.5px" }}>{t.label}</div>
+                              <div style={{ fontSize: "11px", color: "var(--text3)" }}>{t.desc}</div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ fontSize: "12px", color: "var(--text2)", marginBottom: "12px" }}>
+                  This records the current breakdown and starts a fresh period —
+                  past transactions stay in History, but no longer count toward
+                  live balances afterward.
+                </div>
+              )}
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                 {settlementPreview().map(({ member, amount }) => (
                   <div
@@ -11574,12 +11769,13 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
               </button>
               <button
                 className="btn btn-primary"
+                disabled={isPartner && (!parseFloat(settleAmount) || parseFloat(settleAmount) > totalBalance + 0.005)}
                 onClick={() => {
-                  onSettle(fund.id, settlementPreview());
+                  onSettle(fund.id, settlementPreview(), isPartner ? "withdrawal" : "settlement");
                   setShowSettleConfirm(false);
                 }}
               >
-                Confirm settlement
+                {isPartner ? "Confirm withdrawal" : "Confirm settlement"}
               </button>
             </div>
           </div>
@@ -20783,10 +20979,11 @@ export default function App() {
       error &&
       (error.message?.includes("original_amount") ||
         error.message?.includes("original_currency") ||
-        error.message?.includes("exchange_rate_used"))
+        error.message?.includes("exchange_rate_used") ||
+        error.message?.includes("is_loan"))
     ) {
-      console.warn("fund_transactions currency columns missing — saving without them");
-      const { original_amount, original_currency, exchange_rate_used, ...rest } = tx;
+      console.warn("fund_transactions optional columns missing — saving without them");
+      const { original_amount, original_currency, exchange_rate_used, is_loan, ...rest } = tx;
       ({ error } = await sb.from("fund_transactions").insert(rest));
     }
     if (error) {
@@ -20847,12 +21044,18 @@ export default function App() {
   // Records the settlement breakdown as a transaction and closes the current
   // period — live balance/ownership calculations only look at what happens
   // AFTER this moment going forward.
-  const settleFund = async (fundId, breakdown) => {
+  const settleFund = async (fundId, breakdown, txType = "settlement") => {
     const now2 = new Date().toISOString();
+    // For a real Partner Fund withdrawal, the amount actually leaving the
+    // fund is whatever the breakdown adds up to (which can be less than what
+    // was typed in, e.g. the "cover only expenses" algorithm). A plain
+    // "settlement" (Purpose Fund debt reset) never touches the balance.
+    const totalOut =
+      txType === "withdrawal" ? breakdown.reduce((s, b) => s + Math.max(0, b.amount), 0) : 0;
     const settlementTx = {
       fund_id: fundId,
-      type: "settlement",
-      amount: 0,
+      type: txType,
+      amount: totalOut,
       settlement_breakdown: breakdown.map((b) => ({
         member_id: b.member.id,
         display_name: b.member.display_name,
@@ -20877,7 +21080,12 @@ export default function App() {
     await sb.from("fund_transactions").insert(settlementTx);
     await sb.from("funds").update({ last_settled_at: now2 }).eq("id", fundId);
     await loadFunds(user.id);
-    notify("new-expense", "Settled up", "The current period has been closed out.", "");
+    notify(
+      "new-expense",
+      txType === "withdrawal" ? "Withdrawal recorded" : "Settled up",
+      txType === "withdrawal" ? "The withdrawal has been split and recorded." : "The current period has been closed out.",
+      ""
+    );
   };
 
   const archiveFund = async (fundId) => {
