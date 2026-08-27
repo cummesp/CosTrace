@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.97 2026-07-30 (Fund %: one filled auto-completes the other to 100%; both blank = 50/50; both filled under 100% is respected)",
+  "%cCOSTRACE BUILD v5.98 2026-07-30 (Partner Fund: added third payout option — just split by fixed ratio, no reimbursement)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -10432,19 +10432,22 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
   expenses.forEach((t) => {
     spentByMember[t.member_id] = (spentByMember[t.member_id] || 0) + t.amount;
   });
-  // Purpose Fund (split mode): each member's % of the total invested is
-  // their own budget to spend against. Every deposit — whether it's the
-  // original investment or a later "+ Investment" top-up, and regardless
-  // of who technically submitted it — gets pooled and split by percentage,
-  // since the % represents a share of the WHOLE pot.
+  // Purpose Fund (split mode) AND Partner Fund's "Just split by fixed
+  // ratio" mode work the same way: each member's % of the total invested
+  // is their own budget/entitlement, and every deposit — whether it's the
+  // original investment or a later "+ Investment" top-up, regardless of
+  // who technically submitted it — gets pooled and split by that %.
+  const isDirectRatio = isPartner && fund.payout_mode === "fixed_ratio_direct";
+  const pctFor = (m) =>
+    isDirectRatio ? fund.fixed_ratio?.[m.id] ?? m.share_percent ?? 0 : m.share_percent || 0;
   const contributionByMember = {};
-  if (isSplit) {
+  if (isSplit || isDirectRatio) {
     // "Initial amount" is already recorded as the first deposit transaction
     // too (so it shows up in the history) — fund.initial_amount itself must
     // NOT be added again here, or it gets counted twice.
     const totalDeposited = deposits.reduce((s, t) => s + t.amount, 0);
     fund.members.forEach((m) => {
-      contributionByMember[m.id] = ((m.share_percent || 0) / 100) * totalDeposited;
+      contributionByMember[m.id] = (pctFor(m) / 100) * totalDeposited;
     });
   } else {
     fund.members.forEach((m) => {
@@ -10494,6 +10497,16 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
   const settlementPreview = () => {
     const activeMembers = fund.members.filter((m) => !m.is_spectator);
     if (isPartner) {
+      if (fund.payout_mode === "fixed_ratio_direct") {
+        // No reimbursement step — same math as Purpose Fund's split mode:
+        // your cut is your % of everything ever invested, minus whatever
+        // you've personally spent. Can go negative (Partner Fund allows it).
+        return activeMembers.map((m) => {
+          const contribution = contributionByMember[m.id] || 0;
+          const spent = spentByMember[m.id] || 0;
+          return { member: m, amount: contribution - spent };
+        });
+      }
       if (fund.payout_mode === "fixed_ratio") {
         // Reimburse each member's own spending first, then split whatever's
         // left of the balance by the fixed ratio set in Settings.
@@ -10640,11 +10653,13 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
               .map((m) => {
                 const spent = spentByMember[m.id] || 0;
                 const contribution = contributionByMember[m.id] || 0;
-                const remaining = isSplit ? contribution - spent : null;
+                const remaining = isSplit || isDirectRatio ? contribution - spent : null;
                 const savingsPct =
                   isSavings && totalContribution > 0 ? (contribution / totalContribution) * 100 : null;
                 const ownershipPct =
-                  isPartner && totalSpentAll > 0
+                  isDirectRatio
+                  ? fund.fixed_ratio?.[m.id] ?? m.share_percent ?? 0
+                  : isPartner && totalSpentAll > 0
                   ? (spent / totalSpentAll) * 100
                   : isPartner
                   ? m.share_percent || 0 // no spending yet — fall back to initial split
@@ -11167,9 +11182,9 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                       {m.display_name}
                     </option>
                   ))}
-                  {isSplit &&
+                  {(isSplit || isDirectRatio) &&
                     fund.members.reduce(
-                      (s, m) => s + (m.share_percent ?? 0),
+                      (s, m) => s + (isDirectRatio ? fund.fixed_ratio?.[m.id] ?? m.share_percent ?? 0 : m.share_percent ?? 0),
                       0
                     ) < 100 - 0.01 && (
                       <option value="fund">
@@ -11422,6 +11437,11 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                         label: "Cover expenses, then fixed ratio",
                         desc: "Whoever paid out of pocket gets reimbursed first, then whatever's left is split by a fixed ratio you set below.",
                       },
+                      {
+                        id: "fixed_ratio_direct",
+                        label: "Just split by fixed ratio",
+                        desc: "No reimbursement step — everyone's share is simply their % of everything ever put in, minus whatever they've personally spent.",
+                      },
                     ].map((t) => (
                       <label
                         key={t.id}
@@ -11450,7 +11470,7 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                       </label>
                     ))}
                   </div>
-                  {fund.payout_mode === "fixed_ratio" && (
+                  {(fund.payout_mode === "fixed_ratio" || fund.payout_mode === "fixed_ratio_direct") && (
                     <div style={{ marginTop: "14px" }}>
                       <label>Fixed ratio (must add up to 100%)</label>
                       <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "6px" }}>
