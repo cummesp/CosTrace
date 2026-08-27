@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.95 2026-07-30 (Purpose Fund: percentages can total under 100%, share % shown alongside available budget)",
+  "%cCOSTRACE BUILD v5.97 2026-07-30 (Fund %: one filled auto-completes the other to 100%; both blank = 50/50; both filled under 100% is respected)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -3553,22 +3553,43 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
     const valid = members.filter((m) => m.name.trim());
     const count = valid.length + 1;
     const eq = parseFloat((100 / count).toFixed(2));
+
+    // Percentage rules for Purpose Fund (split mode):
+    // - Nobody typed anything → equal split for everyone (existing eq default).
+    // - Everyone who has a value keeps exactly what they typed, even if the
+    //   total comes out under 100% (the rest becomes unallocated / "Fund
+    //   expense" territory) — an explicit choice, never overridden.
+    // - Anyone left BLANK, when at least one other field was filled, gets a
+    //   share of whatever's left over (100% minus what was typed), split
+    //   evenly among the blank ones — that's what "leave it blank" means
+    //   when only some people typed a number.
+    let selfShare, memberShares;
+    if (isPurpose && purposeFundMode === "split" && pctEntered) {
+      const selfFilled = selfPct !== "" && selfPct != null;
+      const filledSum =
+        (selfFilled ? parseFloat(selfPct) || 0 : 0) +
+        valid.reduce((s, m) => s + (m.percent ? parseFloat(m.percent) || 0 : 0), 0);
+      const blankCount = (selfFilled ? 0 : 1) + valid.filter((m) => !m.percent).length;
+      const remainderEach = blankCount > 0 ? Math.max(0, (100 - filledSum) / blankCount) : 0;
+      selfShare = selfFilled ? parseFloat(selfPct) || 0 : remainderEach;
+      memberShares = valid.map((m) => (m.percent ? parseFloat(m.percent) || 0 : remainderEach));
+    } else {
+      selfShare = eq;
+      memberShares = valid.map(() => eq);
+    }
+
     const built = valid.map((m, i) => {
       const netMatch = networkPeople?.find((p) => p.name === m.name);
       return {
         id: `nm${i}_${Date.now()}`,
         display_name: m.name,
-        // Blank percent = equal split, same for everyone. Partner Fund
-        // ignores this entirely (share_percent only matters as a fallback
-        // before anyone has spent anything).
-        share_percent: isPurpose ? parseFloat(m.percent) || eq : eq,
+        share_percent: isPurpose ? memberShares[i] : eq,
         user_id: netMatch?.user_id || null,
         is_admin: false,
         avatar: netMatch?.avatar || null,
         invited_email: m.email || netMatch?.email || null,
       };
     });
-    const selfShare = isPurpose ? parseFloat(selfPct) || eq : eq;
     onCreate({
       name,
       cover: "house",
@@ -3826,9 +3847,23 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
               {isSavings
                 ? "Just names — each person's share is calculated automatically from what they actually put in."
                 : isPurpose
-                ? "Leave % blank to split equally — you can fine-tune it later."
+                ? "Leave both % blank for an equal split. Fill in just one and the rest fills to 100% automatically — fill in all of them yourself to keep some unallocated."
                 : "Just names — ownership is tracked automatically as people spend."}
             </div>
+            {isPurpose && purposeFundMode === "split" && (
+              <div style={{ display: "flex", gap: "8px", marginBottom: "8px", alignItems: "center" }}>
+                <div style={{ flex: 2, fontSize: "13px", fontWeight: 600, padding: "10px" }}>
+                  {currentUser?.full_name || "You"} (you)
+                </div>
+                <input
+                  type="number"
+                  placeholder="%"
+                  value={selfPct}
+                  onChange={(e) => setSelfPct(e.target.value)}
+                  style={{ flex: "0 0 70px", padding: "10px", border: "1.5px solid var(--border)", borderRadius: "var(--radius-sm)" }}
+                />
+              </div>
+            )}
             {members.map((m, i) => (
               <div key={i} style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
                 <div style={{ flex: 2, position: "relative" }}>
@@ -10403,16 +10438,18 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
   // of who technically submitted it — gets pooled and split by percentage,
   // since the % represents a share of the WHOLE pot.
   const contributionByMember = {};
-  fund.members.forEach((m) => {
-    contributionByMember[m.id] = ((m.share_percent || 0) / 100) * (fund.initial_amount || 0);
-  });
   if (isSplit) {
+    // "Initial amount" is already recorded as the first deposit transaction
+    // too (so it shows up in the history) — fund.initial_amount itself must
+    // NOT be added again here, or it gets counted twice.
     const totalDeposited = deposits.reduce((s, t) => s + t.amount, 0);
     fund.members.forEach((m) => {
-      contributionByMember[m.id] =
-        (contributionByMember[m.id] || 0) + ((m.share_percent || 0) / 100) * totalDeposited;
+      contributionByMember[m.id] = ((m.share_percent || 0) / 100) * totalDeposited;
     });
   } else {
+    fund.members.forEach((m) => {
+      contributionByMember[m.id] = ((m.share_percent || 0) / 100) * (fund.initial_amount || 0);
+    });
     deposits.forEach((t) => {
       if (t.member_id)
         contributionByMember[t.member_id] = (contributionByMember[t.member_id] || 0) + t.amount;
