@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.94 2026-07-30 (Savings/Purpose are hard debit funds now — blocked from going negative)",
+  "%cCOSTRACE BUILD v5.95 2026-07-30 (Purpose Fund: percentages can total under 100%, share % shown alongside available budget)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -3536,7 +3536,7 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
   const totalOthers = members.reduce((s, m) => s + (parseFloat(m.percent) || 0), 0);
   const totalAll = totalOthers + (parseFloat(selfPct) || 0);
   const pctEntered = isPurpose && purposeFundMode === "split" && (members.some((m) => m.percent) || selfPct);
-  const pctOk = !pctEntered || Math.abs(totalAll - 100) < 0.01;
+  const pctOk = !pctEntered || totalAll <= 100.01;
   const amt = amountTBD ? 0 : parseFloat(amount) || 0;
   // Savings starts empty by definition — it only ever grows from named
   // deposits, there's no "initial pool" concept the way Purpose/Partner have.
@@ -3920,7 +3920,7 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
             </button>
             {!pctOk && (
               <div style={{ fontSize: "12px", color: "var(--danger)", marginTop: "8px" }}>
-                Percentages must add up to 100% (or leave them all blank for an equal split).
+                Percentages can't add up to more than 100% (leave them all blank for an equal split, or leave some under 100% and expenses can be logged as a shared "Fund expense").
               </div>
             )}
           </div>
@@ -10611,6 +10611,8 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                   ? (spent / totalSpentAll) * 100
                   : isPartner
                   ? m.share_percent || 0 // no spending yet — fall back to initial split
+                  : isSplit
+                  ? m.share_percent || 0
                   : null;
               return (
                 <div
@@ -10628,7 +10630,7 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                       {m.display_name}
                       {ownershipPct !== null && (
                         <span style={{ fontWeight: 500, opacity: 0.85, marginLeft: "6px" }}>
-                          ({ownershipPct.toFixed(1)}% owned)
+                          ({ownershipPct.toFixed(1)}% {isPartner ? "owned" : "share"})
                         </span>
                       )}
                     </span>
@@ -11312,7 +11314,7 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                           (s, m) => s + (parseFloat(draft[m.id]) || 0),
                           0
                         );
-                        const ok = Math.abs(sum - 100) < 0.01;
+                        const ok = sum <= 100.01;
                         return (
                           <>
                             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -11343,7 +11345,7 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                                 color: ok ? "var(--text3)" : "var(--danger)",
                               }}
                             >
-                              Total: {sum.toFixed(1)}% {!ok && "— must add up to 100%"}
+                              Total: {sum.toFixed(1)}% {!ok && "— can't exceed 100%"}
                             </div>
                             <button
                               className="btn btn-secondary"
