@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.99 2026-07-30 (Partner Fund redesign: Income/Withdraw rename, Founder's loan, module-aware expense/balance rules, 3-algorithm withdraw)",
+  "%cCOSTRACE BUILD v5.100 2026-07-30 (Partner Fund: new columns for participant expenses / earnings / combined, fund-level + per-member)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -10741,6 +10741,46 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
           </div>
         </div>
 
+        {isPartner && (
+          <div
+            style={{
+              display: "flex",
+              gap: "10px",
+              marginTop: "14px",
+              padding: "10px 12px",
+              background: "rgba(255,255,255,0.12)",
+              borderRadius: "10px",
+            }}
+          >
+            <div style={{ flex: 1, textAlign: "center" }}>
+              <div style={{ fontSize: "10px", opacity: 0.75, fontWeight: 700, textTransform: "uppercase" }}>
+                Participant expenses
+              </div>
+              <div style={{ fontSize: "16px", fontWeight: 800 }}>
+                {fmtAmt(totalSpentAll)} {currency}
+              </div>
+            </div>
+            <div style={{ width: "1px", background: "rgba(255,255,255,0.2)" }} />
+            <div style={{ flex: 1, textAlign: "center" }}>
+              <div style={{ fontSize: "10px", opacity: 0.75, fontWeight: 700, textTransform: "uppercase" }}>
+                Earnings (loans)
+              </div>
+              <div style={{ fontSize: "16px", fontWeight: 800 }}>
+                {fmtAmt(totalLoansAll)} {currency}
+              </div>
+            </div>
+            <div style={{ width: "1px", background: "rgba(255,255,255,0.2)" }} />
+            <div style={{ flex: 1, textAlign: "center" }}>
+              <div style={{ fontSize: "10px", opacity: 0.75, fontWeight: 700, textTransform: "uppercase" }}>
+                Combined
+              </div>
+              <div style={{ fontSize: "16px", fontWeight: 800 }}>
+                {fmtAmt(totalSpentAll + totalLoansAll)} {currency}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "18px" }}>
           {(() => {
             return fund.members
@@ -10795,8 +10835,13 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                     ) : (
                     <div style={{ textAlign: "right" }}>
                       <div style={{ fontSize: "12px", opacity: 0.85 }}>
-                        spent {fmtAmt(spent)} {currency}
+                        expenses {fmtAmt(spent)} {currency}
                       </div>
+                      {isPartner && (loanByMember[m.id] || 0) > 0 && (
+                        <div style={{ fontSize: "12px", opacity: 0.85 }}>
+                          earnings {fmtAmt(loanByMember[m.id])} {currency}
+                        </div>
+                      )}
                       {remaining !== null && (
                         <div
                           style={{
