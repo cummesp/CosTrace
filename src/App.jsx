@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.100 2026-07-30 (Partner Fund: new columns for participant expenses / earnings / combined, fund-level + per-member)",
+  "%cCOSTRACE BUILD v5.101 2026-07-30 (fix: header/mobile-nav shortcuts didn't work while inside a Fund — missing activeFundId reset)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -22227,6 +22227,7 @@ export default function App() {
               }`}
               onClick={() => {
                 setActiveLedgerId(null);
+                setActiveFundId(null);
                 setPage("home");
               }}
             >
@@ -22243,6 +22244,7 @@ export default function App() {
               className={`nav-item${page === "plans" ? " active" : ""}`}
               onClick={() => {
                 setActiveLedgerId(null);
+                setActiveFundId(null);
                 setPage("plans");
               }}
             >
@@ -22252,6 +22254,7 @@ export default function App() {
               className={`nav-item${page === "connections" ? " active" : ""}`}
               onClick={() => {
                 setActiveLedgerId(null);
+                setActiveFundId(null);
                 setPage("connections");
               }}
             >
@@ -22450,6 +22453,7 @@ export default function App() {
           }`}
           onClick={() => {
             setActiveLedgerId(null);
+            setActiveFundId(null);
             setPage("home");
           }}
         >
@@ -22496,6 +22500,7 @@ export default function App() {
           }`}
           onClick={() => {
             setActiveLedgerId(null);
+            setActiveFundId(null);
             setPage("connections");
           }}
         >
@@ -22524,6 +22529,7 @@ export default function App() {
           }`}
           onClick={() => {
             setActiveLedgerId(null);
+            setActiveFundId(null);
             setPage("stats");
           }}
         >
