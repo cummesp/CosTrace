@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.101 2026-07-30 (fix: header/mobile-nav shortcuts didn't work while inside a Fund — missing activeFundId reset)",
+  "%cCOSTRACE BUILD v5.106 2026-09-15 (fix: locked-month pill showed the green Active color instead of the navy Locked color when you were viewing it)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -185,14 +185,19 @@ async function sendPushTo(userIds, title, body, url) {
 // nothing was actually sent. contextName is just for the email copy (ledger
 // or Fund name), not required.
 async function sendMemberInvite(email, contextName) {
-  if (!email) return;
+  if (!email) return null;
   try {
-    const { error } = await sb.functions.invoke("send-invite", {
+    const { data, error } = await sb.functions.invoke("send-invite", {
       body: { email, contextName },
     });
-    if (error) console.error("sendMemberInvite failed", error);
+    if (error) {
+      console.error("sendMemberInvite failed", error);
+      return null;
+    }
+    return data; // { status: "invited" | "already_registered" | "invite_error", user_id?, ... }
   } catch (e) {
     console.error("sendMemberInvite failed", e);
+    return null;
   }
 }
 
@@ -3983,6 +3988,20 @@ function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople 
                       );
                     })()}
                 </div>
+                <input
+                  placeholder="Email"
+                  value={m.email}
+                  onChange={(e) => upd(i, "email", e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: "10px",
+                    border: "1.5px solid var(--border)",
+                    borderRadius: "var(--radius-sm)",
+                    fontFamily: "inherit",
+                    fontSize: "13px",
+                    outline: "none",
+                  }}
+                />
                 {isPurpose && purposeFundMode === "split" && (
                   <input
                     type="number"
@@ -4709,11 +4728,22 @@ function AddExpenseModal({
         (s, sp) => s + parseFloat(sp.share_percent || 0),
         0
       );
-      finalSplits = active.map((s) => ({
-        member_id: s.member_id,
-        share_percent: parseFloat(s.share_percent),
-        amount_owed: parseFloat(((s.share_percent / tp) * amt).toFixed(2)),
-      }));
+      // If everyone's stored share_percent is 0/missing (e.g. a member added
+      // to the ledger before their % was ever set), tp would be 0 and
+      // (share_percent / tp) would divide by zero — silently saving an
+      // expense with no real split, no error, no amount owed by anyone.
+      // Falling back to an equal split among the included members is a far
+      // safer default than a broken/empty one.
+      const equalSplit = tp <= 0;
+      finalSplits = active.map((s) => {
+        const pct = equalSplit ? 100 / active.length : parseFloat(s.share_percent) || 0;
+        const owed = equalSplit ? amt / active.length : (pct / tp) * amt;
+        return {
+          member_id: s.member_id,
+          share_percent: pct,
+          amount_owed: parseFloat(owed.toFixed(2)),
+        };
+      });
     }
     const pm = ledger.payout_mode || "offset_ledger";
     onAdd({
@@ -5866,7 +5896,7 @@ function LedgerSettingsModal({
                 ))}
               </select>
               <div style={{ fontSize: "11px", color: "var(--text3)", marginTop: "4px" }}>
-                How long after logging an expense the person who entered it (or an admin) can still fix it.
+                How long after logging an expense the person who entered it can still fix it. Admins can always edit, regardless of this window.
               </div>
             </div>
           )}
@@ -8463,22 +8493,22 @@ function ExpenseDetailModal({
     !isPending &&
     (isAdmin || exp.paid_by_id === currentUser.id);
 
-  // Anyone who logged the expense (or an admin) can fix a typo shortly after
-  // entering it — but only for a short window, configurable per-ledger by
-  // an admin (Settings → Edit window, 3/5/10/15 min). Once that window
-  // passes, the entry is final, same as before this existed.
+  // Anyone who logged the expense can fix a typo shortly after entering it —
+  // but only for a short window, configurable per-ledger by an admin
+  // (Settings → Edit window, 3/5/10/15 min). An admin isn't bound by that
+  // window or by a locked month — they can always go back and correct an
+  // entry, same as they can always settle a locked past month.
   const editWindowMs = (ledger.edit_window_minutes ?? 5) * 60000;
   const msSinceCreated = exp.created_at
     ? Date.now() - new Date(exp.created_at).getTime()
     : Infinity;
   const withinEditWindow = msSinceCreated < editWindowMs;
   const canEdit =
-    withinEditWindow &&
-    !isLocked &&
     !isCancelled &&
     !isSettle &&
     !isPayout &&
-    (isAdmin || exp.paid_by_id === currentUser.id);
+    (isAdmin ||
+      (withinEditWindow && !isLocked && exp.paid_by_id === currentUser.id));
   const minutesLeft = Math.max(0, Math.ceil((editWindowMs - msSinceCreated) / 60000));
 
   const [isEditing, setIsEditing] = useState(false);
@@ -9108,7 +9138,11 @@ function ExpenseDetailModal({
             {canEdit && (
               <button
                 className="btn btn-secondary"
-                title={`Editable for ${minutesLeft} more minute${minutesLeft === 1 ? "" : "s"}`}
+                title={
+                  isAdmin && !(withinEditWindow && !isLocked && exp.paid_by_id === currentUser.id)
+                    ? "Edit as admin"
+                    : `Editable for ${minutesLeft} more minute${minutesLeft === 1 ? "" : "s"}`
+                }
                 onClick={() => setIsEditing(true)}
               >
                 Edit
@@ -13304,16 +13338,21 @@ function LedgerDetail({
                 const isActive = m === activeMonth;
                 const isCurrent = m === curMk;
                 let bg, color, border;
-                if (isActive) {
-                  bg = "#16a34a";
-                  color = "white";
-                  border = "none";
-                } else if (!accessible) {
+                if (!accessible) {
                   bg = "#f3f4f6";
                   color = "#9ca3af";
                   border = "1.5px solid #e5e7eb";
                 } else if (locked) {
+                  // Locked always shows the locked color, even for the
+                  // month you're currently viewing — a green "Active" pill
+                  // next to text saying "this month is locked" was
+                  // confusingly contradictory. The green ring still marks
+                  // which one you're looking at.
                   bg = "#1e1b4b";
+                  color = "white";
+                  border = isActive ? "2px solid #16a34a" : "none";
+                } else if (isActive) {
+                  bg = "#16a34a";
                   color = "white";
                   border = "none";
                 } else if (isCurrent) {
@@ -20990,10 +21029,27 @@ export default function App() {
         avatar: m.avatar || null,
       })),
     ];
-    await sb.from("fund_members").insert(memberPayloads);
-    data.members
-      .filter((m) => !m.user_id && m.invited_email)
-      .forEach((m) => sendMemberInvite(m.invited_email, data.name));
+    const { data: insertedMembers } = await sb
+      .from("fund_members")
+      .insert(memberPayloads)
+      .select();
+    // insertedMembers[0] is the creator (always first in memberPayloads);
+    // the rest line up 1:1 with data.members in the same order.
+    for (let i = 0; i < data.members.length; i++) {
+      const m = data.members[i];
+      if (m.user_id || !m.invited_email) continue;
+      const rowId = insertedMembers?.[i + 1]?.id;
+      const result = await sendMemberInvite(m.invited_email, data.name);
+      // They already have a CosTrace account under this email — link the
+      // new member row to it directly instead of leaving it as an
+      // unclaimed "invited_email" placeholder forever.
+      if (result?.status === "already_registered" && result.user_id && rowId) {
+        await sb
+          .from("fund_members")
+          .update({ user_id: result.user_id, invited_email: null })
+          .eq("id", rowId);
+      }
+    }
     if (initialTx) {
       await sb.from("fund_transactions").insert({ ...initialTx, fund_id: fRow.id });
     }
@@ -21730,7 +21786,16 @@ export default function App() {
           // No matched account (m.user_id null) but they gave an email —
           // actually send them an invite instead of just storing the address.
           if (mRow && !m.user_id && m.invited_email) {
-            sendMemberInvite(m.invited_email, data.name);
+            const result = await sendMemberInvite(m.invited_email, data.name);
+            // They already have a CosTrace account under this email — link
+            // the new member row to it directly instead of leaving it as an
+            // unclaimed "invited_email" placeholder forever.
+            if (result?.status === "already_registered" && result.user_id) {
+              await sb
+                .from("ledger_members")
+                .update({ user_id: result.user_id, invited_email: null })
+                .eq("id", mRow.id);
+            }
           }
         }
         // Update local state with real Supabase ids (ledger + every member) and clear the sync flag —
@@ -21865,19 +21930,32 @@ export default function App() {
           (m) => !prev.members.find((pm) => pm.id === m.id)
         );
         for (const m of newMembers) {
-          await sb.from("ledger_members").insert({
-            ledger_id: u.id,
-            user_id: m.user_id || null,
-            display_name: m.display_name,
-            share_percent: m.share_percent,
-            is_spectator: m.is_spectator || false,
-            is_admin: m.is_admin === true,
-            invited_email: m.invited_email || null,
-            avatar: m.avatar || null,
-            plan: m.user_id ? m.plan || "free" : "free",
-          });
+          const { data: newRow } = await sb
+            .from("ledger_members")
+            .insert({
+              ledger_id: u.id,
+              user_id: m.user_id || null,
+              display_name: m.display_name,
+              share_percent: m.share_percent,
+              is_spectator: m.is_spectator || false,
+              is_admin: m.is_admin === true,
+              invited_email: m.invited_email || null,
+              avatar: m.avatar || null,
+              plan: m.user_id ? m.plan || "free" : "free",
+            })
+            .select()
+            .single();
           if (!m.user_id && m.invited_email) {
-            sendMemberInvite(m.invited_email, u.name);
+            const result = await sendMemberInvite(m.invited_email, u.name);
+            // They already have a CosTrace account under this email — link
+            // the new member row to it directly instead of leaving it as an
+            // unclaimed "invited_email" placeholder forever.
+            if (result?.status === "already_registered" && result.user_id && newRow) {
+              await sb
+                .from("ledger_members")
+                .update({ user_id: result.user_id, invited_email: null })
+                .eq("id", newRow.id);
+            }
           }
         }
         // Sync updated shares (existing members only — new ones were just inserted above)
