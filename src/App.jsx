@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.106 2026-09-15 (fix: locked-month pill showed the green Active color instead of the navy Locked color when you were viewing it)",
+  "%cCOSTRACE BUILD v5.107 2026-09-15 (fix: an error while auto-linking an existing account could silently abort the whole ledger/fund creation)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -21039,15 +21039,25 @@ export default function App() {
       const m = data.members[i];
       if (m.user_id || !m.invited_email) continue;
       const rowId = insertedMembers?.[i + 1]?.id;
-      const result = await sendMemberInvite(m.invited_email, data.name);
-      // They already have a CosTrace account under this email — link the
-      // new member row to it directly instead of leaving it as an
-      // unclaimed "invited_email" placeholder forever.
-      if (result?.status === "already_registered" && result.user_id && rowId) {
-        await sb
-          .from("fund_members")
-          .update({ user_id: result.user_id, invited_email: null })
-          .eq("id", rowId);
+      try {
+        const result = await sendMemberInvite(m.invited_email, data.name);
+        // They already have a CosTrace account under this email — link the
+        // new member row to it directly instead of leaving it as an
+        // unclaimed "invited_email" placeholder forever. If this update
+        // fails (e.g. an RLS policy blocks it), that's a shame but must
+        // NOT take down the rest of fund creation with it — the member
+        // still exists, just as an unclaimed invite instead of linked.
+        if (result?.status === "already_registered" && result.user_id) {
+          if (rowId) {
+            const { error: linkErr } = await sb
+              .from("fund_members")
+              .update({ user_id: result.user_id, invited_email: null })
+              .eq("id", rowId);
+            if (linkErr) console.error("Couldn't auto-link existing account", linkErr);
+          }
+        }
+      } catch (e) {
+        console.error("Invite/link step failed for", m.invited_email, e);
       }
     }
     if (initialTx) {
@@ -21786,15 +21796,21 @@ export default function App() {
           // No matched account (m.user_id null) but they gave an email —
           // actually send them an invite instead of just storing the address.
           if (mRow && !m.user_id && m.invited_email) {
-            const result = await sendMemberInvite(m.invited_email, data.name);
-            // They already have a CosTrace account under this email — link
-            // the new member row to it directly instead of leaving it as an
-            // unclaimed "invited_email" placeholder forever.
-            if (result?.status === "already_registered" && result.user_id) {
-              await sb
-                .from("ledger_members")
-                .update({ user_id: result.user_id, invited_email: null })
-                .eq("id", mRow.id);
+            try {
+              const result = await sendMemberInvite(m.invited_email, data.name);
+              // They already have a CosTrace account under this email — link
+              // the new member row to it directly instead of leaving it as
+              // an unclaimed "invited_email" placeholder forever. A failure
+              // here must NOT take down the rest of ledger creation.
+              if (result?.status === "already_registered" && result.user_id) {
+                const { error: linkErr } = await sb
+                  .from("ledger_members")
+                  .update({ user_id: result.user_id, invited_email: null })
+                  .eq("id", mRow.id);
+                if (linkErr) console.error("Couldn't auto-link existing account", linkErr);
+              }
+            } catch (e) {
+              console.error("Invite/link step failed for", m.invited_email, e);
             }
           }
         }
@@ -21946,15 +21962,21 @@ export default function App() {
             .select()
             .single();
           if (!m.user_id && m.invited_email) {
-            const result = await sendMemberInvite(m.invited_email, u.name);
-            // They already have a CosTrace account under this email — link
-            // the new member row to it directly instead of leaving it as an
-            // unclaimed "invited_email" placeholder forever.
-            if (result?.status === "already_registered" && result.user_id && newRow) {
-              await sb
-                .from("ledger_members")
-                .update({ user_id: result.user_id, invited_email: null })
-                .eq("id", newRow.id);
+            try {
+              const result = await sendMemberInvite(m.invited_email, u.name);
+              // They already have a CosTrace account under this email — link
+              // the new member row to it directly instead of leaving it as
+              // an unclaimed "invited_email" placeholder forever. A failure
+              // here must NOT take down adding the rest of the members.
+              if (result?.status === "already_registered" && result.user_id && newRow) {
+                const { error: linkErr } = await sb
+                  .from("ledger_members")
+                  .update({ user_id: result.user_id, invited_email: null })
+                  .eq("id", newRow.id);
+                if (linkErr) console.error("Couldn't auto-link existing account", linkErr);
+              }
+            } catch (e) {
+              console.error("Invite/link step failed for", m.invited_email, e);
             }
           }
         }
