@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.107 2026-09-15 (fix: an error while auto-linking an existing account could silently abort the whole ledger/fund creation)",
+  "%cCOSTRACE BUILD v5.109 2026-09-15 (new: adding someone by email who already has an account sends an in-app join request instead of silently linking their account)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -20348,6 +20348,8 @@ export default function App() {
   );
   const [ledgers, setLedgers] = useState([]);
   const [funds, setFunds] = useState([]);
+  const [joinRequests, setJoinRequests] = useState([]);
+  const [showJoinRequests, setShowJoinRequests] = useState(false);
   const [activeFundId, setActiveFundId] = useState(null);
   const [loadingData, setLoadingData] = useState(true);
   const [pendingJoin, setPendingJoin] = useState(() => {
@@ -20931,6 +20933,54 @@ export default function App() {
     setFunds(assembled);
   };
 
+  // Pending in-app requests: someone with an existing CosTrace account was
+  // added by email to a ledger/fund they weren't already sharing with the
+  // requester, so their member row is sitting unclaimed until they either
+  // accept (claim it, becoming a real linked member) or decline.
+  const loadJoinRequests = async (uid) => {
+    if (ENV !== "production") {
+      setJoinRequests([]);
+      return;
+    }
+    const { data } = await sb
+      .from("join_requests")
+      .select("*")
+      .eq("target_user_id", uid)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false });
+    setJoinRequests(data || []);
+  };
+
+  const acceptJoinRequest = async (req) => {
+    // Claim the row: it's currently unclaimed (user_id null, invited_email
+    // matching your own account) — RLS only allows exactly this specific
+    // update, not updating anyone else's row.
+    const { error: claimErr } = await sb
+      .from(req.member_table)
+      .update({ user_id: user.id, invited_email: null })
+      .eq("id", req.member_row_id);
+    if (claimErr) {
+      notify("error", "Couldn't join", claimErr.message, "");
+      return;
+    }
+    await sb
+      .from("join_requests")
+      .update({ status: "accepted", resolved_at: new Date().toISOString() })
+      .eq("id", req.id);
+    setJoinRequests((p) => p.filter((r) => r.id !== req.id));
+    await loadLedgers(user.id);
+    await loadFunds(user.id);
+    notify("new-expense", "Joined", `You're now part of "${req.context_name}".`, "");
+  };
+
+  const declineJoinRequest = async (req) => {
+    await sb
+      .from("join_requests")
+      .update({ status: "declined", resolved_at: new Date().toISOString() })
+      .eq("id", req.id);
+    setJoinRequests((p) => p.filter((r) => r.id !== req.id));
+  };
+
   // Creates a Fund — genuinely separate tables from ledgers (funds /
   // fund_members / fund_transactions), not an extension of the ledgers
   // schema. See fund_tables_migration.sql.
@@ -21029,35 +21079,53 @@ export default function App() {
         avatar: m.avatar || null,
       })),
     ];
-    const { data: insertedMembers } = await sb
+    // Plain insert — no .select() chained on. Chaining .select() onto an
+    // insert makes PostgREST read the new rows back in the SAME request,
+    // which needs its own RLS SELECT permission on top of the INSERT
+    // permission — and here that combination was getting rejected outright
+    // (403), taking the entire fund down with it even though a bare insert
+    // succeeds fine. Fetching the rows back afterward, as a fully separate
+    // request, sidesteps that.
+    const { error: memberInsertErr } = await sb
       .from("fund_members")
-      .insert(memberPayloads)
-      .select();
-    // insertedMembers[0] is the creator (always first in memberPayloads);
-    // the rest line up 1:1 with data.members in the same order.
-    for (let i = 0; i < data.members.length; i++) {
-      const m = data.members[i];
-      if (m.user_id || !m.invited_email) continue;
-      const rowId = insertedMembers?.[i + 1]?.id;
+      .insert(memberPayloads);
+    if (memberInsertErr) {
+      console.error("fund_members insert failed", memberInsertErr);
+    }
+    const membersNeedingLinkCheck = data.members.filter(
+      (m) => !m.user_id && m.invited_email
+    );
+    let insertedMembers = [];
+    if (!memberInsertErr && membersNeedingLinkCheck.length > 0) {
+      const { data: rows } = await sb
+        .from("fund_members")
+        .select("id, invited_email")
+        .eq("fund_id", fRow.id);
+      insertedMembers = rows || [];
+    }
+    for (const m of membersNeedingLinkCheck) {
+      const rowId = insertedMembers.find((r) => r.invited_email === m.invited_email)?.id;
       try {
         const result = await sendMemberInvite(m.invited_email, data.name);
-        // They already have a CosTrace account under this email — link the
-        // new member row to it directly instead of leaving it as an
-        // unclaimed "invited_email" placeholder forever. If this update
-        // fails (e.g. an RLS policy blocks it), that's a shame but must
-        // NOT take down the rest of fund creation with it — the member
-        // still exists, just as an unclaimed invite instead of linked.
-        if (result?.status === "already_registered" && result.user_id) {
-          if (rowId) {
-            const { error: linkErr } = await sb
-              .from("fund_members")
-              .update({ user_id: result.user_id, invited_email: null })
-              .eq("id", rowId);
-            if (linkErr) console.error("Couldn't auto-link existing account", linkErr);
-          }
+        // They already have a CosTrace account under this email — don't
+        // silently link their account to this fund. Send them an in-app
+        // request instead; the member row stays unclaimed (user_id: null)
+        // until they accept it themselves.
+        if (result?.status === "already_registered" && result.user_id && rowId) {
+          const { error: reqErr } = await sb.from("join_requests").insert({
+            target_user_id: result.user_id,
+            requested_by: user.id,
+            requested_by_name: user.full_name,
+            context_type: "fund",
+            context_id: fRow.id,
+            context_name: data.name,
+            member_table: "fund_members",
+            member_row_id: rowId,
+          });
+          if (reqErr) console.error("Couldn't create join request", reqErr);
         }
       } catch (e) {
-        console.error("Invite/link step failed for", m.invited_email, e);
+        console.error("Invite/join-request step failed for", m.invited_email, e);
       }
     }
     if (initialTx) {
@@ -21434,6 +21502,7 @@ export default function App() {
     configureRevenueCat(u.id);
     await loadLedgers(u.id);
     await loadFunds(u.id);
+    await loadJoinRequests(u.id);
     syncUserInLedgers({ ...fullUser });
     // Sync plan in ledger_members to match current profile plan
     if (fullUser.plan) {
@@ -21798,16 +21867,22 @@ export default function App() {
           if (mRow && !m.user_id && m.invited_email) {
             try {
               const result = await sendMemberInvite(m.invited_email, data.name);
-              // They already have a CosTrace account under this email — link
-              // the new member row to it directly instead of leaving it as
-              // an unclaimed "invited_email" placeholder forever. A failure
-              // here must NOT take down the rest of ledger creation.
+              // They already have a CosTrace account under this email —
+              // don't silently link their account to this ledger. Send them
+              // an in-app request instead; the member row stays unclaimed
+              // until they accept it themselves.
               if (result?.status === "already_registered" && result.user_id) {
-                const { error: linkErr } = await sb
-                  .from("ledger_members")
-                  .update({ user_id: result.user_id, invited_email: null })
-                  .eq("id", mRow.id);
-                if (linkErr) console.error("Couldn't auto-link existing account", linkErr);
+                const { error: reqErr } = await sb.from("join_requests").insert({
+                  target_user_id: result.user_id,
+                  requested_by: user.id,
+                  requested_by_name: user.full_name,
+                  context_type: "ledger",
+                  context_id: lRow.id,
+                  context_name: data.name,
+                  member_table: "ledger_members",
+                  member_row_id: mRow.id,
+                });
+                if (reqErr) console.error("Couldn't create join request", reqErr);
               }
             } catch (e) {
               console.error("Invite/link step failed for", m.invited_email, e);
@@ -21964,19 +22039,25 @@ export default function App() {
           if (!m.user_id && m.invited_email) {
             try {
               const result = await sendMemberInvite(m.invited_email, u.name);
-              // They already have a CosTrace account under this email — link
-              // the new member row to it directly instead of leaving it as
-              // an unclaimed "invited_email" placeholder forever. A failure
-              // here must NOT take down adding the rest of the members.
+              // They already have a CosTrace account under this email —
+              // don't silently link their account to this ledger. Send them
+              // an in-app request instead; the member row stays unclaimed
+              // until they accept it themselves.
               if (result?.status === "already_registered" && result.user_id && newRow) {
-                const { error: linkErr } = await sb
-                  .from("ledger_members")
-                  .update({ user_id: result.user_id, invited_email: null })
-                  .eq("id", newRow.id);
-                if (linkErr) console.error("Couldn't auto-link existing account", linkErr);
+                const { error: reqErr } = await sb.from("join_requests").insert({
+                  target_user_id: result.user_id,
+                  requested_by: user.id,
+                  requested_by_name: user.full_name,
+                  context_type: "ledger",
+                  context_id: u.id,
+                  context_name: u.name,
+                  member_table: "ledger_members",
+                  member_row_id: newRow.id,
+                });
+                if (reqErr) console.error("Couldn't create join request", reqErr);
               }
             } catch (e) {
-              console.error("Invite/link step failed for", m.invited_email, e);
+              console.error("Invite/join-request step failed for", m.invited_email, e);
             }
           }
         }
@@ -22362,6 +22443,86 @@ export default function App() {
             </button>
           </nav>
           <div className="sidebar-bottom">
+            {joinRequests.length > 0 && (
+              <div style={{ position: "relative" }}>
+                <button
+                  className="nav-item"
+                  onClick={() => setShowJoinRequests((s) => !s)}
+                  style={{ position: "relative" }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                  </svg>
+                  Requests
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: "2px",
+                      left: "20px",
+                      background: "#dc2626",
+                      color: "white",
+                      borderRadius: "999px",
+                      fontSize: "10px",
+                      fontWeight: 800,
+                      minWidth: "16px",
+                      height: "16px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: "0 4px",
+                    }}
+                  >
+                    {joinRequests.length}
+                  </span>
+                </button>
+                {showJoinRequests && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "100%",
+                      right: 0,
+                      marginTop: "8px",
+                      width: "300px",
+                      background: "white",
+                      borderRadius: "12px",
+                      boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+                      border: "1px solid var(--border)",
+                      overflow: "hidden",
+                      zIndex: 50,
+                    }}
+                  >
+                    <div style={{ padding: "10px 14px", fontWeight: 800, fontSize: "13px", borderBottom: "1px solid var(--border)" }}>
+                      Pending requests
+                    </div>
+                    {joinRequests.map((req) => (
+                      <div key={req.id} style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)" }}>
+                        <div style={{ fontSize: "12.5px", color: "var(--text2)", marginBottom: "8px" }}>
+                          <strong>{req.requested_by_name || "Someone"}</strong> wants to add you to{" "}
+                          <strong>"{req.context_name}"</strong> ({req.context_type})
+                        </div>
+                        <div style={{ display: "flex", gap: "6px" }}>
+                          <button
+                            className="btn btn-primary"
+                            style={{ flex: 1, fontSize: "12px", padding: "6px 10px" }}
+                            onClick={() => acceptJoinRequest(req)}
+                          >
+                            Accept
+                          </button>
+                          <button
+                            className="btn btn-secondary"
+                            style={{ flex: 1, fontSize: "12px", padding: "6px 10px" }}
+                            onClick={() => declineJoinRequest(req)}
+                          >
+                            Decline
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <button className="nav-item" onClick={() => setShowFeedback(true)}>
               <Icon.MessageSquare /> Feedback
             </button>
