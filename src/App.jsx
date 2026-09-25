@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.109 2026-09-15 (new: adding someone by email who already has an account sends an in-app join request instead of silently linking their account)",
+  "%cCOSTRACE BUILD v5.110 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -20954,11 +20954,16 @@ export default function App() {
   const acceptJoinRequest = async (req) => {
     // Claim the row: it's currently unclaimed (user_id null, invited_email
     // matching your own account) — RLS only allows exactly this specific
-    // update, not updating anyone else's row.
+    // update, not updating anyone else's row. Matched by the ledger/fund id
+    // + your own invited email rather than a stored row id, since fetching
+    // that id back right after creating the row was itself hitting an RLS
+    // rejection.
+    const contextCol = req.context_type === "fund" ? "fund_id" : "ledger_id";
     const { error: claimErr } = await sb
       .from(req.member_table)
       .update({ user_id: user.id, invited_email: null })
-      .eq("id", req.member_row_id);
+      .eq(contextCol, req.context_id)
+      .eq("invited_email", req.target_email);
     if (claimErr) {
       notify("error", "Couldn't join", claimErr.message, "");
       return;
@@ -21084,8 +21089,7 @@ export default function App() {
     // which needs its own RLS SELECT permission on top of the INSERT
     // permission — and here that combination was getting rejected outright
     // (403), taking the entire fund down with it even though a bare insert
-    // succeeds fine. Fetching the rows back afterward, as a fully separate
-    // request, sidesteps that.
+    // succeeds fine.
     const { error: memberInsertErr } = await sb
       .from("fund_members")
       .insert(memberPayloads);
@@ -21095,23 +21099,17 @@ export default function App() {
     const membersNeedingLinkCheck = data.members.filter(
       (m) => !m.user_id && m.invited_email
     );
-    let insertedMembers = [];
-    if (!memberInsertErr && membersNeedingLinkCheck.length > 0) {
-      const { data: rows } = await sb
-        .from("fund_members")
-        .select("id, invited_email")
-        .eq("fund_id", fRow.id);
-      insertedMembers = rows || [];
-    }
     for (const m of membersNeedingLinkCheck) {
-      const rowId = insertedMembers.find((r) => r.invited_email === m.invited_email)?.id;
       try {
         const result = await sendMemberInvite(m.invited_email, data.name);
         // They already have a CosTrace account under this email — don't
         // silently link their account to this fund. Send them an in-app
         // request instead; the member row stays unclaimed (user_id: null)
-        // until they accept it themselves.
-        if (result?.status === "already_registered" && result.user_id && rowId) {
+        // until they accept it themselves. Identified by fund_id +
+        // invited_email rather than fetching the row's id back right after
+        // inserting it — that read-back was itself hitting the same RLS
+        // SELECT rejection as above.
+        if (result?.status === "already_registered" && result.user_id) {
           const { error: reqErr } = await sb.from("join_requests").insert({
             target_user_id: result.user_id,
             requested_by: user.id,
@@ -21120,7 +21118,7 @@ export default function App() {
             context_id: fRow.id,
             context_name: data.name,
             member_table: "fund_members",
-            member_row_id: rowId,
+            target_email: m.invited_email,
           });
           if (reqErr) console.error("Couldn't create join request", reqErr);
         }
@@ -21880,7 +21878,7 @@ export default function App() {
                   context_id: lRow.id,
                   context_name: data.name,
                   member_table: "ledger_members",
-                  member_row_id: mRow.id,
+                  target_email: m.invited_email,
                 });
                 if (reqErr) console.error("Couldn't create join request", reqErr);
               }
@@ -22052,7 +22050,7 @@ export default function App() {
                   context_id: u.id,
                   context_name: u.name,
                   member_table: "ledger_members",
-                  member_row_id: newRow.id,
+                  target_email: m.invited_email,
                 });
                 if (reqErr) console.error("Couldn't create join request", reqErr);
               }
