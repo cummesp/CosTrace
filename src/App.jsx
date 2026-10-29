@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.114 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
+  "%cCOSTRACE BUILD v5.115 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -5655,6 +5655,7 @@ function LedgerSettingsModal({
   );
   const sUnsettled = sBals.some((b) => Math.abs(b.net) > 0.01);
   const [archConfirm, setArchConfirm] = useState(false);
+  const [delNoCopy, setDelNoCopy] = useState(false);
   const [delConfirm, setDelConfirm] = useState(false);
   const [delUnsettledAck, setDelUnsettledAck] = useState(false);
   const [soloWord, setSoloWord] = useState("");
@@ -8085,6 +8086,10 @@ function LedgerSettingsModal({
                           approved you can still choose to keep a personal copy,
                           but only the admin can cancel the deletion itself.
                         </div>
+                        <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", fontWeight: 600, color: "#374151", margin: "0 0 12px", cursor: "pointer" }}>
+                          <input type="checkbox" checked={delNoCopy} onChange={(e) => setDelNoCopy(e.target.checked)} />
+                          Don't archive — I don't want to keep a copy
+                        </label>
                         <div style={{ display: "flex", gap: "8px" }}>
                           <button
                             className="btn btn-secondary"
@@ -8110,7 +8115,7 @@ function LedgerSettingsModal({
                                   : "not-allowed",
                             }}
                             disabled={sUnsettled && !delUnsettledAck}
-                            onClick={() => onRequestDelete(ledger.id)}
+                            onClick={() => onRequestDelete(ledger.id, delNoCopy)}
                           >
                             Request deletion
                           </button>
@@ -10444,6 +10449,7 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
   const [settleAmount, setSettleAmount] = useState("");
   const [settleAlgo, setSettleAlgo] = useState("cover_then_ratio"); // "cover_then_ratio" | "ratio_only" | "expenses_only"
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [fundNoCopy, setFundNoCopy] = useState(false);
   const [activeMonth, setActiveMonth] = useState(mk(new Date()));
   const [amount, setAmount] = useState("");
   const [desc, setDesc] = useState("");
@@ -11960,6 +11966,12 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                   </>
                 )}
               </div>
+              {!isSolo && (
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", fontWeight: 600, color: "#374151", margin: "14px 0 0", cursor: "pointer" }}>
+                          <input type="checkbox" checked={fundNoCopy} onChange={(e) => setFundNoCopy(e.target.checked)} />
+                          Don't archive — I don't want to keep a copy
+                        </label>
+              )}
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setShowDeleteConfirm(false)}>
@@ -11970,7 +11982,7 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
                 style={{ background: "var(--danger)", color: "white" }}
                 onClick={() => {
                   if (isSolo) onDeleteNow(fund.id);
-                  else onRequestDelete(fund.id);
+                  else onRequestDelete(fund.id, fundNoCopy);
                   setShowDeleteConfirm(false);
                 }}
               >
@@ -14068,9 +14080,9 @@ function LedgerDetail({
               );
           }}
           isSoloDeletable={isSoloDeletable}
-          onRequestDelete={(id) => {
+          onRequestDelete={(id, noCopy) => {
             setShowSettings(false);
-            onRequestDelete(id);
+            onRequestDelete(id, noCopy);
           }}
           onExecuteDelete={(id) => {
             setShowSettings(false);
@@ -21362,10 +21374,15 @@ export default function App() {
 
   // Same 3-day lock-then-execute model as ledgers (requestDelete) — no
   // approval needed, the countdown starts immediately.
-  const requestDeleteFund = async (fundId) => {
+  const requestDeleteFund = async (fundId, noCopy = false) => {
+    const adminM = funds.find((x) => x.id === fundId)?.members?.find((m) => m.user_id === user.id);
     const scheduledAt = new Date(Date.now() + DELETE_COUNTDOWN_SECONDS * 1000).toISOString();
     await updateFundSettings(fundId, {
-      delete_request: { initiated_at: now(), initiated_by: user.id, copyChoices: {} },
+      delete_request: {
+        initiated_at: now(),
+        initiated_by: user.id,
+        copyChoices: noCopy && adminM ? { [adminM.id]: "none" } : {},
+      },
       delete_scheduled_at: scheduledAt,
     });
     notify("pending", "Fund locked", "It will be deleted in 3 days unless you cancel. Members choose whether to keep an archived copy.", "");
@@ -22216,7 +22233,7 @@ export default function App() {
   // voting member (solo table, or everyone else is a spectator).
   const isSoloDeletable = (l) => votingMembers(l).length <= 1;
 
-  const requestDelete = async (id) => {
+  const requestDelete = async (id, noCopy = false) => {
     const target = ledgers.find((l) => l.id === id);
     if (!target) return;
     if (target._syncing) {
@@ -22240,7 +22257,10 @@ export default function App() {
       initiated_at: now(),
       initiated_by: user.id,
       consents: {},
-      copyChoices: {},
+      copyChoices: (() => {
+        const adminM = target.members.find((m) => m.user_id === user.id);
+        return noCopy && adminM ? { [adminM.id]: "none" } : {};
+      })(),
     };
     setLedgers((p) =>
       p.map((l) =>
