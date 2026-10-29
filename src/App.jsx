@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.111 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
+  "%cCOSTRACE BUILD v5.112 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -14481,7 +14481,7 @@ const MOCK_NETWORKS = [
   },
 ];
 
-function NetworkPage({ ledgers, currentUser, onCreateLedgerWith }) {
+function NetworkPage({ ledgers, funds = [], currentUser, onCreateLedgerWith }) {
   const [tab, setTab] = useState("networks");
   const [networks, setNetworks] = useState([]);
   const [networksLoaded, setNetworksLoaded] = useState(false);
@@ -14571,6 +14571,24 @@ function NetworkPage({ ledgers, currentUser, onCreateLedgerWith }) {
           };
         else if (!allPeople[m.display_name].ledgers.includes(l.name))
           allPeople[m.display_name].ledgers.push(l.name);
+      });
+  });
+  // Fund members count as connections too (no ledger needed)
+  (funds || []).forEach((f) => {
+    (f.members || [])
+      .filter((m) => m.user_id !== currentUser.id && m.display_name)
+      .forEach((m) => {
+        if (!allPeople[m.display_name])
+          allPeople[m.display_name] = {
+            name: m.display_name,
+            plan: m.plan || "free",
+            user_id: m.user_id,
+            ledgers: [f.name],
+            email: m.invited_email || null,
+            avatar: m.avatar || null,
+          };
+        else if (!allPeople[m.display_name].ledgers.includes(f.name))
+          allPeople[m.display_name].ledgers.push(f.name);
       });
   });
   const people = Object.values(allPeople);
@@ -22645,6 +22663,7 @@ export default function App() {
           ) : page === "connections" ? (
             <NetworkPage
               ledgers={ledgers}
+              funds={funds}
               currentUser={user}
               onCreateLedgerWith={(person) => {
                 setPrefillMember(
@@ -22656,7 +22675,7 @@ export default function App() {
             />
           ) : page === "stats" ? (
             <StatsPage ledgers={ledgers} currentUser={user} />
-          ) : ledgers.length === 0 ? (
+          ) : ledgers.length === 0 && funds.length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon"></div>
               <h2>No ledgers yet</h2>
