@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.112 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
+  "%cCOSTRACE BUILD v5.114 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -10432,7 +10432,7 @@ function AvatarWithMedal({
 // tab (Funds don't have payouts, only deposits that top up the pool). The
 // header shows one big number (current fund balance) and, per member,
 // "spent X" with the remaining amount in green underneath.
-function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSettings, onUpdateMemberPercents, onSettle, onArchive, onRequestDelete, onCancelDelete, onDeleteNow, currency: profileCurrency = "RSD", userPlan }) {
+function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSettings, onUpdateMemberPercents, onSettle, onArchive, onRequestDelete, onCancelDelete, onDeleteNow, onRespondDelete, onDeleteWithCopies, currency: profileCurrency = "RSD", userPlan }) {
   // Funds can have their own currency (Light+ plans); every {currency}
   // reference below now resolves to the fund's own currency first, falling
   // back to the user's profile currency for funds created before this existed.
@@ -11018,6 +11018,82 @@ function FundDetail({ fund, currentUser, onBack, onAddTransaction, onUpdateSetti
             It's locked — no new investments or expenses.
             {isAdmin && " Only you (the admin) can cancel this."}
           </div>
+          {(() => {
+            const choices = fund.delete_request?.copyChoices || {};
+            const realMembers = (fund.members || []).filter((m) => m.user_id);
+            const myMember = realMembers.find((m) => m.user_id === currentUser.id);
+            const myChoice = myMember ? choices[myMember.id] || "archive" : null;
+            const waiting = realMembers.filter((m) => !m.is_admin && !choices[m.id]);
+            const allResponded = waiting.length === 0;
+            return (
+              <>
+                <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px solid #fecaca", display: "flex", flexDirection: "column", gap: "6px" }}>
+                  {realMembers.map((m) => {
+                    const c = choices[m.id] || "archive";
+                    const explicit = !!choices[m.id];
+                    return (
+                      <div key={m.id} style={{ display: "flex", justifyContent: "space-between", gap: "8px" }}>
+                        <span style={{ fontSize: "12px", fontWeight: 600, color: "#374151" }}>
+                          {m.display_name}
+                          {m.user_id === currentUser.id && " (you)"}
+                          {m.is_admin && " · admin"}
+                        </span>
+                        <span style={{
+                          fontSize: "11px", fontWeight: 700, padding: "2px 9px", borderRadius: "20px",
+                          background: c === "none" ? "#f3f4f6" : "#ecfdf5",
+                          color: c === "none" ? "#6b7280" : "#059669",
+                        }}>
+                          {c === "none" ? "Opted out" : explicit || m.is_admin ? "Keeping a copy" : "Keeping a copy (default)"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {myMember && (
+                  <div style={{ marginTop: "12px", display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: "12px", fontWeight: 700, color: "#b91c1c" }}>
+                      {myChoice === "archive"
+                        ? "✓ A copy will be saved to your Archive."
+                        : "You won't keep a copy."}
+                    </span>
+                    <button
+                      className="btn btn-secondary"
+                      style={{ fontSize: "12px", padding: "6px 12px" }}
+                      onClick={() => onRespondDelete(fund.id, myChoice === "archive" ? "none" : "archive")}
+                    >
+                      {myChoice === "archive" ? "Don't keep a copy" : "Keep a copy"}
+                    </button>
+                    {!isAdmin && !choices[myMember.id] && (
+                      <button
+                        className="btn btn-primary"
+                        style={{ fontSize: "12px", padding: "6px 12px" }}
+                        onClick={() => onRespondDelete(fund.id, "archive")}
+                      >
+                        Confirm
+                      </button>
+                    )}
+                  </div>
+                )}
+                {isAdmin && (
+                  <div style={{ marginTop: "12px" }}>
+                    {allResponded ? (
+                      <button
+                        className="btn"
+                        style={{ background: "var(--danger)", color: "white", fontSize: "12px", padding: "8px 16px" }}
+                        onClick={() => onDeleteWithCopies(fund.id)}
+                      >
+                        Everyone responded — delete now
+                      </button>
+                    ) : (
+                      <div style={{ fontSize: "12px", color: "#7f1d1d" }}>
+                        Waiting for: {waiting.map((m) => m.display_name).join(", ")}. You can delete immediately once everyone has responded.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            );
+          })()}
           {isAdmin && (
             <button
               className="btn btn-secondary"
@@ -21277,9 +21353,11 @@ export default function App() {
   };
 
   const archiveFund = async (fundId) => {
-    await updateFundSettings(fundId, { archived: true, archived_at: new Date().toISOString() });
+    const f = funds.find((x) => x.id === fundId);
+    const ok = await finalizeFund(fundId, "archive_all");
+    if (!ok) return;
     setActiveFundId(null);
-    notify("new-expense", "Fund archived", "", "");
+    notify("new-expense", "Fund archived", `"${f?.name || "Fund"}" was archived. Every member got their own independent copy.`, f?.name || "");
   };
 
   // Same 3-day lock-then-execute model as ledgers (requestDelete) — no
@@ -21287,10 +21365,56 @@ export default function App() {
   const requestDeleteFund = async (fundId) => {
     const scheduledAt = new Date(Date.now() + DELETE_COUNTDOWN_SECONDS * 1000).toISOString();
     await updateFundSettings(fundId, {
-      delete_request: { initiated_at: now(), initiated_by: user.id },
+      delete_request: { initiated_at: now(), initiated_by: user.id, copyChoices: {} },
       delete_scheduled_at: scheduledAt,
     });
-    notify("pending", "Fund locked", "It will be deleted in 3 days unless you cancel.", "");
+    notify("pending", "Fund locked", "It will be deleted in 3 days unless you cancel. Members choose whether to keep an archived copy.", "");
+  };
+
+  // Each member (admin included) picks "archive" (default) or "none".
+  // Goes through a server function since non-admins can't UPDATE funds.
+  const respondFundDelete = async (fundId, choice) => {
+    const f = funds.find((x) => x.id === fundId);
+    const me = f?.members?.find((m) => m.user_id === user.id);
+    if (!f || !me) return;
+    const copyChoices = { ...(f.delete_request?.copyChoices || {}), [me.id]: choice };
+    setFunds((p) =>
+      p.map((x) =>
+        x.id === fundId ? { ...x, delete_request: { ...(x.delete_request || {}), copyChoices } } : x
+      )
+    );
+    if (ENV !== "production") return;
+    const { error } = await sb.rpc("respond_fund_delete", { p_fund_id: fundId, p_choice: choice });
+    if (error) {
+      notify("error", "Couldn't save your choice", error.message, "");
+      await loadFunds(user.id);
+    }
+  };
+
+  // Server-side: copies the fund (members + transactions) for every real
+  // member except those who opted out, then removes the original.
+  const finalizeFund = async (fundId, mode) => {
+    const f = funds.find((x) => x.id === fundId);
+    if (ENV !== "production") {
+      setFunds((p) => p.filter((x) => x.id !== fundId));
+      return true;
+    }
+    const { error } = await sb.rpc("fund_finalize", { p_fund_id: fundId, p_mode: mode });
+    if (error) {
+      notify("error", "Couldn't complete", error.message, f?.name || "");
+      return false;
+    }
+    await loadFunds(user.id);
+    return true;
+  };
+
+  const deleteFundWithCopies = async (fundId) => {
+    const f = funds.find((x) => x.id === fundId);
+    const ok = await finalizeFund(fundId, "delete_with_copies");
+    if (!ok) return;
+    setActiveFundId(null);
+    setPage("home");
+    notify("locked", "Fund deleted", `"${f?.name || "Fund"}" was deleted. Copies were saved to the Archive.`, f?.name || "");
   };
 
   const cancelDeleteFund = async (fundId) => {
@@ -21302,15 +21426,12 @@ export default function App() {
   // that window exists to give OTHER members time to save a copy, which
   // doesn't apply when you're the only real person in it.
   const deleteFundNow = async (fundId) => {
+    const ok = await finalizeFund(fundId, "drop");
+    if (!ok) return;
     setFunds((p) => p.filter((f) => f.id !== fundId));
     setActiveFundId(null);
     setPage("home");
     notify("new-expense", "Fund deleted", "", "");
-    if (ENV === "production") {
-      await sb.from("fund_transactions").delete().eq("fund_id", fundId);
-      await sb.from("fund_members").delete().eq("fund_id", fundId);
-      await sb.from("funds").delete().eq("id", fundId);
-    }
   };
 
   const saveExpense = async (ledgerId, exp) => {
@@ -21636,22 +21757,24 @@ export default function App() {
   // branching — a Fund's transaction history isn't split per member the same
   // way, so deletion here is a straightforward removal once the countdown
   // elapses.
+  const finalizingFunds = useRef(new Set());
   useEffect(() => {
     const check = () => {
       funds.forEach(async (f) => {
         const deadline = f.delete_scheduled_at;
-        if (!deadline) return;
+        if (!deadline || f.archived) return;
         if (secondsUntil(deadline) > 0) return;
-        setFunds((p) => p.filter((x) => x.id !== f.id));
-        notify("locked", "Fund deleted", `"${f.name}" has been permanently deleted.`, f.name);
-        if (activeFundId === f.id) {
-          setActiveFundId(null);
-          setPage("home");
-        }
-        if (ENV === "production") {
-          await sb.from("fund_transactions").delete().eq("fund_id", f.id);
-          await sb.from("fund_members").delete().eq("fund_id", f.id);
-          await sb.from("funds").delete().eq("id", f.id);
+        if (finalizingFunds.current.has(f.id)) return;
+        finalizingFunds.current.add(f.id);
+        const ok = await finalizeFund(f.id, "delete_with_copies");
+        if (ok) {
+          notify("locked", "Fund deleted", `"${f.name}" was deleted. Copies were saved to the Archive.`, f.name);
+          if (activeFundId === f.id) {
+            setActiveFundId(null);
+            setPage("home");
+          }
+        } else {
+          finalizingFunds.current.delete(f.id);
         }
       });
     };
@@ -22619,6 +22742,8 @@ export default function App() {
               onRequestDelete={requestDeleteFund}
               onCancelDelete={cancelDeleteFund}
               onDeleteNow={deleteFundNow}
+              onRespondDelete={respondFundDelete}
+              onDeleteWithCopies={deleteFundWithCopies}
               currency={currency}
             />
           ) : activeLedger ? (
