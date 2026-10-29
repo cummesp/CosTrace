@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.110 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
+  "%cCOSTRACE BUILD v5.111 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -20958,20 +20958,13 @@ export default function App() {
     // + your own invited email rather than a stored row id, since fetching
     // that id back right after creating the row was itself hitting an RLS
     // rejection.
-    const contextCol = req.context_type === "fund" ? "fund_id" : "ledger_id";
-    const { error: claimErr } = await sb
-      .from(req.member_table)
-      .update({ user_id: user.id, invited_email: null })
-      .eq(contextCol, req.context_id)
-      .eq("invited_email", req.target_email);
+    const { error: claimErr } = await sb.rpc("accept_join_request", {
+      p_request_id: req.id,
+    });
     if (claimErr) {
       notify("error", "Couldn't join", claimErr.message, "");
       return;
     }
-    await sb
-      .from("join_requests")
-      .update({ status: "accepted", resolved_at: new Date().toISOString() })
-      .eq("id", req.id);
     setJoinRequests((p) => p.filter((r) => r.id !== req.id));
     await loadLedgers(user.id);
     await loadFunds(user.id);
