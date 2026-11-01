@@ -20551,7 +20551,7 @@ export default function App() {
     let cancelledAt = null;
     if (user?.plan && user.plan !== "free" && ENV === "production") {
       const { data, error } = await sb.functions.invoke("cancel-subscription", {
-        body: { plan: planId },
+        body: { plan: planId, earlyBird: !!user?.isEarlyBird },
       });
       if (error || data?.error) {
         console.error("cancel-subscription failed", error || data);
