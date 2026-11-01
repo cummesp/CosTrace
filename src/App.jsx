@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.115 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
+  "%cCOSTRACE BUILD v5.117 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -20544,8 +20544,33 @@ export default function App() {
   // there's nothing to buy. We record the scheduled change locally; the actual
   // plan change happens when the current paid period expires (handled by the
   // RevenueCat webhook / Edge Function once it's live).
-  const scheduleDowngrade = (planId) => {
-    const currentExpiry = user?.plan_expires_at
+  const scheduleDowngrade = async (planId) => {
+    // Cancels the Paddle subscription server-side at the end of the paid
+    // period (Edge Function "cancel-subscription") so the user never has to
+    // visit RevenueCat/Paddle themselves.
+    let cancelledAt = null;
+    if (user?.plan && user.plan !== "free" && ENV === "production") {
+      const { data, error } = await sb.functions.invoke("cancel-subscription", {
+        body: { plan: planId },
+      });
+      if (error || data?.error) {
+        console.error("cancel-subscription failed", error || data);
+        notify(
+          "error",
+          "Couldn't stop billing",
+          "We couldn't cancel your subscription automatically. Please contact support so you aren't charged again.",
+          ""
+        );
+        return;
+      }
+      if (data?.cancelled === false) {
+        console.warn("cancel-subscription: nothing to cancel", data.reason);
+      }
+      cancelledAt = data?.effective_at || null;
+    }
+    const currentExpiry = cancelledAt
+      ? new Date(cancelledAt)
+      : user?.plan_expires_at
       ? new Date(user.plan_expires_at)
       : null;
     setUser((u) => ({
@@ -21644,6 +21669,7 @@ export default function App() {
       date_of_birth: profile?.date_of_birth || null,
       deleteScheduled: profile?.delete_scheduled_at || null,
       isEarlyBird: profile?.is_early_bird || false,
+      downgrade_pending: profile?.downgrade_pending || null,
     };
     setUser(fullUser);
     configureRevenueCat(u.id);
