@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.128 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
+  "%cCOSTRACE BUILD v5.129 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -8362,7 +8362,6 @@ function StatementCard({
   onSettleMonths,
 }) {
   const [showAllStmt, setShowAllStmt] = useState(false);
-  const [outFilter, setOutFilter] = useState(null);
   const curMk = mk(new Date());
   const isCurrentMonth = activeMonth === curMk;
   const allMks = getMonths(ledger);
@@ -8418,24 +8417,22 @@ function StatementCard({
   const lifetimeBals = !ledger.carry_balance
     ? computeLifetimeBalance(ledger)
     : null;
-  // Locked months that still have an outstanding balance, for the filter
-  const lockedWithDebt = lifetimeBals
-    ? lockedMks.filter((m) =>
-        computeLifetimeBalance(ledger, [m]).some((b) => Math.abs(b.net) > 0.01)
+  // The "Debts settled" button here covers ONLY the month being viewed, in
+  // this ledger. (Grouped settling across months/ledgers lives on Statistics.)
+  const monthHasDebt =
+    !!lifetimeBals &&
+    !!ledger.lockedMonths?.[activeMonth] &&
+    computeLifetimeBalance(ledger, [activeMonth]).some((b) => Math.abs(b.net) > 0.01);
+  const monthDebtTotal = monthHasDebt
+    ? pairwiseDebts(computeBalances(ledger, ledger.expenses.filter((e) => mk(e.expense_date) === activeMonth))).reduce(
+        (sum, d) => sum + d.amount,
+        0
       )
-    : [];
-  // Default to the month being viewed (if it still has debt), so "Debts settled"
-  // never touches other months unless the user picks "All locked months".
-  const chosenFilter = outFilter ?? activeMonth;
-  const effFilter = outFilter === "all" ? "all" : lockedWithDebt.includes(chosenFilter) ? chosenFilter : "all";
-  const shownBals = lifetimeBals
-    ? effFilter === "all"
-      ? lifetimeBals
-      : computeLifetimeBalance(ledger, [effFilter])
-    : null;
+    : 0;
+  const shownBals = lifetimeBals;
   const iAmAdmin = !!ledger.members.find((m) => m.user_id === currentUser.id)?.is_admin;
   const settleOutstanding = () => {
-    const months = effFilter === "all" ? lockedWithDebt : [effFilter];
+    const months = [activeMonth];
     const list = [];
     months.forEach((mkey, mi) => {
       const [y, m] = mkey.split("-").map(Number);
@@ -8467,10 +8464,9 @@ function StatementCard({
     });
     if (list.length === 0) return;
     const total = list.reduce((sum, x) => sum + x.amount, 0);
-    const scope = effFilter === "all" ? `${months.length} month(s)` : mlbl(effFilter);
     if (
       !window.confirm(
-        `Record ${list.length} payment(s) totalling ${fmtAmt(total)} ${currency} for ${scope}? Each one is dated the last day of its month.`
+        `Debts settled\n\nRecord ${list.length} payment(s) totalling ${fmtAmt(total)} ${currency} for ${mlbl(activeMonth)} in \"${ledger.name}\" only? Dated ${mlbl(activeMonth)} last day. Other months are not affected.`
       )
     )
       return;
@@ -8710,31 +8706,20 @@ function StatementCard({
         {lifetimeBals && (
           <div className="carry-note" style={{ display: "block" }}>
             <span style={{ fontStyle: "normal", fontWeight: 700, color: "var(--text2)" }}>
-              Total outstanding — {effFilter === "all" ? "locked months" : mlbl(effFilter)}:
+              Total outstanding — locked months:
             </span>
-            {(lockedWithDebt.length > 1 || (iAmAdmin && lockedWithDebt.length > 0)) && (
-              <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginTop: "8px" }}>
-                {lockedWithDebt.length > 1 && (
-                  <select
-                    value={effFilter}
-                    onChange={(e) => setOutFilter(e.target.value)}
-                    style={{ fontSize: "12px", padding: "4px 8px", width: "auto" }}
-                  >
-                    <option value="all">All locked months</option>
-                    {lockedWithDebt.map((m) => (
-                      <option key={m} value={m}>{mlbl(m)}</option>
-                    ))}
-                  </select>
-                )}
-                {iAmAdmin && onSettleMonths && (
-                  <button
-                    className="btn btn-settle"
-                    style={{ fontSize: "12px", padding: "5px 12px" }}
-                    onClick={settleOutstanding}
-                  >
-                    Debts settled
-                  </button>
-                )}
+            {iAmAdmin && onSettleMonths && monthHasDebt && (
+              <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap", marginTop: "8px" }}>
+                <button
+                  className="btn btn-settle"
+                  style={{ fontSize: "12px", padding: "5px 12px" }}
+                  onClick={settleOutstanding}
+                >
+                  Debts settled — {mlbl(activeMonth)}
+                </button>
+                <span style={{ fontSize: "11px", color: "var(--text3)", fontStyle: "normal" }}>
+                  Settles only {mlbl(activeMonth)} in this ledger ({fmtAmt(monthDebtTotal)} {currency})
+                </span>
               </div>
             )}
             <div className="carry-info" style={{ marginTop: "6px" }}>
