@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.124 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
+  "%cCOSTRACE BUILD v5.125 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -2870,6 +2870,41 @@ function pairwiseDebts(balances) {
     if (c.rem < 0.01) ci++;
   }
   return out;
+}
+
+// Builds "Debt paid" settlement entries for the given locked months of one
+// ledger: each month is settled on its own, dated the last day of that month.
+function buildDebtSettlements(ledger, months) {
+  const list = [];
+  months.forEach((mkey, mi) => {
+    const [y, m] = mkey.split("-").map(Number);
+    const lastDay = new Date(y, m, 0).toISOString();
+    const bals = computeBalances(
+      ledger,
+      ledger.expenses.filter((e) => mk(e.expense_date) === mkey)
+    );
+    pairwiseDebts(bals).forEach((d, di) => {
+      const debtor = ledger.members.find((mm) => mm.id === d.from);
+      if (!debtor) return;
+      const amt2 = parseFloat(d.amount.toFixed(2));
+      list.push({
+        id: `e${Date.now()}_${ledger.id}_${mi}_${di}`,
+        description: `Debt paid: ${d.fromName} → ${d.toName} (${mlbl(mkey)})`,
+        amount: amt2,
+        original_amount: null,
+        original_currency: null,
+        exchange_rate_used: null,
+        paid_by_name: debtor.display_name,
+        paid_by_id: debtor.user_id || null,
+        expense_date: lastDay,
+        approval_status: "approved",
+        is_settlement: true,
+        is_payout: false,
+        splits: [{ member_id: d.to, share_percent: 100, amount_owed: amt2 }],
+      });
+    });
+  });
+  return list;
 }
 
 // -- AUTH
@@ -17576,11 +17611,57 @@ function AdBanner({ onShowUpgrade, onRemoveAds, style = {} }) {
   );
 }
 
-function LedgerStatsOverview({ ledgers, currentUser }) {
+function LedgerStatsOverview({ ledgers, currentUser, onUpdateLedger }) {
   const [pieMode, setPieMode] = useState("percent");
+  const [outFilter, setOutFilter] = useState("all");
   const isDesktop = useIsDesktop();
   const curMk = mk(new Date());
   const activeLedgers = ledgers.filter((l) => !l.archived);
+          // Ledgers where I can settle (admin, no carry-over) and the locked
+          // months that still have an outstanding balance in any of them.
+          const settleable = activeLedgers.filter(
+            (l) =>
+              !l.carry_balance &&
+              l.members.some((m) => m.user_id === currentUser.id && m.is_admin)
+          );
+          const monthsWithDebt = [
+            ...new Set(
+              settleable.flatMap((l) =>
+                Object.keys(l.lockedMonths || {})
+                  .filter((m) => l.lockedMonths[m])
+                  .filter((m) =>
+                    computeLifetimeBalance(l, [m]).some((b) => Math.abs(b.net) > 0.01)
+                  )
+              )
+            ),
+          ].sort();
+          const effFilter = monthsWithDebt.includes(outFilter) ? outFilter : "all";
+          const settleAllDebts = () => {
+            const plan = settleable
+              .map((l) => {
+                const lm = Object.keys(l.lockedMonths || {})
+                  .filter((m) => l.lockedMonths[m])
+                  .filter((m) => effFilter === "all" || m === effFilter)
+                  .filter((m) =>
+                    computeLifetimeBalance(l, [m]).some((b) => Math.abs(b.net) > 0.01)
+                  )
+                  .sort();
+                return { l, list: buildDebtSettlements(l, lm) };
+              })
+              .filter((x) => x.list.length > 0);
+            if (plan.length === 0) return;
+            const count = plan.reduce((n, x) => n + x.list.length, 0);
+            const scope = effFilter === "all" ? "all locked months" : mlbl(effFilter);
+            if (
+              !window.confirm(
+                `Record ${count} payment(s) in ${plan.length} ledger(s) for ${scope}? Each is dated the last day of its month.`
+              )
+            )
+              return;
+            plan.forEach(({ l, list }) =>
+              onUpdateLedger && onUpdateLedger({ ...l, expenses: [...l.expenses, ...list] })
+            );
+          };
           const rows = activeLedgers.map((l) => {
             const currExp = l.expenses.filter((e) => mk(e.expense_date) === curMk);
             const bals = computeBalances(l, currExp);
@@ -17590,7 +17671,10 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
             const total = approvedExp.reduce((s, e) => s + e.amount, 0);
             const debt = Math.max(0, -net);
             // Lifetime balance across all locked months for this ledger
-            const lifetimeBals = computeLifetimeBalance(l);
+            const lifetimeBals = computeLifetimeBalance(
+              l,
+              effFilter === "all" ? undefined : l.lockedMonths?.[effFilter] ? [effFilter] : []
+            );
             const lifetimeMine = lifetimeBals.find(
               (b) => b.user_id === currentUser.id || b.display_name === currentUser.full_name
             );
@@ -17773,8 +17857,8 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
                   marginBottom: "16px",
                 }}
               >
-                <div style={{ fontSize: "12px", fontWeight: "700", color: "var(--text2)", marginBottom: "12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span>Total outstanding — all locked months</span>
+                <div style={{ fontSize: "12px", fontWeight: "700", color: "var(--text2)", marginBottom: "12px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
+                  <span>Total outstanding — {effFilter === "all" ? "all locked months" : mlbl(effFilter)}</span>
                   <span
                     style={{
                       fontFamily: "var(--mono)",
@@ -17786,6 +17870,31 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
                     {grandLifetimeNet > 0.01 ? "+" : ""}{fmtAmt(grandLifetimeNet)}
                   </span>
                 </div>
+                {monthsWithDebt.length > 0 && (
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginBottom: "12px" }}>
+                    {monthsWithDebt.length > 1 && (
+                      <select
+                        value={effFilter}
+                        onChange={(e) => setOutFilter(e.target.value)}
+                        style={{ fontSize: "12px", padding: "4px 8px", width: "auto" }}
+                      >
+                        <option value="all">All locked months</option>
+                        {monthsWithDebt.map((m) => (
+                          <option key={m} value={m}>{mlbl(m)}</option>
+                        ))}
+                      </select>
+                    )}
+                    {onUpdateLedger && (
+                      <button
+                        className="btn btn-settle"
+                        style={{ fontSize: "12px", padding: "5px 12px" }}
+                        onClick={settleAllDebts}
+                      >
+                        Debts settled
+                      </button>
+                    )}
+                  </div>
+                )}
                 {rows.length === 0 ? (
                   <div style={{ fontSize: "12px", color: "var(--text3)", textAlign: "center", padding: "8px 0" }}>
                     No active ledgers
@@ -17916,7 +18025,7 @@ function LedgerStatsOverview({ ledgers, currentUser }) {
           );
 }
 
-function StatsPage({ ledgers, currentUser }) {
+function StatsPage({ ledgers, currentUser, onUpdateLedger }) {
   const hasActive = ledgers.some((l) => !l.archived);
   return (
     <div>
@@ -17925,7 +18034,7 @@ function StatsPage({ ledgers, currentUser }) {
         <p>Spending and debt across your ledgers</p>
       </div>
       {hasActive ? (
-        <LedgerStatsOverview ledgers={ledgers} currentUser={currentUser} />
+        <LedgerStatsOverview ledgers={ledgers} currentUser={currentUser} onUpdateLedger={onUpdateLedger} />
       ) : (
         <div className="empty-state">
           <div className="empty-icon"></div>
@@ -18405,7 +18514,7 @@ function Dashboard({
       >
       {isDesktop && tab !== "archived" && (
         <div>
-          {!statsHidden && <LedgerStatsOverview ledgers={ledgers} currentUser={currentUser} />}
+          {!statsHidden && <LedgerStatsOverview ledgers={ledgers} currentUser={currentUser} onUpdateLedger={onUpdateLedger} />}
           <button
             onClick={() => setStatsHidden(h => !h)}
             style={{
@@ -23259,7 +23368,7 @@ export default function App() {
               }}
             />
           ) : page === "stats" ? (
-            <StatsPage ledgers={ledgers} currentUser={user} />
+            <StatsPage ledgers={ledgers} currentUser={user} onUpdateLedger={updateLedger} />
           ) : ledgers.length === 0 && funds.length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon"></div>
