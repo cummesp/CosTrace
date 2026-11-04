@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.117 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
+  "%cCOSTRACE BUILD v5.118 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -456,6 +456,8 @@ const css = `
   }
   @media(max-width:768px){.main-content{margin-top:56px!important;}}
   .mobile-topbar{display:none;}
+  .mobile-requests-panel{display:none!important;}
+  @media(max-width:768px){.mobile-requests-panel{display:block!important;}}
   @media(max-width:768px){
     .mobile-topbar{display:flex;position:fixed;top:0;left:0;right:0;height:56px;background:#010A19;border-bottom:1px solid var(--header-border);align-items:center;justify-content:space-between;padding:0;z-index:99;}
     .dashboard-title{display:none!important;}
@@ -8522,6 +8524,12 @@ function ExpenseDetailModal({
   const [editDate, setEditDate] = useState(
     exp.expense_date ? exp.expense_date.slice(0, 10) : ""
   );
+  const currentPayerMember = ledger.members.find(
+    (m) =>
+      (m.user_id && m.user_id === exp.paid_by_id) ||
+      m.display_name === exp.paid_by_name
+  );
+  const [editPayerId, setEditPayerId] = useState(currentPayerMember?.id || "");
 
   const hasCustomSplit =
     exp.splits &&
@@ -8841,13 +8849,26 @@ function ExpenseDetailModal({
                     onChange={(e) => setEditDesc(e.target.value)}
                   />
                 </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
+                <div className="form-group">
                   <label>Date</label>
                   <input
                     type="date"
                     value={editDate}
                     onChange={(e) => setEditDate(e.target.value)}
                   />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Who paid?</label>
+                  <select value={editPayerId} onChange={(e) => setEditPayerId(e.target.value)}>
+                    {!currentPayerMember && <option value="">{exp.paid_by_name}</option>}
+                    {ledger.members
+                      .filter((m) => !m.is_spectator || m.id === currentPayerMember?.id)
+                      .map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.display_name}
+                        </option>
+                      ))}
+                  </select>
                 </div>
               </>
             ) : (
@@ -8870,6 +8891,7 @@ function ExpenseDetailModal({
                 }}
               >
                 {exp.description}
+                {exp.edited_at && <span style={{ fontSize: "10px", fontWeight: 700, padding: "1px 7px", borderRadius: "20px", background: "#eef2ff", color: "#4f46e5", marginLeft: "6px", verticalAlign: "middle" }}>edited</span>}
               </div>
               <span
                 style={{
@@ -9115,6 +9137,7 @@ function ExpenseDetailModal({
                   setEditAmount(String(exp.amount));
                   setEditDesc(exp.description || "");
                   setEditDate(exp.expense_date ? exp.expense_date.slice(0, 10) : "");
+                  setEditPayerId(currentPayerMember?.id || "");
                 }}
               >
                 Cancel
@@ -9124,10 +9147,15 @@ function ExpenseDetailModal({
                 onClick={() => {
                   const amt = parseFloat(editAmount);
                   if (!amt || amt <= 0 || !editDesc.trim() || !editDate) return;
+                  const newPayer = ledger.members.find((m) => m.id === editPayerId);
+                  const payerChanged = newPayer && newPayer.id !== currentPayerMember?.id;
                   onUpdateExpense(exp.id, {
                     amount: amt,
                     description: editDesc.trim(),
                     expense_date: editDate,
+                    ...(payerChanged
+                      ? { paid_by_id: newPayer.user_id || null, paid_by_name: newPayer.display_name }
+                      : {}),
                   });
                   setIsEditing(false);
                 }}
@@ -13814,7 +13842,7 @@ function LedgerDetail({
                             {fmtDate(exp.expense_date)}
                           </div>
                           <div className="exp-info">
-                            <div className="exp-desc">{exp.description}</div>
+                            <div className="exp-desc">{exp.description}{exp.edited_at && <span style={{ fontSize: "10px", fontWeight: 700, padding: "1px 7px", borderRadius: "20px", background: "#eef2ff", color: "#4f46e5", marginLeft: "6px", verticalAlign: "middle" }}>edited</span>}</div>
                             <div className="exp-meta">
                               {isPayout ? (
                                 <span
@@ -20971,6 +20999,8 @@ export default function App() {
           is_carryover: e.is_carryover || false,
           is_payout: e.is_payout || false,
           payout_mode: e.payout_mode || null,
+          created_at: e.created_at || null,
+          edited_at: e.edited_at || null,
           splits: (allSplits || [])
             .filter((s) => s.expense_id === e.id)
             .map((s) => ({
@@ -20997,6 +21027,8 @@ export default function App() {
         deleteScheduledAt: l.delete_scheduled_at || null,
         payout_mode: l.payout_mode || "offset_ledger",
         payout_custom_splits: l.payout_custom_splits || null,
+        edit_window_minutes: l.edit_window_minutes ?? 5,
+        editWindowMinutes: l.edit_window_minutes ?? 5,
         members,
         expenses,
       };
@@ -21578,15 +21610,56 @@ export default function App() {
   // Only touches the fields the edit form actually exposes — approval
   // status, splits, and everything else about the expense are untouched.
   const updateExpense = async (id, changes) => {
+    const editedAt = new Date().toISOString();
+    const oldExp = ledgers.flatMap((l) => l.expenses).find((e) => e.id === id);
+    const amountChanged =
+      changes.amount !== undefined && oldExp && Math.abs(changes.amount - oldExp.amount) > 0.001;
+    // Keep each member's owed amount in step with a new total
+    let newSplits = null;
+    if (amountChanged && oldExp.splits?.length) {
+      const tp = oldExp.splits.reduce((sum, s) => sum + (parseFloat(s.share_percent) || 0), 0);
+      newSplits = oldExp.splits.map((s) => ({
+        ...s,
+        amount_owed: parseFloat(
+          (tp > 0
+            ? ((parseFloat(s.share_percent) || 0) / tp) * changes.amount
+            : changes.amount / oldExp.splits.length
+          ).toFixed(2)
+        ),
+      }));
+    }
     setLedgers((prev) =>
       prev.map((l) => ({
         ...l,
-        expenses: l.expenses.map((e) => (e.id === id ? { ...e, ...changes } : e)),
+        expenses: l.expenses.map((e) =>
+          e.id === id
+            ? { ...e, ...changes, edited_at: editedAt, ...(newSplits ? { splits: newSplits } : {}) }
+            : e
+        ),
       }))
     );
     if (ENV !== "production") return;
-    const { error } = await sb.from("expenses").update(changes).eq("id", id);
-    if (error) notify("error", "Couldn't save changes", error.message, "");
+    let { error } = await sb
+      .from("expenses")
+      .update({ ...changes, edited_at: editedAt })
+      .eq("id", id);
+    if (error?.message?.includes("edited_at")) {
+      console.warn("expenses.edited_at column missing — saving without the edited stamp");
+      ({ error } = await sb.from("expenses").update(changes).eq("id", id));
+    }
+    if (error) {
+      notify("error", "Couldn't save changes", error.message, "");
+      return;
+    }
+    if (newSplits) {
+      for (const s of newSplits) {
+        await sb
+          .from("expense_splits")
+          .update({ amount_owed: s.amount_owed })
+          .eq("expense_id", id)
+          .eq("ledger_member_id", s.member_id);
+      }
+    }
   };
 
   const saveLedger = async (l) => {
@@ -22525,6 +22598,34 @@ export default function App() {
   };
   const activeLedger = ledgers.find((l) => l.id === activeLedgerId) || null;
   const activeFund = funds.find((f) => f.id === activeFundId) || null;
+  const joinRequestsList = (
+    <>
+                    {joinRequests.map((req) => (
+                      <div key={req.id} style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)" }}>
+                        <div style={{ fontSize: "12.5px", color: "var(--text2)", marginBottom: "8px" }}>
+                          <strong>{req.requested_by_name || "Someone"}</strong> wants to add you to{" "}
+                          <strong>"{req.context_name}"</strong> ({req.context_type})
+                        </div>
+                        <div style={{ display: "flex", gap: "6px" }}>
+                          <button
+                            className="btn btn-primary"
+                            style={{ flex: 1, fontSize: "12px", padding: "6px 10px" }}
+                            onClick={() => acceptJoinRequest(req)}
+                          >
+                            Accept
+                          </button>
+                          <button
+                            className="btn btn-secondary"
+                            style={{ flex: 1, fontSize: "12px", padding: "6px 10px" }}
+                            onClick={() => declineJoinRequest(req)}
+                          >
+                            Decline
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+    </>
+  );
   const IconUsers = () => (
     <svg
       width="16"
@@ -22673,30 +22774,7 @@ export default function App() {
                     <div style={{ padding: "10px 14px", fontWeight: 800, fontSize: "13px", borderBottom: "1px solid var(--border)" }}>
                       Pending requests
                     </div>
-                    {joinRequests.map((req) => (
-                      <div key={req.id} style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)" }}>
-                        <div style={{ fontSize: "12.5px", color: "var(--text2)", marginBottom: "8px" }}>
-                          <strong>{req.requested_by_name || "Someone"}</strong> wants to add you to{" "}
-                          <strong>"{req.context_name}"</strong> ({req.context_type})
-                        </div>
-                        <div style={{ display: "flex", gap: "6px" }}>
-                          <button
-                            className="btn btn-primary"
-                            style={{ flex: 1, fontSize: "12px", padding: "6px 10px" }}
-                            onClick={() => acceptJoinRequest(req)}
-                          >
-                            Accept
-                          </button>
-                          <button
-                            className="btn btn-secondary"
-                            style={{ flex: 1, fontSize: "12px", padding: "6px 10px" }}
-                            onClick={() => declineJoinRequest(req)}
-                          >
-                            Decline
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                    {joinRequestsList}
                   </div>
                 )}
               </div>
@@ -22741,6 +22819,24 @@ export default function App() {
               My Ledgers
             </span>
           </div>
+          {joinRequests.length > 0 && (
+            <button
+              onClick={() => setShowJoinRequests((v) => !v)}
+              aria-label="Requests"
+              style={{
+                position: "relative", background: "transparent", border: "none", cursor: "pointer",
+                color: "#f4f6f9", padding: "6px", marginLeft: "auto", marginRight: "8px", display: "flex",
+              }}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+              <span style={{ position: "absolute", top: 0, right: 0, background: "#dc2626", color: "white", borderRadius: "999px", fontSize: "10px", fontWeight: 800, minWidth: "16px", height: "16px", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>
+                {joinRequests.length}
+              </span>
+            </button>
+          )}
           <button
             onClick={() => setShowProfile(true)}
             style={{
@@ -22773,6 +22869,22 @@ export default function App() {
             )}
           </button>
         </div>
+        {showJoinRequests && joinRequests.length > 0 && (
+          <div
+            className="mobile-requests-panel"
+            style={{
+              position: "fixed", top: "60px", left: "12px", right: "12px", zIndex: 120,
+              background: "white", borderRadius: "12px", boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+              border: "1px solid var(--border)", overflow: "hidden", maxHeight: "70vh", overflowY: "auto",
+              display: "none",
+            }}
+          >
+            <div style={{ padding: "10px 14px", fontWeight: 800, fontSize: "13px", borderBottom: "1px solid var(--border)" }}>
+              Pending requests
+            </div>
+            {joinRequestsList}
+          </div>
+        )}
         <main className="main-content">
           {activeFund ? (
             <FundDetail
