@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.118 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
+  "%cCOSTRACE BUILD v5.119 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -3478,16 +3478,21 @@ function AuthScreen({ onLogin }) {
                   <span style={{ fontSize: "13px", color: "#9ca3af" }}>or</span>
                   <div style={{ flex: 1, height: "1px", background: "#e5e7eb" }} />
                 </div>
+                <GoogleSignInButton
+                  onError={(m) => setError(m)}
+                  fallback={
                 <button onClick={async () => { await sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } }); }}
-                  style={{ width: "100%", padding: "14px", borderRadius: "14px", border: "1.5px solid #e5e7eb", background: "white", fontSize: "15px", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", fontFamily: "inherit", color: "#0f172a" }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24">
-                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                  </svg>
-                  Continue with Google
-                </button>
+                    style={{ width: "100%", padding: "14px", borderRadius: "14px", border: "1.5px solid #e5e7eb", background: "white", fontSize: "15px", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", fontFamily: "inherit", color: "#0f172a" }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24">
+                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                    </svg>
+                    Continue with Google
+                  </button>
+                  }
+                />
                 </>
                 )}
               </div>
@@ -3526,6 +3531,81 @@ function AuthScreen({ onLogin }) {
 // go. Purpose Fund defaults to an equal split (percentages are optional,
 // left blank = equal); Partner Fund needs no percentages at all, since
 // ownership is dynamic based on spending from day one.
+// Google sign-in via Google Identity Services + Supabase signInWithIdToken, so
+// Google's chooser says "Continue to costrace.app" instead of the Supabase
+// project address. Falls back to the redirect OAuth button if the Google
+// script can't load (blocked, offline, some in-app webviews).
+const GOOGLE_CLIENT_ID =
+  "105894230625-4fmehdutajf5a4ud0o5u2shfp35sjcjg.apps.googleusercontent.com";
+
+async function sha256Hex(str) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function GoogleSignInButton({ onError, fallback }) {
+  const boxRef = useRef(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const init = async () => {
+      try {
+        const rawNonce = crypto.randomUUID() + crypto.randomUUID();
+        const hashedNonce = await sha256Hex(rawNonce);
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          nonce: hashedNonce,
+          use_fedcm_for_prompt: true,
+          callback: async (resp) => {
+            const { error } = await sb.auth.signInWithIdToken({
+              provider: "google",
+              token: resp.credential,
+              nonce: rawNonce,
+            });
+            if (error) onError && onError(error.message);
+          },
+        });
+        if (cancelled || !boxRef.current) return;
+        const width = Math.min(400, Math.max(200, boxRef.current.offsetWidth || 320));
+        window.google.accounts.id.renderButton(boxRef.current, {
+          theme: "outline",
+          size: "large",
+          text: "continue_with",
+          shape: "pill",
+          width,
+        });
+      } catch (e) {
+        console.warn("Google Identity Services init failed", e);
+        if (!cancelled) setFailed(true);
+      }
+    };
+    if (window.google?.accounts?.id) {
+      init();
+    } else {
+      const existing = document.getElementById("gsi-client");
+      const sc = existing || document.createElement("script");
+      if (!existing) {
+        sc.id = "gsi-client";
+        sc.src = "https://accounts.google.com/gsi/client";
+        sc.async = true;
+        document.head.appendChild(sc);
+      }
+      sc.addEventListener("load", init);
+      sc.addEventListener("error", () => !cancelled && setFailed(true));
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  if (failed) return fallback;
+  return (
+    <div
+      ref={boxRef}
+      style={{ width: "100%", display: "flex", justifyContent: "center", minHeight: "44px" }}
+    />
+  );
+}
+
 function NewFundModal({ onClose, onCreate, currentUser, userPlan, networkPeople = [], profileCurrency = "RSD" }) {
   const canPurpose = userPlan.id === "regular" || userPlan.id === "gold";
   const canPartner = userPlan.id === "gold";
