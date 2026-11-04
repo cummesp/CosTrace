@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.125 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
+  "%cCOSTRACE BUILD v5.126 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -17649,15 +17649,57 @@ function LedgerStatsOverview({ ledgers, currentUser, onUpdateLedger }) {
                 return { l, list: buildDebtSettlements(l, lm) };
               })
               .filter((x) => x.list.length > 0);
-            if (plan.length === 0) return;
-            const count = plan.reduce((n, x) => n + x.list.length, 0);
-            const scope = effFilter === "all" ? "all locked months" : mlbl(effFilter);
-            if (
-              !window.confirm(
-                `Record ${count} payment(s) in ${plan.length} ledger(s) for ${scope}? Each is dated the last day of its month.`
-              )
-            )
+            // Ledgers with an outstanding balance in scope that I can't settle
+            // (not admin there, or it carries balances forward).
+            const skipped = activeLedgers
+              .filter((l) => !settleable.includes(l))
+              .map((l) => {
+                const lm = Object.keys(l.lockedMonths || {})
+                  .filter((m) => l.lockedMonths[m])
+                  .filter((m) => effFilter === "all" || m === effFilter);
+                const mine = computeLifetimeBalance(l, lm).find(
+                  (b) => b.user_id === currentUser.id || b.display_name === currentUser.full_name
+                );
+                const others = computeLifetimeBalance(l, lm).some((b) => Math.abs(b.net) > 0.01);
+                return { l, net: mine?.net || 0, others };
+              })
+              .filter((x) => x.others);
+            if (plan.length === 0 && skipped.length === 0) return;
+            if (plan.length === 0) {
+              window.alert(
+                "Debts settled\n\nNothing could be recorded: you are not an admin in the ledger(s) that still have outstanding balances (" +
+                  skipped.map((x) => x.l.name).join(", ") +
+                  "). Ask the admin to settle them."
+              );
               return;
+            }
+            const count = plan.reduce((n, x) => n + x.list.length, 0);
+            const totalAmt = plan.reduce(
+              (sum, x) => sum + x.list.reduce((a2, e) => a2 + e.amount, 0),
+              0
+            );
+            const scope = effFilter === "all" ? "all locked months" : mlbl(effFilter);
+            let msg =
+              "Debts settled\n\n" +
+              `Confirm that you want to record ${count} payment(s) totalling ${fmtAmt(totalAmt)} in ${plan.length} ledger(s) (${plan
+                .map((x) => x.l.name)
+                .join(", ")}) for ${scope}. Each payment is dated the last day of its month.`;
+            if (skipped.length > 0) {
+              msg +=
+                "\n\nNote: these balances will stay unchanged because you are not an admin there (or the ledger carries balances forward):\n" +
+                skipped
+                  .map((x) =>
+                    `• ${x.l.name}: ${
+                      x.net > 0.01
+                        ? `you are owed ${fmtAmt(x.net)}`
+                        : x.net < -0.01
+                        ? `you owe ${fmtAmt(-x.net)}`
+                        : "other members' balances"
+                    }`
+                  )
+                  .join("\n");
+            }
+            if (!window.confirm(msg)) return;
             plan.forEach(({ l, list }) =>
               onUpdateLedger && onUpdateLedger({ ...l, expenses: [...l.expenses, ...list] })
             );
