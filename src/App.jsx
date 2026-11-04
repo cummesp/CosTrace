@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.126 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
+  "%cCOSTRACE BUILD v5.128 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -8362,7 +8362,7 @@ function StatementCard({
   onSettleMonths,
 }) {
   const [showAllStmt, setShowAllStmt] = useState(false);
-  const [outFilter, setOutFilter] = useState("all");
+  const [outFilter, setOutFilter] = useState(null);
   const curMk = mk(new Date());
   const isCurrentMonth = activeMonth === curMk;
   const allMks = getMonths(ledger);
@@ -8424,7 +8424,10 @@ function StatementCard({
         computeLifetimeBalance(ledger, [m]).some((b) => Math.abs(b.net) > 0.01)
       )
     : [];
-  const effFilter = lockedWithDebt.includes(outFilter) ? outFilter : "all";
+  // Default to the month being viewed (if it still has debt), so "Debts settled"
+  // never touches other months unless the user picks "All locked months".
+  const chosenFilter = outFilter ?? activeMonth;
+  const effFilter = outFilter === "all" ? "all" : lockedWithDebt.includes(chosenFilter) ? chosenFilter : "all";
   const shownBals = lifetimeBals
     ? effFilter === "all"
       ? lifetimeBals
@@ -18089,6 +18092,8 @@ function StatsPage({ ledgers, currentUser, onUpdateLedger }) {
 }
 
 function Dashboard({
+  onUndo,
+  undoLabel,
   ledgers,
   funds = [],
   onSelectFund,
@@ -18409,6 +18414,21 @@ function Dashboard({
             </div>
           )}
         </div>
+        {onUndo && (
+          <button
+            className="btn btn-secondary"
+            onClick={onUndo}
+            disabled={!undoLabel}
+            title={undoLabel ? `Undo: ${undoLabel}` : "Nothing to undo"}
+            style={{ fontSize: "12px", padding: "6px 14px", flexShrink: 0, opacity: undoLabel ? 1 : 0.45, display: "inline-flex", alignItems: "center", gap: "6px" }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 14 4 9l5-5" />
+              <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+            </svg>
+            Undo
+          </button>
+        )}
       </div>
       {shown.length === 0 && tab === "archived" && (
         <div
@@ -20905,6 +20925,24 @@ export default function App() {
   const [funds, setFunds] = useState([]);
   const [joinRequests, setJoinRequests] = useState([]);
   const [showJoinRequests, setShowJoinRequests] = useState(false);
+
+  // ── Undo ──────────────────────────────────────────────────────────────
+  // Remembers the state of a ledger right before each change to its expenses
+  // or settings (and the ids of fund transactions that were just added), so
+  // the Undo button can put things back. Session-only, last 20 changes.
+  const ledgersRef = useRef([]);
+  const undoStack = useRef([]);
+  const [undoTick, setUndoTick] = useState(0);
+  const pushUndo = (entry) => {
+    undoStack.current.push({ ...entry, t: Date.now() });
+    if (undoStack.current.length > 20) undoStack.current.shift();
+    setUndoTick((n) => n + 1);
+  };
+  const ledgerSig = (l) =>
+    JSON.stringify({ ...l, members: undefined, _syncing: undefined });
+  useEffect(() => {
+    ledgersRef.current = ledgers;
+  }, [ledgers]);
   const [activeFundId, setActiveFundId] = useState(null);
   const [loadingData, setLoadingData] = useState(true);
   const [pendingJoin, setPendingJoin] = useState(() => {
@@ -21728,7 +21766,7 @@ export default function App() {
       );
       return;
     }
-    let { error } = await sb.from("fund_transactions").insert(tx);
+    let { data: insertedTx, error } = await sb.from("fund_transactions").insert(tx).select("id");
     if (
       error &&
       (error.message?.includes("original_amount") ||
@@ -21738,12 +21776,19 @@ export default function App() {
     ) {
       console.warn("fund_transactions optional columns missing — saving without them");
       const { original_amount, original_currency, exchange_rate_used, is_loan, ...rest } = tx;
-      ({ error } = await sb.from("fund_transactions").insert(rest));
+      ({ data: insertedTx, error } = await sb.from("fund_transactions").insert(rest).select("id"));
     }
     if (error) {
       notify("error", "Couldn't save", error.message, "");
       return;
     }
+    if (insertedTx?.length)
+      pushUndo({
+        kind: "fundtx",
+        fundId: tx.fund_id,
+        txIds: insertedTx.map((r) => r.id),
+        label: "Fund transaction",
+      });
     await loadFunds(user.id);
   };
 
@@ -22063,6 +22108,16 @@ export default function App() {
   // Only touches the fields the edit form actually exposes — approval
   // status, splits, and everything else about the expense are untouched.
   const updateExpense = async (id, changes) => {
+    {
+      const owner = ledgersRef.current.find((l) => l.expenses.some((e) => e.id === id));
+      if (owner)
+        pushUndo({
+          kind: "ledger",
+          ledgerId: owner.id,
+          snapshot: JSON.parse(JSON.stringify(owner)),
+          label: `Edit in "${owner.name}"`,
+        });
+    }
     const editedAt = new Date().toISOString();
     const oldExp = ledgers.flatMap((l) => l.expenses).find((e) => e.id === id);
     const amountChanged =
@@ -22680,6 +22735,18 @@ export default function App() {
   };
 
   const updateLedger = async (u) => {
+    {
+      const before = ledgersRef.current.find((l) => l.id === u.id);
+      if (before && ledgerSig(before) !== ledgerSig(u)) {
+        const added = u.expenses.length - before.expenses.length;
+        pushUndo({
+          kind: "ledger",
+          ledgerId: u.id,
+          snapshot: JSON.parse(JSON.stringify(before)),
+          label: added > 0 ? `Added ${added} entr${added === 1 ? "y" : "ies"} in "${u.name}"` : `Change in "${u.name}"`,
+        });
+      }
+    }
     // Use functional updater to always read current state — avoids the stale
     // closure bug where `ledgers` captured at definition time could be missing
     // expenses added after the function was created (e.g. while settings modal was open).
@@ -22778,6 +22845,79 @@ export default function App() {
       }
     }
   };
+  const undoLast = async () => {
+    const stack = undoStack.current;
+    if (stack.length === 0) return;
+    // Take the last change plus anything recorded within ~1s of it (e.g. one
+    // click that touched several ledgers at once).
+    const group = [stack.pop()];
+    while (stack.length && group[0].t - stack[stack.length - 1].t < 800) {
+      group.push(stack.pop());
+    }
+    setUndoTick((n) => n + 1);
+    const ledgerSnaps = {}; // ledgerId -> oldest snapshot
+    group.forEach((e) => {
+      if (e.kind === "ledger") ledgerSnaps[e.ledgerId] = e.snapshot; // later iterations are older
+    });
+    for (const [ledgerId, snap] of Object.entries(ledgerSnaps)) {
+      const cur = ledgersRef.current.find((l) => l.id === ledgerId);
+      if (!cur) continue;
+      const restored = { ...snap, members: cur.members };
+      setLedgers((p) => p.map((l) => (l.id === ledgerId ? restored : l)));
+      if (ENV !== "production") continue;
+      saveLedger(restored);
+      const snapIds = new Set(snap.expenses.map((e) => e.id));
+      for (const e of cur.expenses) {
+        if (!snapIds.has(e.id)) {
+          await sb.from("expense_splits").delete().eq("expense_id", e.id);
+          await sb.from("expenses").delete().eq("id", e.id);
+        }
+      }
+      for (const e of snap.expenses) {
+        const c = cur.expenses.find((x) => x.id === e.id);
+        if (!c) continue;
+        const fields = ["amount", "description", "expense_date", "paid_by_id", "paid_by_name", "approval_status", "edited_at"];
+        if (fields.some((f) => (c[f] ?? null) !== (e[f] ?? null))) {
+          const base = {
+            amount: e.amount,
+            description: e.description,
+            expense_date: e.expense_date,
+            paid_by_id: e.paid_by_id || null,
+            paid_by_name: e.paid_by_name,
+            approval_status: e.approval_status,
+          };
+          let { error } = await sb.from("expenses").update({ ...base, edited_at: e.edited_at || null }).eq("id", e.id);
+          if (error?.message?.includes("edited_at")) {
+            ({ error } = await sb.from("expenses").update(base).eq("id", e.id));
+          }
+          if (error) console.error("undo: expense restore failed", error);
+        }
+        for (const sp of e.splits || []) {
+          const cs = (c.splits || []).find((x) => x.member_id === sp.member_id);
+          if (cs && Math.abs((cs.amount_owed || 0) - (sp.amount_owed || 0)) > 0.001) {
+            await sb
+              .from("expense_splits")
+              .update({ amount_owed: sp.amount_owed })
+              .eq("expense_id", e.id)
+              .eq("ledger_member_id", sp.member_id);
+          }
+        }
+      }
+    }
+    for (const e of group.filter((x) => x.kind === "fundtx")) {
+      setFunds((p) =>
+        p.map((f) =>
+          f.id === e.fundId ? { ...f, transactions: f.transactions.filter((t) => !e.txIds.includes(t.id)) } : f
+        )
+      );
+      if (ENV === "production") {
+        const { error } = await sb.from("fund_transactions").delete().in("id", e.txIds);
+        if (error) notify("error", "Couldn't undo", error.message, "");
+      }
+    }
+    notify("new-expense", "Undone", group[group.length - 1].label, "");
+  };
+
   // -- ACTIVE LEDGER DELETION
   const votingMembers = (l) =>
     l.members.filter((m) => !m.is_spectator && m.user_id);
@@ -23443,6 +23583,8 @@ export default function App() {
               noAds={noAds}
               onShowUpgrade={openUpgrade}
               onUpdateLedger={updateLedger}
+              onUndo={undoLast}
+              undoLabel={undoTick >= 0 && undoStack.current.length ? undoStack.current[undoStack.current.length - 1].label : null}
               getLedgerNewCount={getLedgerNewCount}
               onRemoveAds={handleRemoveAds}
               overLedgerLimit={overLedgerLimit}
