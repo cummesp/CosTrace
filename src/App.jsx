@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.120 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
+  "%cCOSTRACE BUILD v5.122 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -4820,10 +4820,21 @@ function AddExpenseModal({
       // expense with no real split, no error, no amount owed by anyone.
       // Falling back to an equal split among the included members is a far
       // safer default than a broken/empty one.
-      const equalSplit = tp <= 0;
+      // Prefer the ledger's own default shares; only if those are all zero too
+      // is there nothing better than an equal split.
+      const ledgerPct = (id) =>
+        parseFloat(ledger.members.find((m) => m.id === id)?.share_percent) || 0;
+      const ledgerTp = active.reduce((sum, s) => sum + ledgerPct(s.member_id), 0);
+      const useLedger = tp <= 0 && ledgerTp > 0;
+      const equalSplit = tp <= 0 && !useLedger;
       finalSplits = active.map((s) => {
-        const pct = equalSplit ? 100 / active.length : parseFloat(s.share_percent) || 0;
-        const owed = equalSplit ? amt / active.length : (pct / tp) * amt;
+        const pct = equalSplit
+          ? 100 / active.length
+          : useLedger
+          ? ledgerPct(s.member_id)
+          : parseFloat(s.share_percent) || 0;
+        const base = equalSplit ? active.length : useLedger ? ledgerTp : tp;
+        const owed = equalSplit ? amt / active.length : (pct / base) * amt;
         return {
           member_id: s.member_id,
           share_percent: pct,
@@ -21644,16 +21655,48 @@ export default function App() {
       console.error("saveExpense: no row returned");
       return;
     }
-    if (exp.splits && exp.splits.length > 0) {
-      const { error: splitError } = await sb.from("expense_splits").insert(
-        exp.splits.map((s) => ({
+    // An expense with no split rows silently breaks every balance, so the
+    // expense and its splits are saved as one unit: if the splits can't be
+    // written (or none were supplied), fall back to an equal split among the
+    // active members, and if even that fails, remove the expense again
+    // instead of leaving a half-saved one behind.
+    let splitRows = (exp.splits || []).map((s) => ({
+      expense_id: eRow.id,
+      ledger_member_id: s.member_id,
+      share_percent: s.share_percent,
+      amount_owed: s.amount_owed || 0,
+    }));
+    if (splitRows.length === 0) {
+      const act = (ledgers.find((l) => l.id === ledgerId)?.members || []).filter((m) => !m.is_spectator);
+      const tpAct = act.reduce((sum, m) => sum + (parseFloat(m.share_percent) || 0), 0);
+      splitRows = act.map((m) => {
+        const pct = tpAct > 0 ? parseFloat(m.share_percent) || 0 : 100 / act.length;
+        return {
           expense_id: eRow.id,
-          ledger_member_id: s.member_id,
-          share_percent: s.share_percent,
-          amount_owed: s.amount_owed || 0,
-        }))
-      );
-      if (splitError) console.error("saveExpense splits error:", splitError);
+          ledger_member_id: m.id,
+          share_percent: pct,
+          amount_owed: parseFloat(((tpAct > 0 ? pct / tpAct : 1 / act.length) * exp.amount).toFixed(2)),
+        };
+      });
+    }
+    if (splitRows.length > 0) {
+      const { error: splitError } = await sb.from("expense_splits").insert(splitRows);
+      if (splitError) {
+        console.error("saveExpense splits error:", splitError);
+        await sb.from("expenses").delete().eq("id", eRow.id);
+        setLedgers((p) =>
+          p.map((l) =>
+            l.id !== ledgerId ? l : { ...l, expenses: l.expenses.filter((e) => e.id !== exp.id) }
+          )
+        );
+        notify(
+          "error",
+          "Expense not saved",
+          "The split couldn't be saved, so the expense was not added. Please try again.",
+          ""
+        );
+        return;
+      }
     }
     setLedgers((p) =>
       p.map((l) =>
