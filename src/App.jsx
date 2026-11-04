@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.119 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
+  "%cCOSTRACE BUILD v5.120 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -3556,6 +3556,7 @@ function GoogleSignInButton({ onError, fallback }) {
           client_id: GOOGLE_CLIENT_ID,
           nonce: hashedNonce,
           use_fedcm_for_prompt: true,
+          auto_select: true,
           callback: async (resp) => {
             const { error } = await sb.auth.signInWithIdToken({
               provider: "google",
@@ -3574,6 +3575,9 @@ function GoogleSignInButton({ onError, fallback }) {
           shape: "pill",
           width,
         });
+        // One Tap / automatic sign-in for returning Google users. Skipped
+        // quietly if Google decides not to show it.
+        try { window.google.accounts.id.prompt(); } catch (_) {}
       } catch (e) {
         console.warn("Google Identity Services init failed", e);
         if (!cancelled) setFailed(true);
@@ -23304,6 +23308,7 @@ export default function App() {
             );
           }}
           onLogout={() => {
+            try { window.google?.accounts?.id?.disableAutoSelect(); } catch (_) {}
             sb.auth.signOut();
             setUser(null);
             setLedgers([]);
