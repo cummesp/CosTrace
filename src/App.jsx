@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.122 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
+  "%cCOSTRACE BUILD v5.123 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -4673,6 +4673,7 @@ function AddExpenseModal({
   forceSettle = false,
   isAdmin = false,
   defaultDate,
+  settleMonth,
 }) {
   const [desc, setDesc] = useState("");
   const [amount, setAmount] = useState("");
@@ -4733,9 +4734,17 @@ function AddExpenseModal({
   const multiMember = activeMembers.length > 2;
 
   // Compute pairwise debts using creditor/debtor matching
+  // When settling inside a past month, show that month's debts (unless the
+  // ledger carries balances forward, where the lifetime picture is the one
+  // that matters).
+  const monthScoped = !!settleMonth && !ledger.carry_balance;
   const balances = computeBalances(
     ledger,
-    ledger.expenses.filter((e) => e.approval_status === "approved")
+    ledger.expenses.filter(
+      (e) =>
+        e.approval_status === "approved" &&
+        (!monthScoped || mk(e.expense_date) === settleMonth)
+    )
   );
   const debtors = [
     ...balances
@@ -4778,6 +4787,40 @@ function AddExpenseModal({
   const maxSettle = selectedDebt ? selectedDebt.amount : null;
   const overMaxSettle =
     isSettle && amount && maxSettle && parseFloat(amount) > maxSettle + 0.01;
+
+  // One tap: records the debtor's payment of this whole debt, dated on the
+  // last day of the month being viewed (or now, outside history).
+  const payDebt = (d) => {
+    const debtor = ledger.members.find((m) => m.id === d.from);
+    if (!debtor) return;
+    const ok = window.confirm(
+      `Record that ${d.fromName} paid ${fmtAmt(d.amount)} ${currency} to ${d.toName}?`
+    );
+    if (!ok) return;
+    let dateIso = now();
+    if (settleMonth) {
+      const [y, m] = settleMonth.split("-").map(Number);
+      dateIso = new Date(y, m, 0).toISOString();
+    }
+    const amt2 = parseFloat(d.amount.toFixed(2));
+    onAdd({
+      id: `e${Date.now()}`,
+      description: `Debt paid: ${d.fromName} → ${d.toName}`,
+      amount: amt2,
+      original_amount: null,
+      original_currency: null,
+      exchange_rate_used: null,
+      paid_by_name: debtor.display_name,
+      paid_by_id: debtor.user_id || null,
+      expense_date: dateIso,
+      approval_status: "approved",
+      is_settlement: true,
+      is_payout: false,
+      payout_mode: undefined,
+      splits: [{ member_id: d.to, share_percent: 100, amount_owed: amt2 }],
+    });
+    onClose();
+  };
 
   const handleAdd = () => {
     if (!desc.trim() || !amount) return;
@@ -4929,7 +4972,7 @@ function AddExpenseModal({
               </button>
             )}
           </div>
-          {isSettle && myDebts.length > 0 && (
+          {isSettle && (
             <div
               style={{
                 background: "var(--settle-light)",
@@ -4949,36 +4992,41 @@ function AddExpenseModal({
                   letterSpacing: "0.3px",
                 }}
               >
-                Current balances
+                Who owes whom{settleMonth && monthScoped ? ` — ${mlbl(settleMonth)}` : ""}
               </div>
-              {allDebts.map((d, i) => {
-                const youAreDebtor = d.from === payer?.id;
-                const youAreCreditor = d.to === payer?.id;
-                if (!youAreDebtor && !youAreCreditor) return null;
-                return (
-                  <div
-                    key={i}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      fontSize: "12px",
-                      color: "var(--text2)",
-                      marginBottom: "3px",
-                    }}
+              {allDebts.length === 0 && (
+                <div style={{ fontSize: "12px", color: "var(--text2)" }}>
+                  Nobody owes anything — all settled.
+                </div>
+              )}
+              {allDebts.map((d, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "8px",
+                    fontSize: "12px",
+                    color: "var(--text2)",
+                    marginBottom: "6px",
+                  }}
+                >
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <strong>{d.fromName}</strong> owes <strong>{d.toName}</strong>
+                  </span>
+                  <span style={{ fontFamily: "var(--mono)", fontWeight: "700", color: "var(--settle)", whiteSpace: "nowrap" }}>
+                    {fmtAmt(d.amount)} {currency}
+                  </span>
+                  <button
+                    className="btn btn-secondary"
+                    style={{ fontSize: "11px", padding: "4px 9px", whiteSpace: "nowrap" }}
+                    onClick={() => payDebt(d)}
                   >
-                    <span>
-                      {youAreDebtor
-                        ? <><strong>{d.fromName}</strong> owes <strong>{d.toName}</strong></>
-                        : <><strong>{d.fromName}</strong> owes <strong>{d.toName}</strong></>
-                      }
-                    </span>
-                    <span style={{ fontFamily: "var(--mono)", fontWeight: "700", color: "var(--settle)" }}>
-                      {fmtAmt(d.amount)} {currency}
-                    </span>
-                  </div>
-                );
-              })}
+                    Debt paid
+                  </button>
+                </div>
+              ))}
             </div>
           )}
           {isSettle && (
@@ -14176,6 +14224,11 @@ function LedgerDetail({
           canPayout={canPayout}
           forceSettle={showExpense === "settle-past" || showExpense === "settle-locked"}
           isAdmin={isAdmin}
+          settleMonth={
+            showExpense === "settle-past" || showExpense === "settle-locked"
+              ? activeMonth
+              : undefined
+          }
           defaultDate={showExpense === "settle-locked"
             ? new Date(activeMonth + "-15").toISOString().slice(0, 10)
             : undefined}
