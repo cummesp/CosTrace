@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.123 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
+  "%cCOSTRACE BUILD v5.124 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -2843,6 +2843,33 @@ function computeLifetimeBalance(ledger, optMonths) {
   return ledger.members
     .filter((m) => !m.is_spectator)
     .map((m) => ({ ...m, net: totals[m.id] || 0 }));
+}
+
+// Greedy creditor/debtor matching → list of "A owes B amount" payments.
+function pairwiseDebts(balances) {
+  const debtors = balances
+    .filter((b) => b.net < -0.01)
+    .map((b) => ({ ...b, rem: -b.net }))
+    .sort((a, b) => b.rem - a.rem);
+  const creditors = balances
+    .filter((b) => b.net > 0.01)
+    .map((b) => ({ ...b, rem: b.net }))
+    .sort((a, b) => b.rem - a.rem);
+  const out = [];
+  let di = 0,
+    ci = 0;
+  while (di < debtors.length && ci < creditors.length) {
+    const d = debtors[di],
+      c = creditors[ci];
+    const amt = Math.min(d.rem, c.rem);
+    if (amt > 0.01)
+      out.push({ from: d.id, to: c.id, fromName: d.display_name, toName: c.display_name, amount: amt });
+    d.rem -= amt;
+    c.rem -= amt;
+    if (d.rem < 0.01) di++;
+    if (c.rem < 0.01) ci++;
+  }
+  return out;
 }
 
 // -- AUTH
@@ -8297,8 +8324,10 @@ function StatementCard({
   activeMonth,
   currentUser,
   currency = "RSD",
+  onSettleMonths,
 }) {
   const [showAllStmt, setShowAllStmt] = useState(false);
+  const [outFilter, setOutFilter] = useState("all");
   const curMk = mk(new Date());
   const isCurrentMonth = activeMonth === curMk;
   const allMks = getMonths(ledger);
@@ -8354,6 +8383,61 @@ function StatementCard({
   const lifetimeBals = !ledger.carry_balance
     ? computeLifetimeBalance(ledger)
     : null;
+  // Locked months that still have an outstanding balance, for the filter
+  const lockedWithDebt = lifetimeBals
+    ? lockedMks.filter((m) =>
+        computeLifetimeBalance(ledger, [m]).some((b) => Math.abs(b.net) > 0.01)
+      )
+    : [];
+  const effFilter = lockedWithDebt.includes(outFilter) ? outFilter : "all";
+  const shownBals = lifetimeBals
+    ? effFilter === "all"
+      ? lifetimeBals
+      : computeLifetimeBalance(ledger, [effFilter])
+    : null;
+  const iAmAdmin = !!ledger.members.find((m) => m.user_id === currentUser.id)?.is_admin;
+  const settleOutstanding = () => {
+    const months = effFilter === "all" ? lockedWithDebt : [effFilter];
+    const list = [];
+    months.forEach((mkey, mi) => {
+      const [y, m] = mkey.split("-").map(Number);
+      const lastDay = new Date(y, m, 0).toISOString();
+      const bals = computeBalances(
+        ledger,
+        ledger.expenses.filter((e) => mk(e.expense_date) === mkey)
+      );
+      pairwiseDebts(bals).forEach((d, di) => {
+        const debtor = ledger.members.find((mm) => mm.id === d.from);
+        if (!debtor) return;
+        const amt2 = parseFloat(d.amount.toFixed(2));
+        list.push({
+          id: `e${Date.now()}_${mi}_${di}`,
+          description: `Debt paid: ${d.fromName} → ${d.toName} (${mlbl(mkey)})`,
+          amount: amt2,
+          original_amount: null,
+          original_currency: null,
+          exchange_rate_used: null,
+          paid_by_name: debtor.display_name,
+          paid_by_id: debtor.user_id || null,
+          expense_date: lastDay,
+          approval_status: "approved",
+          is_settlement: true,
+          is_payout: false,
+          splits: [{ member_id: d.to, share_percent: 100, amount_owed: amt2 }],
+        });
+      });
+    });
+    if (list.length === 0) return;
+    const total = list.reduce((sum, x) => sum + x.amount, 0);
+    const scope = effFilter === "all" ? `${months.length} month(s)` : mlbl(effFilter);
+    if (
+      !window.confirm(
+        `Record ${list.length} payment(s) totalling ${fmtAmt(total)} ${currency} for ${scope}? Each one is dated the last day of its month.`
+      )
+    )
+      return;
+    onSettleMonths(list);
+  };
   const myLifetimeBal = lifetimeBals
     ? lifetimeBals.find(
         (b) => b.user_id === currentUser.id || b.display_name === currentUser.full_name
@@ -8588,10 +8672,35 @@ function StatementCard({
         {lifetimeBals && (
           <div className="carry-note" style={{ display: "block" }}>
             <span style={{ fontStyle: "normal", fontWeight: 700, color: "var(--text2)" }}>
-              Total outstanding — locked months:
+              Total outstanding — {effFilter === "all" ? "locked months" : mlbl(effFilter)}:
             </span>
+            {(lockedWithDebt.length > 1 || (iAmAdmin && lockedWithDebt.length > 0)) && (
+              <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginTop: "8px" }}>
+                {lockedWithDebt.length > 1 && (
+                  <select
+                    value={effFilter}
+                    onChange={(e) => setOutFilter(e.target.value)}
+                    style={{ fontSize: "12px", padding: "4px 8px", width: "auto" }}
+                  >
+                    <option value="all">All locked months</option>
+                    {lockedWithDebt.map((m) => (
+                      <option key={m} value={m}>{mlbl(m)}</option>
+                    ))}
+                  </select>
+                )}
+                {iAmAdmin && onSettleMonths && (
+                  <button
+                    className="btn btn-settle"
+                    style={{ fontSize: "12px", padding: "5px 12px" }}
+                    onClick={settleOutstanding}
+                  >
+                    Debts settled
+                  </button>
+                )}
+              </div>
+            )}
             <div className="carry-info" style={{ marginTop: "6px" }}>
-              {lifetimeBals.map((b) => (
+              {shownBals.map((b) => (
                 <span
                   key={b.id}
                   className="carry-chip"
@@ -12337,6 +12446,18 @@ function LedgerDetail({
   const historyLocked =
     plan.historyMonths && allMks.some((m) => !canAccess(m) && m < curMk);
 
+  // Several settlements at once (single update so none overwrite another)
+  const addExpenses = (list) => {
+    onUpdate({ ...ledger, expenses: [...ledger.expenses, ...list] });
+    if (ledger.notifications_enabled !== false)
+      onNotify(
+        "settlement",
+        "Debts settled",
+        `${list.length} settlement payment(s) were recorded`,
+        ledger.name
+      );
+  };
+
   const addExpense = (exp) => {
     // Enforce expense limit (settlements bypass)
     if (!exp.is_settlement && atExpenseLimit) {
@@ -13794,6 +13915,7 @@ function LedgerDetail({
             activeMonth={activeMonth}
             currentUser={currentUser}
             currency={currency}
+            onSettleMonths={addExpenses}
           />
         </div>
 
