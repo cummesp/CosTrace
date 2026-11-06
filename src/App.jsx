@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.138 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
+  "%cCOSTRACE BUILD v5.141 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -19746,11 +19746,17 @@ function ComparisonTable({
     { label: "History", get: (pl) => (pl.historyMonths ? `${pl.historyMonths} months` : "Unlimited") },
     { label: "Participate in other ledgers", get: (pl) => pl.maxParticipant ?? "Unlimited" },
     { label: "Cancel & delete expenses", get: (pl) => pl.id !== "free" },
+    { label: "Own currency per ledger / fund", get: (pl) => pl.id !== "free" },
+    { label: "Additional currencies", get: (pl) => (pl.id === "gold" ? "Up to 2" : pl.id === "regular" ? "Up to 1" : false) },
     { label: "Custom header & label colors", get: (pl) => pl.id === "regular" || pl.id === "gold" },
     { label: "Rename categories", get: (pl) => pl.id === "gold" },
+    { label: "Expense categories & colours", get: (pl) => pl.id === "regular" || pl.id === "gold" },
+    { label: "Spending by category", get: (pl) => pl.id === "regular" || pl.id === "gold" },
+    { label: "Your own categories", get: (pl) => pl.id === "gold" },
     { label: "No ads", get: (pl) => !pl.ads },
     { label: "Payout Pass included (19.99€ value)", get: (pl) => (pl.id === "gold" ? true : false) },
     { label: "Members get Payouts in your ledgers", get: (pl) => pl.id === "gold" },
+    { label: "Fund (Savings)", get: (pl) => pl.id !== "free" },
     {
       label: "Fund (Purpose)",
       get: (pl) => pl.id === "regular" || pl.id === "gold",
@@ -20140,7 +20146,9 @@ function UpgradeModal({
       "12 months history",
       "Participant in 15 ledgers",
       "Cancel & delete expenses",
+      "Own currency per ledger / fund",
       "No ads",
+      "Fund (Savings)",
     ],
     regular: [
       "10 owned ledgers",
@@ -20149,9 +20157,13 @@ function UpgradeModal({
       "Unlimited history",
       "Unlimited participation",
       "Cancel & delete expenses",
+      "Own currency per ledger / fund",
+      "Additional currencies (up to 1)",
       "Custom header color & label",
+      "Expense categories & colours",
+      "Spending by category",
       "No ads",
-      "Fund (Purpose)",
+      "Fund (Savings & Purpose)",
     ],
     gold: [
       "Unlimited ledgers",
@@ -20160,10 +20172,15 @@ function UpgradeModal({
       "Cancel & delete expenses",
       "Custom header & label colors",
       "Rename categories",
+      "Own currency per ledger / fund",
+      "Additional currencies (up to 2)",
+      "Expense categories & colours",
+      "Your own categories",
+      "Spending by category",
       "No ads",
       "Payout Pass included (19.99€ value)",
       "Members get Payouts in your ledgers",
-      "Fund (Purpose & Partner)",
+      "Fund (Savings, Purpose & Partner)",
     ],
   };
 
@@ -20176,6 +20193,7 @@ function UpgradeModal({
     if (s.includes("unlimited")) return Icon.Infinity;
     if (s.includes("color") || s.includes("theme") || s.includes("avatar")) return Icon.Palette;
     if (s.includes("no ads")) return Icon.Ban;
+    if (s.includes("categor")) return Icon.Palette;
     if (s.includes("rename")) return Icon.Edit3;
     if (s.includes("payout")) return Icon.CreditCard;
     if (s.includes("history")) return Icon.Clock;
