@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.129 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
+  "%cCOSTRACE BUILD v5.130 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -2872,6 +2872,41 @@ function pairwiseDebts(balances) {
   return out;
 }
 
+// ── Expense categories (Regular: preset list, Gold: + own categories) ──────
+const DEFAULT_CATEGORIES = [
+  { id: "food", label: "Food", icon: "🛒", color: "#16a34a" },
+  { id: "eating_out", label: "Eating out", icon: "🍽️", color: "#ea580c" },
+  { id: "home", label: "Home & rent", icon: "🏠", color: "#2563eb" },
+  { id: "bills", label: "Bills", icon: "💡", color: "#ca8a04" },
+  { id: "transport", label: "Transport", icon: "🚗", color: "#0891b2" },
+  { id: "health", label: "Health", icon: "💊", color: "#dc2626" },
+  { id: "shopping", label: "Shopping", icon: "🛍️", color: "#c026d3" },
+  { id: "fun", label: "Fun", icon: "🎉", color: "#7c3aed" },
+  { id: "travel", label: "Travel", icon: "✈️", color: "#0d9488" },
+  { id: "other", label: "Other", icon: "📦", color: "#6b7280" },
+];
+// "none" | "preset" | "custom"
+const categoryAccess = (plan) =>
+  plan?.gold ? "custom" : plan?.id === "regular" ? "preset" : "none";
+const ledgerCategories = (ledger) => [...DEFAULT_CATEGORIES, ...(ledger?.categories || [])];
+const findCategory = (ledger, id) =>
+  id ? ledgerCategories(ledger).find((c) => c.id === id) || null : null;
+const normDesc = (d) => (d || "").toLowerCase().trim().replace(/\s+/g, " ");
+// The category last used for an expense with the same description in this
+// ledger ("Maxi" → Food). The newest categorised match wins, so changing it
+// once by hand teaches the ledger the new choice.
+function rememberedCategory(ledger, desc) {
+  const n = normDesc(desc);
+  if (!n) return null;
+  let best = null;
+  for (const e of ledger.expenses || []) {
+    if (e.is_settlement || e.is_payout || !e.category) continue;
+    if (normDesc(e.description) !== n) continue;
+    if (!best || new Date(e.expense_date) >= new Date(best.expense_date)) best = e;
+  }
+  return best?.category || null;
+}
+
 // Builds "Debt paid" settlement entries for the given locked months of one
 // ledger: each month is settled on its own, dated the last day of that month.
 function buildDebtSettlements(ledger, months) {
@@ -4736,8 +4771,19 @@ function AddExpenseModal({
   isAdmin = false,
   defaultDate,
   settleMonth,
+  categoryAccess: catAccess = "none",
+  onSaveCategories,
 }) {
   const [desc, setDesc] = useState("");
+  const [category, setCategory] = useState(null);
+  const [catTouched, setCatTouched] = useState(false);
+  const [showCatPicker, setShowCatPicker] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
+  const [newCatIcon, setNewCatIcon] = useState("🏷️");
+  useEffect(() => {
+    if (catAccess === "none" || catTouched) return;
+    setCategory(rememberedCategory(ledger, desc));
+  }, [desc]);
   const [amount, setAmount] = useState("");
   const ledgerCurrency = ledger.currency || currency;
   const availableCurrencies = [ledgerCurrency, ...(ledger.currency_pairs || []).map((p) => p.currency)];
@@ -4970,6 +5016,7 @@ function AddExpenseModal({
       is_settlement: isSettle,
       is_payout: isPayout,
       payout_mode: isPayout ? pm : undefined,
+      category: catAccess !== "none" && !isSettle && !isPayout ? category || null : null,
       splits: finalSplits,
     });
     onClose();
@@ -6085,6 +6132,106 @@ function LedgerSettingsModal({
           </button>
         </div>
         <div className="modal-body">
+          {catAccess !== "none" && !isSettle && !isPayout && (
+            <div style={{ marginTop: "-6px", marginBottom: "14px" }}>
+              {(() => {
+                const cat = findCategory(ledger, category);
+                const auto = !!cat && !catTouched;
+                return (
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                    {cat ? (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "4px 11px", borderRadius: "20px", background: "var(--bg2)", fontSize: "12px", fontWeight: 700, color: "var(--text2)" }}>
+                        <span>{cat.icon}</span>
+                        {cat.label}
+                        {auto && <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--text3)" }}>· remembered</span>}
+                      </span>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => setShowCatPicker((v) => !v)}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "var(--accent)", fontSize: "12px", fontWeight: 700, fontFamily: "inherit", padding: 0 }}
+                    >
+                      {cat ? "Change" : "＋ Category"}
+                    </button>
+                  </div>
+                );
+              })()}
+              {showCatPicker && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "8px" }}>
+                  {ledgerCategories(ledger).map((c) => (
+                    <button
+                      type="button"
+                      key={c.id}
+                      onClick={() => {
+                        setCategory(c.id);
+                        setCatTouched(true);
+                        setShowCatPicker(false);
+                      }}
+                      style={{
+                        padding: "5px 11px", borderRadius: "20px", fontFamily: "inherit", fontSize: "12px", fontWeight: 700, cursor: "pointer",
+                        border: `1.5px solid ${category === c.id ? "var(--accent)" : "var(--border)"}`,
+                        background: category === c.id ? "var(--accent-light)" : "white",
+                        color: "var(--text2)",
+                      }}
+                    >
+                      {c.icon} {c.label}
+                    </button>
+                  ))}
+                  {category && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCategory(null);
+                        setCatTouched(true);
+                        setShowCatPicker(false);
+                      }}
+                      style={{ padding: "5px 11px", borderRadius: "20px", border: "1.5px dashed var(--border)", background: "white", fontFamily: "inherit", fontSize: "12px", cursor: "pointer", color: "var(--text3)" }}
+                    >
+                      No category
+                    </button>
+                  )}
+                  {catAccess === "custom" && onSaveCategories && (
+                    <div style={{ display: "flex", gap: "6px", alignItems: "center", width: "100%", marginTop: "4px" }}>
+                      <input
+                        value={newCatIcon}
+                        onChange={(e) => setNewCatIcon(e.target.value)}
+                        maxLength={2}
+                        style={{ width: "44px", textAlign: "center", padding: "6px", fontSize: "14px" }}
+                      />
+                      <input
+                        placeholder="New category (Gold)"
+                        value={newCatName}
+                        onChange={(e) => setNewCatName(e.target.value)}
+                        style={{ flex: 1, padding: "6px 10px", fontSize: "12px" }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ fontSize: "12px", padding: "6px 12px" }}
+                        disabled={!newCatName.trim()}
+                        onClick={() => {
+                          const c = {
+                            id: `c_${Date.now().toString(36)}`,
+                            label: newCatName.trim().slice(0, 24),
+                            icon: newCatIcon.trim() || "🏷️",
+                            color: "#6366f1",
+                          };
+                          onSaveCategories([...(ledger.categories || []), c]);
+                          setCategory(c.id);
+                          setCatTouched(true);
+                          setNewCatName("");
+                          setShowCatPicker(false);
+                        }}
+                      >
+                        Add
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="form-group">
             <label>Name</label>
             <input value={name} onChange={(e) => setName(e.target.value)} />
@@ -8805,6 +8952,8 @@ function ExpenseDetailModal({
       m.display_name === exp.paid_by_name
   );
   const [editPayerId, setEditPayerId] = useState(currentPayerMember?.id || "");
+  const catAccessEdit = categoryAccess(plan);
+  const [editCategory, setEditCategory] = useState(exp.category || "");
 
   const hasCustomSplit =
     exp.splits &&
@@ -9132,6 +9281,17 @@ function ExpenseDetailModal({
                     onChange={(e) => setEditDate(e.target.value)}
                   />
                 </div>
+                {catAccessEdit !== "none" && !exp.is_settlement && !exp.is_payout && (
+                  <div className="form-group">
+                    <label>Category</label>
+                    <select value={editCategory} onChange={(e) => setEditCategory(e.target.value)}>
+                      <option value="">No category</option>
+                      {ledgerCategories(ledger).map((c) => (
+                        <option key={c.id} value={c.id}>{c.icon} {c.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label>Who paid?</label>
                   <select value={editPayerId} onChange={(e) => setEditPayerId(e.target.value)}>
@@ -9413,6 +9573,7 @@ function ExpenseDetailModal({
                   setEditDesc(exp.description || "");
                   setEditDate(exp.expense_date ? exp.expense_date.slice(0, 10) : "");
                   setEditPayerId(currentPayerMember?.id || "");
+                  setEditCategory(exp.category || "");
                 }}
               >
                 Cancel
@@ -9428,6 +9589,9 @@ function ExpenseDetailModal({
                     amount: amt,
                     description: editDesc.trim(),
                     expense_date: editDate,
+                    ...(catAccessEdit !== "none" && !exp.is_settlement && !exp.is_payout && (editCategory || null) !== (exp.category || null)
+                      ? { category: editCategory || null }
+                      : {}),
                     ...(payerChanged
                       ? { paid_by_id: newPayer.user_id || null, paid_by_name: newPayer.display_name }
                       : {}),
@@ -12405,6 +12569,7 @@ function LedgerDetail({
   const [activeMonth, setActiveMonth] = useState(defMonth);
   const [showExpense, setShowExpense] = useState(false);
   const [detailTab, setDetailTab] = useState("all"); // "all" | "expenses" | "payouts"
+  const [catFilter, setCatFilter] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [lockConfirm, setLockConfirm] = useState(false);
   const [approvalExp, setApprovalExp] = useState(null);
@@ -13954,12 +14119,16 @@ function LedgerDetail({
             const expOnly = allEntries.filter((e) => e._type === "expense");
             const payOnly = allEntries.filter((e) => e._type === "payout");
             const payCount = payOnly.length;
-            const shown =
+            const shownBase =
               detailTab === "expenses"
                 ? expOnly
                 : detailTab === "payouts"
                 ? payOnly
                 : allEntries;
+            const catAccessList = categoryAccess(plan);
+            const catsInUse = [...new Set(expOnly.map((e) => e.category).filter(Boolean))];
+            const effCatFilter = catsInUse.includes(catFilter) ? catFilter : null;
+            const shown = effCatFilter ? shownBase.filter((e) => e.category === effCatFilter) : shownBase;
 
             return (
               <>
@@ -14014,6 +14183,29 @@ function LedgerDetail({
                     </button>
                   ))}
                 </div>
+                {catAccessList !== "none" && catsInUse.length > 0 && (
+                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "12px" }}>
+                    {catsInUse.map((cid) => {
+                      const c = findCategory(ledger, cid);
+                      if (!c) return null;
+                      const on = effCatFilter === cid;
+                      return (
+                        <button
+                          key={cid}
+                          onClick={() => setCatFilter(on ? null : cid)}
+                          style={{
+                            padding: "4px 11px", borderRadius: "20px", fontFamily: "inherit", fontSize: "11px", fontWeight: 700, cursor: "pointer",
+                            border: `1.5px solid ${on ? "var(--accent)" : "var(--border)"}`,
+                            background: on ? "var(--accent-light)" : "white",
+                            color: on ? "var(--accent)" : "var(--text3)",
+                          }}
+                        >
+                          {c.icon} {c.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
 
                 <div className="exp-card">
                   <div className="exp-card-header">
@@ -14130,7 +14322,7 @@ function LedgerDetail({
                             {fmtDate(exp.expense_date)}
                           </div>
                           <div className="exp-info">
-                            <div className="exp-desc">{exp.description}{exp.edited_at && <span style={{ fontSize: "10px", fontWeight: 700, padding: "1px 7px", borderRadius: "20px", background: "#eef2ff", color: "#4f46e5", marginLeft: "6px", verticalAlign: "middle" }}>edited</span>}</div>
+                            <div className="exp-desc">{findCategory(ledger, exp.category) && <span title={findCategory(ledger, exp.category).label} style={{ marginRight: "5px" }}>{findCategory(ledger, exp.category).icon}</span>}{exp.description}{exp.edited_at && <span style={{ fontSize: "10px", fontWeight: 700, padding: "1px 7px", borderRadius: "20px", background: "#eef2ff", color: "#4f46e5", marginLeft: "6px", verticalAlign: "middle" }}>edited</span>}</div>
                             <div className="exp-meta">
                               {isPayout ? (
                                 <span
@@ -14356,6 +14548,8 @@ function LedgerDetail({
           ledger={ledger}
           currentUser={currentUser}
           onClose={() => setShowExpense(false)}
+          categoryAccess={categoryAccess(plan)}
+          onSaveCategories={(cats) => onUpdate({ ...ledger, categories: cats })}
           onAdd={(exp) => {
             if (showExpense === "settle-past") {
               const [y, m] = activeMonth.split("-").map(Number);
@@ -17979,6 +18173,46 @@ function LedgerStatsOverview({ ledgers, currentUser, onUpdateLedger }) {
                 )}
               </div>
 
+              {/* Spending by category — Regular & Gold */}
+              {(() => {
+                const access = currentUser.plan === "gold" ? "custom" : currentUser.plan === "regular" ? "preset" : "none";
+                if (access === "none") return null;
+                const totals = {};
+                activeLedgers.forEach((l) => {
+                  l.expenses
+                    .filter((e) => mk(e.expense_date) === curMk && e.approval_status === "approved" && !e.is_settlement && !e.is_payout)
+                    .forEach((e) => {
+                      const c = findCategory(l, e.category);
+                      const key = c ? c.label : "Uncategorized";
+                      if (!totals[key]) totals[key] = { label: key, icon: c?.icon || "•", color: c?.color || "#9ca3af", sum: 0 };
+                      totals[key].sum += e.amount;
+                    });
+                });
+                const list = Object.values(totals).sort((a, b) => b.sum - a.sum);
+                if (!list.some((x) => x.label !== "Uncategorized")) return null;
+                const max = list[0].sum || 1;
+                return (
+                  <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "12px", padding: "14px 16px", marginBottom: "16px" }}>
+                    <div style={{ fontSize: "12px", fontWeight: "700", color: "var(--text2)", marginBottom: "10px" }}>
+                      Spending by category — this month
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "7px" }}>
+                      {list.map((x) => (
+                        <div key={x.label} style={{ fontSize: "12px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "3px", color: "var(--text2)" }}>
+                            <span>{x.icon} {x.label}</span>
+                            <span style={{ fontFamily: "var(--mono)", fontWeight: 700 }}>{fmtAmt(x.sum)}</span>
+                          </div>
+                          <div style={{ height: "6px", background: "var(--bg2)", borderRadius: "3px" }}>
+                            <div style={{ height: "6px", width: `${(x.sum / max) * 100}%`, background: x.color, borderRadius: "3px" }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Latest changes feed */}
               <div
                 style={{
@@ -21443,6 +21677,7 @@ export default function App() {
           is_carryover: e.is_carryover || false,
           is_payout: e.is_payout || false,
           payout_mode: e.payout_mode || null,
+          category: e.category || null,
           created_at: e.created_at || null,
           edited_at: e.edited_at || null,
           splits: (allSplits || [])
@@ -21465,6 +21700,7 @@ export default function App() {
         customLabel: l.custom_label || null,
         cardColor: l.card_color || null,
         lockedMonths: l.locked_months || {},
+        categories: l.categories || [],
         archived: l.archived || false,
         archived_at: l.archived_at || null,
         deleteRequest: l.delete_request || null,
@@ -22011,6 +22247,11 @@ export default function App() {
       console.error("saveExpense: no row returned");
       return;
     }
+    if (exp.category) {
+      // Separate write so a missing `category` column can never block the expense itself
+      const { error: catErr } = await sb.from("expenses").update({ category: exp.category }).eq("id", eRow.id);
+      if (catErr) console.warn("expenses.category not saved (run the categories migration):", catErr.message);
+    }
     // An expense with no split rows silently breaks every balance, so the
     // expense and its splits are saved as one unit: if the splits can't be
     // written (or none were supplied), fall back to an equal split among the
@@ -22139,6 +22380,11 @@ export default function App() {
     if (error?.message?.includes("edited_at")) {
       console.warn("expenses.edited_at column missing — saving without the edited stamp");
       ({ error } = await sb.from("expenses").update(changes).eq("id", id));
+    }
+    if (error?.message?.includes("category")) {
+      console.warn("expenses.category column missing — saving without category");
+      const { category: _c, ...noCat } = changes;
+      ({ error } = await sb.from("expenses").update({ ...noCat, edited_at: editedAt }).eq("id", id));
     }
     if (error) {
       notify("error", "Couldn't save changes", error.message, "");
@@ -22745,6 +22991,10 @@ export default function App() {
       // Wait one tick so `prev` is set by the setLedgers callback above
       await new Promise((r) => setTimeout(r, 0));
       if (prev) {
+        if (JSON.stringify(prev.categories || []) !== JSON.stringify(u.categories || [])) {
+          const { error: cErr } = await sb.from("ledgers").update({ categories: u.categories || [] }).eq("id", u.id);
+          if (cErr) console.warn("ledgers.categories not saved (run the categories migration):", cErr.message);
+        }
         // Save new expenses
         const newExps = u.expenses.filter(
           (e) => !prev.expenses.find((pe) => pe.id === e.id)
