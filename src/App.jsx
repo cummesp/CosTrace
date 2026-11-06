@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.135 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
+  "%cCOSTRACE BUILD v5.136 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -580,7 +580,7 @@ const css = `
   .exp-row.row-pending{background:#fffbeb;border-left:3px solid var(--warning);}
   .exp-row.row-approved{border-left:3px solid transparent;}
   .exp-row.row-denied{background:#fef2f2;border-left:3px solid var(--danger);opacity:0.75;}
-  .exp-row.row-cancelled{background:#fff0f0;border-left:3px solid #dc2626;opacity:0.8;}
+  .exp-row.row-cancelled{background:rgba(220,38,38,0.4);border-left:3px solid #dc2626;opacity:0.8;}
   .exp-row.row-settle{background:var(--settle-light);border-left:3px solid var(--settle);}
   .exp-date{font-size:10px;color:var(--text3);font-family:var(--mono);white-space:nowrap;width:36px;font-weight:400;font-variant-numeric:tabular-nums;}
   .exp-info{flex:1;min-width:0;}
@@ -2882,6 +2882,7 @@ const DEFAULT_CATEGORIES = [
   { id: "health", label: "Health", color: "#a9c95b" },
   { id: "shopping", label: "Shopping", color: "#d08ab8" },
   { id: "pets", label: "Pets", color: "#9c7b5b" },
+  { id: "kids", label: "Kids", color: "#92d9b0" },
   { id: "fun", label: "Fun", color: "#e3d05a" },
   { id: "travel", label: "Travel", color: "#62b0e8" },
   { id: "other", label: "Other", color: "#a3a9b0" },
@@ -22537,10 +22538,24 @@ export default function App() {
           label: `Edit in "${owner.name}"`,
         });
     }
-    // Re-colouring/re-categorising is only a visual change, not an edit
+    const oldExp = ledgers.flatMap((l) => l.expenses).find((e) => e.id === id);
+    // The edit form sends every field; keep only those that really changed
+    // (dates compared as plain days). Re-categorising alone is a visual change,
+    // not an edit, so it never gets the "edited" stamp.
+    if (oldExp) {
+      const sameField = (k, a, b) =>
+        k === "expense_date"
+          ? String(a || "").slice(0, 10) === String(b || "").slice(0, 10)
+          : k === "amount"
+          ? Math.abs((a || 0) - (b || 0)) < 0.001
+          : (a ?? null) === (b ?? null);
+      changes = Object.fromEntries(
+        Object.entries(changes).filter(([k, v]) => !sameField(k, oldExp[k], v))
+      );
+      if (Object.keys(changes).length === 0) return;
+    }
     const onlyCategory = Object.keys(changes).every((k) => k === "category");
     const editedAt = onlyCategory ? null : new Date().toISOString();
-    const oldExp = ledgers.flatMap((l) => l.expenses).find((e) => e.id === id);
     const amountChanged =
       changes.amount !== undefined && oldExp && Math.abs(changes.amount - oldExp.amount) > 0.001;
     // Keep each member's owed amount in step with a new total
