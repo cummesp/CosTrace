@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.130 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
+  "%cCOSTRACE BUILD v5.132 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -2874,21 +2874,52 @@ function pairwiseDebts(balances) {
 
 // ── Expense categories (Regular: preset list, Gold: + own categories) ──────
 const DEFAULT_CATEGORIES = [
-  { id: "food", label: "Food", icon: "🛒", color: "#16a34a" },
-  { id: "eating_out", label: "Eating out", icon: "🍽️", color: "#ea580c" },
-  { id: "home", label: "Home & rent", icon: "🏠", color: "#2563eb" },
-  { id: "bills", label: "Bills", icon: "💡", color: "#ca8a04" },
-  { id: "transport", label: "Transport", icon: "🚗", color: "#0891b2" },
-  { id: "health", label: "Health", icon: "💊", color: "#dc2626" },
-  { id: "shopping", label: "Shopping", icon: "🛍️", color: "#c026d3" },
-  { id: "fun", label: "Fun", icon: "🎉", color: "#7c3aed" },
-  { id: "travel", label: "Travel", icon: "✈️", color: "#0d9488" },
-  { id: "other", label: "Other", icon: "📦", color: "#6b7280" },
+  { id: "food", label: "Food", color: "#16a34a" },
+  { id: "eating_out", label: "Eating out", color: "#ea580c" },
+  { id: "home", label: "Home & rent", color: "#2563eb" },
+  { id: "bills", label: "Bills", color: "#ca8a04" },
+  { id: "transport", label: "Transport", color: "#0891b2" },
+  { id: "health", label: "Health", color: "#dc2626" },
+  { id: "shopping", label: "Shopping", color: "#c026d3" },
+  { id: "pets", label: "Pets", color: "#b45309" },
+  { id: "fun", label: "Fun", color: "#7c3aed" },
+  { id: "travel", label: "Travel", color: "#0d9488" },
+  { id: "other", label: "Other", color: "#6b7280" },
 ];
 // "none" | "preset" | "custom"
 const categoryAccess = (plan) =>
   plan?.gold ? "custom" : plan?.id === "regular" ? "preset" : "none";
-const ledgerCategories = (ledger) => [...DEFAULT_CATEGORIES, ...(ledger?.categories || [])];
+// ledger.categories holds Gold's own categories AND colour overrides for the
+// preset ones ({ id: "food", override: true, color }), so no extra column.
+const ledgerCategories = (ledger) => {
+  const ov = {};
+  const custom = [];
+  (ledger?.categories || []).forEach((c) => (c.override ? (ov[c.id] = c.color) : custom.push(c)));
+  return [
+    ...DEFAULT_CATEGORIES.map((c) => (ov[c.id] ? { ...c, color: ov[c.id] } : c)),
+    ...custom,
+  ];
+};
+const CATEGORY_PALETTE = [
+  "#16a34a", "#0d9488", "#0891b2", "#2563eb", "#7c3aed", "#c026d3",
+  "#dc2626", "#ea580c", "#ca8a04", "#b45309", "#6b7280", "#111827",
+];
+function withCategoryColor(ledger, id, color) {
+  const list = ledger.categories || [];
+  if (id.startsWith("c_")) return list.map((c) => (c.id === id ? { ...c, color } : c));
+  const rest = list.filter((c) => !(c.override && c.id === id));
+  return [...rest, { id, override: true, color }];
+}
+function CatDot({ color, size = 9 }) {
+  return (
+    <span
+      style={{
+        display: "inline-block", width: size, height: size, borderRadius: "50%",
+        background: color || "#9ca3af", flexShrink: 0,
+      }}
+    />
+  );
+}
 const findCategory = (ledger, id) =>
   id ? ledgerCategories(ledger).find((c) => c.id === id) || null : null;
 const normDesc = (d) => (d || "").toLowerCase().trim().replace(/\s+/g, " ");
@@ -4779,7 +4810,8 @@ function AddExpenseModal({
   const [catTouched, setCatTouched] = useState(false);
   const [showCatPicker, setShowCatPicker] = useState(false);
   const [newCatName, setNewCatName] = useState("");
-  const [newCatIcon, setNewCatIcon] = useState("🏷️");
+  const [newCatColor, setNewCatColor] = useState(CATEGORY_PALETTE[3]);
+  const [showCatColors, setShowCatColors] = useState(false);
   useEffect(() => {
     if (catAccess === "none" || catTouched) return;
     setCategory(rememberedCategory(ledger, desc));
@@ -6141,7 +6173,7 @@ function LedgerSettingsModal({
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                     {cat ? (
                       <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "4px 11px", borderRadius: "20px", background: "var(--bg2)", fontSize: "12px", fontWeight: 700, color: "var(--text2)" }}>
-                        <span>{cat.icon}</span>
+                        <CatDot color={cat.color} />
                         {cat.label}
                         {auto && <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--text3)" }}>· remembered</span>}
                       </span>
@@ -6169,12 +6201,13 @@ function LedgerSettingsModal({
                       }}
                       style={{
                         padding: "5px 11px", borderRadius: "20px", fontFamily: "inherit", fontSize: "12px", fontWeight: 700, cursor: "pointer",
-                        border: `1.5px solid ${category === c.id ? "var(--accent)" : "var(--border)"}`,
-                        background: category === c.id ? "var(--accent-light)" : "white",
+                        display: "inline-flex", alignItems: "center", gap: "6px",
+                        border: `1.5px solid ${category === c.id ? c.color : "var(--border)"}`,
+                        background: category === c.id ? c.color + "22" : "white",
                         color: "var(--text2)",
                       }}
                     >
-                      {c.icon} {c.label}
+                      <CatDot color={c.color} /> {c.label}
                     </button>
                   ))}
                   {category && (
@@ -6190,20 +6223,62 @@ function LedgerSettingsModal({
                       No category
                     </button>
                   )}
+                  {onSaveCategories && (
+                    <button
+                      type="button"
+                      onClick={() => setShowCatColors((v) => !v)}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text3)", fontSize: "11px", fontWeight: 700, fontFamily: "inherit", padding: "4px 2px" }}
+                    >
+                      {showCatColors ? "Hide colours" : "Edit colours"}
+                    </button>
+                  )}
+                  {showCatColors && onSaveCategories && (
+                    <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "8px", marginTop: "2px" }}>
+                      {ledgerCategories(ledger).map((c) => (
+                        <div key={c.id} style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                          <span style={{ width: "92px", fontSize: "12px", fontWeight: 700, color: "var(--text2)" }}>{c.label}</span>
+                          <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
+                            {CATEGORY_PALETTE.map((col) => (
+                              <button
+                                type="button"
+                                key={col}
+                                onClick={() => onSaveCategories(withCategoryColor(ledger, c.id, col))}
+                                aria-label={col}
+                                style={{
+                                  width: "20px", height: "20px", borderRadius: "50%", background: col, cursor: "pointer", padding: 0,
+                                  border: c.color === col ? "2.5px solid var(--text)" : "2px solid white",
+                                  boxShadow: "0 0 0 1px var(--border)",
+                                }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {catAccess === "custom" && onSaveCategories && (
-                    <div style={{ display: "flex", gap: "6px", alignItems: "center", width: "100%", marginTop: "4px" }}>
-                      <input
-                        value={newCatIcon}
-                        onChange={(e) => setNewCatIcon(e.target.value)}
-                        maxLength={2}
-                        style={{ width: "44px", textAlign: "center", padding: "6px", fontSize: "14px" }}
-                      />
+                    <div style={{ display: "flex", gap: "6px", alignItems: "center", width: "100%", marginTop: "4px", flexWrap: "wrap" }}>
                       <input
                         placeholder="New category (Gold)"
                         value={newCatName}
                         onChange={(e) => setNewCatName(e.target.value)}
-                        style={{ flex: 1, padding: "6px 10px", fontSize: "12px" }}
+                        style={{ flex: 1, minWidth: "140px", padding: "6px 10px", fontSize: "12px" }}
                       />
+                      <div style={{ display: "flex", gap: "4px" }}>
+                        {CATEGORY_PALETTE.slice(0, 8).map((col) => (
+                          <button
+                            type="button"
+                            key={col}
+                            onClick={() => setNewCatColor(col)}
+                            aria-label={col}
+                            style={{
+                              width: "18px", height: "18px", borderRadius: "50%", background: col, cursor: "pointer", padding: 0,
+                              border: newCatColor === col ? "2.5px solid var(--text)" : "2px solid white",
+                              boxShadow: "0 0 0 1px var(--border)",
+                            }}
+                          />
+                        ))}
+                      </div>
                       <button
                         type="button"
                         className="btn btn-secondary"
@@ -6213,8 +6288,7 @@ function LedgerSettingsModal({
                           const c = {
                             id: `c_${Date.now().toString(36)}`,
                             label: newCatName.trim().slice(0, 24),
-                            icon: newCatIcon.trim() || "🏷️",
-                            color: "#6366f1",
+                            color: newCatColor,
                           };
                           onSaveCategories([...(ledger.categories || []), c]);
                           setCategory(c.id);
@@ -9287,7 +9361,7 @@ function ExpenseDetailModal({
                     <select value={editCategory} onChange={(e) => setEditCategory(e.target.value)}>
                       <option value="">No category</option>
                       {ledgerCategories(ledger).map((c) => (
-                        <option key={c.id} value={c.id}>{c.icon} {c.label}</option>
+                        <option key={c.id} value={c.id}>{c.label}</option>
                       ))}
                     </select>
                   </div>
@@ -14195,12 +14269,13 @@ function LedgerDetail({
                           onClick={() => setCatFilter(on ? null : cid)}
                           style={{
                             padding: "4px 11px", borderRadius: "20px", fontFamily: "inherit", fontSize: "11px", fontWeight: 700, cursor: "pointer",
-                            border: `1.5px solid ${on ? "var(--accent)" : "var(--border)"}`,
-                            background: on ? "var(--accent-light)" : "white",
-                            color: on ? "var(--accent)" : "var(--text3)",
+                            display: "inline-flex", alignItems: "center", gap: "6px",
+                            border: `1.5px solid ${on ? c.color : "var(--border)"}`,
+                            background: on ? c.color + "22" : "white",
+                            color: on ? "var(--text)" : "var(--text3)",
                           }}
                         >
-                          {c.icon} {c.label}
+                          <CatDot color={c.color} /> {c.label}
                         </button>
                       );
                     })}
@@ -14322,7 +14397,7 @@ function LedgerDetail({
                             {fmtDate(exp.expense_date)}
                           </div>
                           <div className="exp-info">
-                            <div className="exp-desc">{findCategory(ledger, exp.category) && <span title={findCategory(ledger, exp.category).label} style={{ marginRight: "5px" }}>{findCategory(ledger, exp.category).icon}</span>}{exp.description}{exp.edited_at && <span style={{ fontSize: "10px", fontWeight: 700, padding: "1px 7px", borderRadius: "20px", background: "#eef2ff", color: "#4f46e5", marginLeft: "6px", verticalAlign: "middle" }}>edited</span>}</div>
+                            <div className="exp-desc">{findCategory(ledger, exp.category) && <span title={findCategory(ledger, exp.category).label} style={{ marginRight: "6px", display: "inline-flex", verticalAlign: "middle" }}><CatDot color={findCategory(ledger, exp.category).color} size={10} /></span>}{exp.description}{exp.edited_at && <span style={{ fontSize: "10px", fontWeight: 700, padding: "1px 7px", borderRadius: "20px", background: "#eef2ff", color: "#4f46e5", marginLeft: "6px", verticalAlign: "middle" }}>edited</span>}</div>
                             <div className="exp-meta">
                               {isPayout ? (
                                 <span
@@ -18184,7 +18259,7 @@ function LedgerStatsOverview({ ledgers, currentUser, onUpdateLedger }) {
                     .forEach((e) => {
                       const c = findCategory(l, e.category);
                       const key = c ? c.label : "Uncategorized";
-                      if (!totals[key]) totals[key] = { label: key, icon: c?.icon || "•", color: c?.color || "#9ca3af", sum: 0 };
+                      if (!totals[key]) totals[key] = { label: key, color: c?.color || "#9ca3af", sum: 0 };
                       totals[key].sum += e.amount;
                     });
                 });
@@ -18200,7 +18275,7 @@ function LedgerStatsOverview({ ledgers, currentUser, onUpdateLedger }) {
                       {list.map((x) => (
                         <div key={x.label} style={{ fontSize: "12px" }}>
                           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "3px", color: "var(--text2)" }}>
-                            <span>{x.icon} {x.label}</span>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}><CatDot color={x.color} /> {x.label}</span>
                             <span style={{ fontFamily: "var(--mono)", fontWeight: 700 }}>{fmtAmt(x.sum)}</span>
                           </div>
                           <div style={{ height: "6px", background: "var(--bg2)", borderRadius: "3px" }}>
