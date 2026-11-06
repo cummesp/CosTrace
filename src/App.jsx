@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.133 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
+  "%cCOSTRACE BUILD v5.134 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -14380,11 +14380,15 @@ function LedgerDetail({
                             cursor: "pointer",
                             background: isPayout
                               ? "#fffbeb"
+                              : (rowClass === "row-approved" && findCategory(ledger, exp.category))
+                              ? findCategory(ledger, exp.category).color + "33"
                               : isNew
                               ? "#eff6ff"
                               : undefined,
                             borderLeft: isPayout
                               ? "3px solid #d97706"
+                              : (rowClass === "row-approved" && findCategory(ledger, exp.category))
+                              ? "3px solid " + findCategory(ledger, exp.category).color
                               : isNew
                               ? "3px solid #93c5fd"
                               : undefined,
@@ -14397,7 +14401,7 @@ function LedgerDetail({
                             {fmtDate(exp.expense_date)}
                           </div>
                           <div className="exp-info">
-                            <div className="exp-desc">{findCategory(ledger, exp.category) && <span title={findCategory(ledger, exp.category).label} style={{ marginRight: "6px", display: "inline-flex", verticalAlign: "middle" }}><CatDot color={findCategory(ledger, exp.category).color} size={10} /></span>}{exp.description}{exp.edited_at && <span style={{ fontSize: "10px", fontWeight: 700, padding: "1px 7px", borderRadius: "20px", background: "#eef2ff", color: "#4f46e5", marginLeft: "6px", verticalAlign: "middle" }}>edited</span>}</div>
+                            <div className="exp-desc">{exp.description}{exp.edited_at && <span style={{ fontSize: "10px", fontWeight: 700, padding: "1px 7px", borderRadius: "20px", background: "#eef2ff", color: "#4f46e5", marginLeft: "6px", verticalAlign: "middle" }}>edited</span>}</div>
                             <div className="exp-meta">
                               {isPayout ? (
                                 <span
