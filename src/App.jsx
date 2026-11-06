@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.134 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
+  "%cCOSTRACE BUILD v5.135 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -2874,16 +2874,16 @@ function pairwiseDebts(balances) {
 
 // ── Expense categories (Regular: preset list, Gold: + own categories) ──────
 const DEFAULT_CATEGORIES = [
-  { id: "food", label: "Food", color: "#7fa38f" },
-  { id: "eating_out", label: "Eating out", color: "#d9b98a" },
-  { id: "home", label: "Home & rent", color: "#8aa1c4" },
-  { id: "bills", label: "Bills", color: "#bfa6c9" },
-  { id: "transport", label: "Transport", color: "#6fb1b5" },
-  { id: "health", label: "Health", color: "#a8c686" },
-  { id: "shopping", label: "Shopping", color: "#9a8fc4" },
-  { id: "pets", label: "Pets", color: "#b89a7a" },
-  { id: "fun", label: "Fun", color: "#d6c46f" },
-  { id: "travel", label: "Travel", color: "#7fb5d8" },
+  { id: "food", label: "Food", color: "#78b08a" },
+  { id: "eating_out", label: "Eating out", color: "#e8a25c" },
+  { id: "home", label: "Home & rent", color: "#7a86d6" },
+  { id: "bills", label: "Bills", color: "#b58ad6" },
+  { id: "transport", label: "Transport", color: "#4fa89a" },
+  { id: "health", label: "Health", color: "#a9c95b" },
+  { id: "shopping", label: "Shopping", color: "#d08ab8" },
+  { id: "pets", label: "Pets", color: "#9c7b5b" },
+  { id: "fun", label: "Fun", color: "#e3d05a" },
+  { id: "travel", label: "Travel", color: "#62b0e8" },
   { id: "other", label: "Other", color: "#a3a9b0" },
 ];
 // "none" | "preset" | "custom"
@@ -2901,8 +2901,8 @@ const ledgerCategories = (ledger) => {
   ];
 };
 const CATEGORY_PALETTE = [
-  "#7fa38f", "#a8c686", "#d6c46f", "#d9b98a", "#b89a7a", "#6fb1b5",
-  "#7fb5d8", "#8aa1c4", "#9a8fc4", "#bfa6c9", "#a3a9b0", "#6b7280",
+  "#78b08a", "#a9c95b", "#e3d05a", "#e8a25c", "#9c7b5b", "#4fa89a",
+  "#62b0e8", "#7a86d6", "#b58ad6", "#d08ab8", "#a3a9b0", "#5b6470",
 ];
 function withCategoryColor(ledger, id, color) {
   const list = ledger.categories || [];
@@ -2936,6 +2936,102 @@ function rememberedCategory(ledger, desc) {
     if (!best || new Date(e.expense_date) >= new Date(best.expense_date)) best = e;
   }
   return best?.category || null;
+}
+
+// Categories & colours — opened from the chip row above the expense list.
+function CategoryManagerModal({ ledger, access, onSave, onClose }) {
+  const [name, setName] = useState("");
+  const [color, setColor] = useState(CATEGORY_PALETTE[0]);
+  const used = new Set((ledger.expenses || []).map((e) => e.category).filter(Boolean));
+  return (
+    <div className="modal-overlay">
+      <div className="modal">
+        <div className="modal-header">
+          <h2>Categories &amp; colours</h2>
+          <button className="btn-icon" onClick={onClose}>
+            <Icon.X />
+          </button>
+        </div>
+        <div className="modal-body">
+          <p className="tip" style={{ marginTop: 0 }}>
+            Pick a colour for each category. Colours are shared with everyone in this ledger, and changing one does not mark any expense as edited.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {ledgerCategories(ledger).map((c) => (
+              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "7px", width: "110px", fontSize: "13px", fontWeight: 700, color: "var(--text2)" }}>
+                  <CatDot color={c.color} size={11} /> {c.label}
+                </span>
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                  {CATEGORY_PALETTE.map((col) => (
+                    <button
+                      key={col}
+                      onClick={() => onSave(withCategoryColor(ledger, c.id, col))}
+                      aria-label={col}
+                      style={{
+                        width: "22px", height: "22px", borderRadius: "50%", background: col, cursor: "pointer", padding: 0,
+                        border: c.color === col ? "2.5px solid var(--text)" : "2px solid white",
+                        boxShadow: "0 0 0 1px var(--border)",
+                      }}
+                    />
+                  ))}
+                </div>
+                {c.id.startsWith("c_") && !used.has(c.id) && (
+                  <button
+                    onClick={() => onSave((ledger.categories || []).filter((x) => x.id !== c.id))}
+                    style={{ background: "none", border: "none", color: "var(--text3)", cursor: "pointer", fontSize: "11px", fontFamily: "inherit" }}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          {access === "custom" && (
+            <div style={{ marginTop: "18px", paddingTop: "14px", borderTop: "1px solid var(--border)" }}>
+              <label style={{ fontSize: "12px", fontWeight: 700 }}>New category (Gold)</label>
+              <div style={{ display: "flex", gap: "8px", marginTop: "6px", flexWrap: "wrap", alignItems: "center" }}>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Kids, Subscriptions"
+                  style={{ flex: 1, minWidth: "150px", padding: "7px 10px", fontSize: "13px" }}
+                />
+                <div style={{ display: "flex", gap: "5px" }}>
+                  {CATEGORY_PALETTE.slice(0, 8).map((col) => (
+                    <button
+                      key={col}
+                      onClick={() => setColor(col)}
+                      aria-label={col}
+                      style={{
+                        width: "20px", height: "20px", borderRadius: "50%", background: col, cursor: "pointer", padding: 0,
+                        border: color === col ? "2.5px solid var(--text)" : "2px solid white",
+                        boxShadow: "0 0 0 1px var(--border)",
+                      }}
+                    />
+                  ))}
+                </div>
+                <button
+                  className="btn btn-primary"
+                  style={{ fontSize: "12px", padding: "7px 14px" }}
+                  disabled={!name.trim()}
+                  onClick={() => {
+                    onSave([
+                      ...(ledger.categories || []),
+                      { id: `c_${Date.now().toString(36)}`, label: name.trim().slice(0, 24), color },
+                    ]);
+                    setName("");
+                  }}
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // Builds "Debt paid" settlement entries for the given locked months of one
@@ -12644,6 +12740,7 @@ function LedgerDetail({
   const [showExpense, setShowExpense] = useState(false);
   const [detailTab, setDetailTab] = useState("all"); // "all" | "expenses" | "payouts"
   const [catFilter, setCatFilter] = useState(null);
+  const [showCatManager, setShowCatManager] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [lockConfirm, setLockConfirm] = useState(false);
   const [approvalExp, setApprovalExp] = useState(null);
@@ -14257,7 +14354,7 @@ function LedgerDetail({
                     </button>
                   ))}
                 </div>
-                {catAccessList !== "none" && catsInUse.length > 0 && (
+                {catAccessList !== "none" && (
                   <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "12px" }}>
                     {catsInUse.map((cid) => {
                       const c = findCategory(ledger, cid);
@@ -14279,6 +14376,15 @@ function LedgerDetail({
                         </button>
                       );
                     })}
+                    <button
+                      onClick={() => setShowCatManager(true)}
+                      style={{
+                        padding: "4px 11px", borderRadius: "20px", fontFamily: "inherit", fontSize: "11px", fontWeight: 700, cursor: "pointer",
+                        border: "1.5px dashed var(--border)", background: "white", color: "var(--text3)",
+                      }}
+                    >
+                      Categories &amp; colours
+                    </button>
                   </div>
                 )}
 
@@ -14381,7 +14487,7 @@ function LedgerDetail({
                             background: isPayout
                               ? "#fffbeb"
                               : (rowClass === "row-approved" && findCategory(ledger, exp.category))
-                              ? findCategory(ledger, exp.category).color + "33"
+                              ? findCategory(ledger, exp.category).color + "4d"
                               : isNew
                               ? "#eff6ff"
                               : undefined,
@@ -14622,6 +14728,14 @@ function LedgerDetail({
         </div>
       )}
 
+      {showCatManager && (
+        <CategoryManagerModal
+          ledger={ledger}
+          access={categoryAccess(plan)}
+          onSave={(cats) => onUpdate({ ...ledger, categories: cats })}
+          onClose={() => setShowCatManager(false)}
+        />
+      )}
       {showExpense && (
         <AddExpenseModal
           ledger={ledger}
@@ -22423,7 +22537,9 @@ export default function App() {
           label: `Edit in "${owner.name}"`,
         });
     }
-    const editedAt = new Date().toISOString();
+    // Re-colouring/re-categorising is only a visual change, not an edit
+    const onlyCategory = Object.keys(changes).every((k) => k === "category");
+    const editedAt = onlyCategory ? null : new Date().toISOString();
     const oldExp = ledgers.flatMap((l) => l.expenses).find((e) => e.id === id);
     const amountChanged =
       changes.amount !== undefined && oldExp && Math.abs(changes.amount - oldExp.amount) > 0.001;
@@ -22446,7 +22562,7 @@ export default function App() {
         ...l,
         expenses: l.expenses.map((e) =>
           e.id === id
-            ? { ...e, ...changes, edited_at: editedAt, ...(newSplits ? { splits: newSplits } : {}) }
+            ? { ...e, ...changes, ...(editedAt ? { edited_at: editedAt } : {}), ...(newSplits ? { splits: newSplits } : {}) }
             : e
         ),
       }))
@@ -22454,16 +22570,16 @@ export default function App() {
     if (ENV !== "production") return;
     let { error } = await sb
       .from("expenses")
-      .update({ ...changes, edited_at: editedAt })
+      .update(editedAt ? { ...changes, edited_at: editedAt } : changes)
       .eq("id", id);
-    if (error?.message?.includes("edited_at")) {
+    if (editedAt && error?.message?.includes("edited_at")) {
       console.warn("expenses.edited_at column missing — saving without the edited stamp");
       ({ error } = await sb.from("expenses").update(changes).eq("id", id));
     }
     if (error?.message?.includes("category")) {
       console.warn("expenses.category column missing — saving without category");
       const { category: _c, ...noCat } = changes;
-      ({ error } = await sb.from("expenses").update({ ...noCat, edited_at: editedAt }).eq("id", id));
+      ({ error } = await sb.from("expenses").update(editedAt ? { ...noCat, edited_at: editedAt } : noCat).eq("id", id));
     }
     if (error) {
       notify("error", "Couldn't save changes", error.message, "");
