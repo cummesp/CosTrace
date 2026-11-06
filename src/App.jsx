@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.132 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
+  "%cCOSTRACE BUILD v5.133 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -2874,17 +2874,17 @@ function pairwiseDebts(balances) {
 
 // ── Expense categories (Regular: preset list, Gold: + own categories) ──────
 const DEFAULT_CATEGORIES = [
-  { id: "food", label: "Food", color: "#16a34a" },
-  { id: "eating_out", label: "Eating out", color: "#ea580c" },
-  { id: "home", label: "Home & rent", color: "#2563eb" },
-  { id: "bills", label: "Bills", color: "#ca8a04" },
-  { id: "transport", label: "Transport", color: "#0891b2" },
-  { id: "health", label: "Health", color: "#dc2626" },
-  { id: "shopping", label: "Shopping", color: "#c026d3" },
-  { id: "pets", label: "Pets", color: "#b45309" },
-  { id: "fun", label: "Fun", color: "#7c3aed" },
-  { id: "travel", label: "Travel", color: "#0d9488" },
-  { id: "other", label: "Other", color: "#6b7280" },
+  { id: "food", label: "Food", color: "#7fa38f" },
+  { id: "eating_out", label: "Eating out", color: "#d9b98a" },
+  { id: "home", label: "Home & rent", color: "#8aa1c4" },
+  { id: "bills", label: "Bills", color: "#bfa6c9" },
+  { id: "transport", label: "Transport", color: "#6fb1b5" },
+  { id: "health", label: "Health", color: "#a8c686" },
+  { id: "shopping", label: "Shopping", color: "#9a8fc4" },
+  { id: "pets", label: "Pets", color: "#b89a7a" },
+  { id: "fun", label: "Fun", color: "#d6c46f" },
+  { id: "travel", label: "Travel", color: "#7fb5d8" },
+  { id: "other", label: "Other", color: "#a3a9b0" },
 ];
 // "none" | "preset" | "custom"
 const categoryAccess = (plan) =>
@@ -2901,8 +2901,8 @@ const ledgerCategories = (ledger) => {
   ];
 };
 const CATEGORY_PALETTE = [
-  "#16a34a", "#0d9488", "#0891b2", "#2563eb", "#7c3aed", "#c026d3",
-  "#dc2626", "#ea580c", "#ca8a04", "#b45309", "#6b7280", "#111827",
+  "#7fa38f", "#a8c686", "#d6c46f", "#d9b98a", "#b89a7a", "#6fb1b5",
+  "#7fb5d8", "#8aa1c4", "#9a8fc4", "#bfa6c9", "#a3a9b0", "#6b7280",
 ];
 function withCategoryColor(ledger, id, color) {
   const list = ledger.categories || [];
