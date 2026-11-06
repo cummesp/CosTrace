@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Purchases, ErrorCode } from "@revenuecat/purchases-js";
 
 console.log(
-  "%cCOSTRACE BUILD v5.136 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
+  "%cCOSTRACE BUILD v5.138 2026-09-15 (fix: join_requests wasn't being created — the row-id lookup right after insert was itself hitting an RLS rejection; now matched by context+email instead)",
   "background:#111;color:#42C3E6;font-weight:bold;padding:4px 8px;border-radius:4px;"
 );
 
@@ -2905,6 +2905,14 @@ const CATEGORY_PALETTE = [
   "#78b08a", "#a9c95b", "#e3d05a", "#e8a25c", "#9c7b5b", "#4fa89a",
   "#62b0e8", "#7a86d6", "#b58ad6", "#d08ab8", "#a3a9b0", "#5b6470",
 ];
+// "none" = a category that keeps its name (filters, stats) but doesn't tint the row.
+const CATEGORY_SWATCHES = [...CATEGORY_PALETTE, "none"];
+const CATEGORY_SWATCHES_SHORT = [...CATEGORY_PALETTE.slice(0, 8), "none"];
+const swatchBg = (col) =>
+  col === "none"
+    ? { background: "linear-gradient(135deg, white 44%, #9ca3af 44%, #9ca3af 56%, white 56%)" }
+    : { background: col };
+const hasTint = (c) => !!c && c.color && c.color !== "none";
 function withCategoryColor(ledger, id, color) {
   const list = ledger.categories || [];
   if (id.startsWith("c_")) return list.map((c) => (c.id === id ? { ...c, color } : c));
@@ -2916,7 +2924,9 @@ function CatDot({ color, size = 9 }) {
     <span
       style={{
         display: "inline-block", width: size, height: size, borderRadius: "50%",
-        background: color || "#9ca3af", flexShrink: 0,
+        background: color === "none" ? "transparent" : color || "#9ca3af",
+        border: color === "none" ? "1.5px solid #9ca3af" : "none",
+        boxSizing: "border-box", flexShrink: 0,
       }}
     />
   );
@@ -2937,6 +2947,49 @@ function rememberedCategory(ledger, desc) {
     if (!best || new Date(e.expense_date) >= new Date(best.expense_date)) best = e;
   }
   return best?.category || null;
+}
+
+// Month's spending by category for one ledger (desktop: right below the statement).
+function CategorySpendingCard({ ledger, monthExpenses, currency, month }) {
+  const totals = {};
+  monthExpenses
+    .filter((e) => e.approval_status === "approved" && !e.is_settlement && !e.is_payout)
+    .forEach((e) => {
+      const c = findCategory(ledger, e.category);
+      const key = c ? c.label : "Uncategorized";
+      if (!totals[key]) totals[key] = { label: key, color: hasTint(c) ? c.color : "#9ca3af", hollow: !!c && !hasTint(c), sum: 0 };
+      totals[key].sum += e.amount;
+    });
+  const list = Object.values(totals).sort((a, b) => b.sum - a.sum);
+  if (!list.some((x) => x.label !== "Uncategorized")) return null;
+  const grand = list.reduce((sum, x) => sum + x.sum, 0) || 1;
+  return (
+    <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "12px", padding: "14px 16px", marginTop: "14px" }}>
+      <div style={{ fontSize: "12px", fontWeight: "700", color: "var(--text2)", marginBottom: "10px" }}>
+        Spending by category — {mlbl(month)}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: "7px" }}>
+        {list.map((x) => (
+          <div key={x.label} style={{ fontSize: "12px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "3px", color: "var(--text2)" }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                <CatDot color={x.hollow ? "none" : x.color} /> {x.label}
+              </span>
+              <span style={{ fontFamily: "var(--mono)", fontWeight: 700 }}>
+                {fmtAmt(x.sum)} {currency}
+                <span style={{ color: "var(--text3)", fontWeight: 600, marginLeft: "6px" }}>
+                  {Math.round((x.sum / grand) * 100)}%
+                </span>
+              </span>
+            </div>
+            <div style={{ height: "6px", background: "var(--bg2)", borderRadius: "3px" }}>
+              <div style={{ height: "6px", width: `${(x.sum / list[0].sum) * 100}%`, background: x.color, borderRadius: "3px" }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 // Categories & colours — opened from the chip row above the expense list.
@@ -2964,13 +3017,13 @@ function CategoryManagerModal({ ledger, access, onSave, onClose }) {
                   <CatDot color={c.color} size={11} /> {c.label}
                 </span>
                 <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                  {CATEGORY_PALETTE.map((col) => (
+                  {CATEGORY_SWATCHES.map((col) => (
                     <button
                       key={col}
                       onClick={() => onSave(withCategoryColor(ledger, c.id, col))}
                       aria-label={col}
                       style={{
-                        width: "22px", height: "22px", borderRadius: "50%", background: col, cursor: "pointer", padding: 0,
+                        width: "22px", height: "22px", borderRadius: "50%", ...swatchBg(col), cursor: "pointer", padding: 0,
                         border: c.color === col ? "2.5px solid var(--text)" : "2px solid white",
                         boxShadow: "0 0 0 1px var(--border)",
                       }}
@@ -2999,13 +3052,13 @@ function CategoryManagerModal({ ledger, access, onSave, onClose }) {
                   style={{ flex: 1, minWidth: "150px", padding: "7px 10px", fontSize: "13px" }}
                 />
                 <div style={{ display: "flex", gap: "5px" }}>
-                  {CATEGORY_PALETTE.slice(0, 8).map((col) => (
+                  {CATEGORY_SWATCHES_SHORT.map((col) => (
                     <button
                       key={col}
                       onClick={() => setColor(col)}
                       aria-label={col}
                       style={{
-                        width: "20px", height: "20px", borderRadius: "50%", background: col, cursor: "pointer", padding: 0,
+                        width: "20px", height: "20px", borderRadius: "50%", ...swatchBg(col), cursor: "pointer", padding: 0,
                         border: color === col ? "2.5px solid var(--text)" : "2px solid white",
                         boxShadow: "0 0 0 1px var(--border)",
                       }}
@@ -6299,8 +6352,8 @@ function LedgerSettingsModal({
                       style={{
                         padding: "5px 11px", borderRadius: "20px", fontFamily: "inherit", fontSize: "12px", fontWeight: 700, cursor: "pointer",
                         display: "inline-flex", alignItems: "center", gap: "6px",
-                        border: `1.5px solid ${category === c.id ? c.color : "var(--border)"}`,
-                        background: category === c.id ? c.color + "22" : "white",
+                        border: `1.5px solid ${category === c.id ? (hasTint(c) ? c.color : "var(--text3)") : "var(--border)"}`,
+                        background: category === c.id ? (hasTint(c) ? c.color + "22" : "var(--bg2)") : "white",
                         color: "var(--text2)",
                       }}
                     >
@@ -6335,14 +6388,14 @@ function LedgerSettingsModal({
                         <div key={c.id} style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                           <span style={{ width: "92px", fontSize: "12px", fontWeight: 700, color: "var(--text2)" }}>{c.label}</span>
                           <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
-                            {CATEGORY_PALETTE.map((col) => (
+                            {CATEGORY_SWATCHES.map((col) => (
                               <button
                                 type="button"
                                 key={col}
                                 onClick={() => onSaveCategories(withCategoryColor(ledger, c.id, col))}
                                 aria-label={col}
                                 style={{
-                                  width: "20px", height: "20px", borderRadius: "50%", background: col, cursor: "pointer", padding: 0,
+                                  width: "20px", height: "20px", borderRadius: "50%", ...swatchBg(col), cursor: "pointer", padding: 0,
                                   border: c.color === col ? "2.5px solid var(--text)" : "2px solid white",
                                   boxShadow: "0 0 0 1px var(--border)",
                                 }}
@@ -6362,14 +6415,14 @@ function LedgerSettingsModal({
                         style={{ flex: 1, minWidth: "140px", padding: "6px 10px", fontSize: "12px" }}
                       />
                       <div style={{ display: "flex", gap: "4px" }}>
-                        {CATEGORY_PALETTE.slice(0, 8).map((col) => (
+                        {CATEGORY_SWATCHES_SHORT.map((col) => (
                           <button
                             type="button"
                             key={col}
                             onClick={() => setNewCatColor(col)}
                             aria-label={col}
                             style={{
-                              width: "18px", height: "18px", borderRadius: "50%", background: col, cursor: "pointer", padding: 0,
+                              width: "18px", height: "18px", borderRadius: "50%", ...swatchBg(col), cursor: "pointer", padding: 0,
                               border: newCatColor === col ? "2.5px solid var(--text)" : "2px solid white",
                               boxShadow: "0 0 0 1px var(--border)",
                             }}
@@ -14277,6 +14330,14 @@ function LedgerDetail({
             currency={currency}
             onSettleMonths={addExpenses}
           />
+          {isDesktop && categoryAccess(plan) !== "none" && (
+            <CategorySpendingCard
+              ledger={ledger}
+              monthExpenses={monthExpenses}
+              currency={currency}
+              month={activeMonth}
+            />
+          )}
         </div>
 
         {/* View filter — All / Expenses / Payouts */}
@@ -14368,8 +14429,8 @@ function LedgerDetail({
                           style={{
                             padding: "4px 11px", borderRadius: "20px", fontFamily: "inherit", fontSize: "11px", fontWeight: 700, cursor: "pointer",
                             display: "inline-flex", alignItems: "center", gap: "6px",
-                            border: `1.5px solid ${on ? c.color : "var(--border)"}`,
-                            background: on ? c.color + "22" : "white",
+                            border: `1.5px solid ${on ? (hasTint(c) ? c.color : "var(--text3)") : "var(--border)"}`,
+                            background: on ? (hasTint(c) ? c.color + "22" : "var(--bg2)") : "white",
                             color: on ? "var(--text)" : "var(--text3)",
                           }}
                         >
@@ -14487,14 +14548,14 @@ function LedgerDetail({
                             cursor: "pointer",
                             background: isPayout
                               ? "#fffbeb"
-                              : (rowClass === "row-approved" && findCategory(ledger, exp.category))
+                              : (rowClass === "row-approved" && hasTint(findCategory(ledger, exp.category)))
                               ? findCategory(ledger, exp.category).color + "4d"
                               : isNew
                               ? "#eff6ff"
                               : undefined,
                             borderLeft: isPayout
                               ? "3px solid #d97706"
-                              : (rowClass === "row-approved" && findCategory(ledger, exp.category))
+                              : (rowClass === "row-approved" && hasTint(findCategory(ledger, exp.category)))
                               ? "3px solid " + findCategory(ledger, exp.category).color
                               : isNew
                               ? "3px solid #93c5fd"
@@ -18378,7 +18439,7 @@ function LedgerStatsOverview({ ledgers, currentUser, onUpdateLedger }) {
                     .forEach((e) => {
                       const c = findCategory(l, e.category);
                       const key = c ? c.label : "Uncategorized";
-                      if (!totals[key]) totals[key] = { label: key, color: c?.color || "#9ca3af", sum: 0 };
+                      if (!totals[key]) totals[key] = { label: key, color: hasTint(c) ? c.color : "#9ca3af", sum: 0 };
                       totals[key].sum += e.amount;
                     });
                 });
